@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: Copyright Logically Magic Inc. <hello@logicallymagic.com>
+# SPDX-FileCopyrightText: Copyright Hamid Jahanzad <Hamid@Jahanzad.com>
+# SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "sentin8-errors"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Normalized error types, error codes, and HTTP status mapping for all Sentin8 services."
+
+[dependencies]
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+http = "1"
+anyhow.workspace = true

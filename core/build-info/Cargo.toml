@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright Logically Magic Inc. <hello@logicallymagic.com>
+# SPDX-FileCopyrightText: Copyright Hamid Jahanzad <Hamid@Jahanzad.com>
+# SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "sentin8-build-info"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Compile-time build hash for Sentin8 binaries (env var → git → CARGO_PKG_VERSION fallback)."
+
+[dependencies]

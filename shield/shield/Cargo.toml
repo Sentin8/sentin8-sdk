@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: Copyright Logically Magic Inc. <hello@logicallymagic.com>
+# SPDX-FileCopyrightText: Copyright Hamid Jahanzad <Hamid@Jahanzad.com>
+# SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "sentin8-shield"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Sentin8:Policy — declarative authorization (Shield, embedded). Implements authorization-pipeline step 5."
+
+[dependencies]
+# Boot-full helper (runtime::boot_full) surfaces load failures as anyhow
+# errors — shell boot aborts fail-closed (policy design §3.3).
+anyhow.workspace = true
+# Embedded Shield engine — pure Rust, no sidecar. Rationale: the only attribute/
+# relationship policy engine that links in-process (see design §2 decision record).
+# The engine crate is aliased `shield` here and re-exported as
+# `sentin8_shield::shield` — the vendor package name appears ONLY in this
+# mapping (build metadata), never in code, prose, or UI (policy design §0).
+shield = { version = "4.12", package = "cedar-policy" }
+# Shared runtime glue: hot-reload consumer (bus-client direct consumer) +
+# event envelope writer (inbox-first via sentin8-outbox) + the consolidated
+# per-service bridge (engine_for / policy_bus_client / check_policy).
+sentin8-bus-client = { workspace = true }
+sentin8-bus-contracts = { workspace = true }
+sentin8-outbox = { workspace = true }
+sentin8-config = { workspace = true }
+sentin8-auth-client = { workspace = true }
+# Telemetry transport (SDD §2.3): policy decision + metric frames
+# publish to MemBus `stat:telemetry` Pub/Sub — no service-scoped client.
+sentin8-membus = { workspace = true }
+# SSE hot-reload consumer: reads the bus stream body incrementally
+# (`bytes_stream` — requires reqwest's `stream` feature; declared here so
+# the crate compiles standalone, not only under workspace feature
+# unification).
+futures-util = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true, features = ["stream"] }
+arc-swap = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+sentin8-tls.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

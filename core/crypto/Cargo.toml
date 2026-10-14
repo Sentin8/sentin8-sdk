@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright Logically Magic Inc. <hello@logicallymagic.com>
+# SPDX-FileCopyrightText: Copyright Hamid Jahanzad <Hamid@Jahanzad.com>
+# SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "sentin8-crypto"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Sentin8 — at-rest secret encryption (AES-256-GCM envelope) shared by Auth and verticals."
+
+[dependencies]
+aes-gcm.workspace = true
+base64.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+zeroize = "1"
+rand.workspace = true
+
+[dev-dependencies]

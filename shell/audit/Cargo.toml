@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: Copyright Logically Magic Inc. <hello@logicallymagic.com>
+# SPDX-FileCopyrightText: Copyright Hamid Jahanzad <Hamid@Jahanzad.com>
+# SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "sentin8-audit"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Audit event envelope and emitter interface for Sentin8 services."
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+async-trait = "0.1"
+sqlx.workspace = true
+reqwest.workspace = true
+# Journal push loop (architecture-principles §6.8): the spawned pusher
+# DCR-registers (or loads) the service's audit-push M2M client and pushes
+# `{service}.audit_journal` rows to Sys `POST /v1/audit`.
+tokio.workspace = true
+sentin8-m2m.workspace = true
+# Pooled PQ-TLS HTTP client for the journal push (`spawn_journal_pusher` —
+# one client per process; see the mtls helper in sentin8-middleware).
+sentin8-middleware.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+sentin8-config.workspace = true

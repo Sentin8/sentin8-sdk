@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: Copyright Logically Magic Inc. <hello@logicallymagic.com>
+# SPDX-FileCopyrightText: Copyright Hamid Jahanzad <Hamid@Jahanzad.com>
+# SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "sentin8"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Sentin8 Rust SDK — unified client library for all Sentin8 services (Sentin8:Auth, Bank8:Ledger, Bank8:Payments, Bank8:FDX, Sentin8:DB, Sentin8:Storage, Sentin8:Bus)."
+
+[dependencies]
+serde = { workspace = true }
+
+# Re-export the existing FAPI client (discovery-driven OAuth).
+sentin8-fapiclient = { workspace = true }
+
+# Namespace-facade re-exports (architecture-principles §2.1) — every
+# shared-plane crate is reachable as `sentin8::{leaf}` /
+# `sentin8::{domain}::{kind}`. Service SDK crates are NOT re-exported:
+# they live in their owner repos behind `sentin8-{svc}-sdk` mini-facades
+# (SDD §2.2 — the facade never pins a service repo, SDD-6).
+sentin8-audit = { workspace = true }
+sentin8-auth-client = { workspace = true }
+sentin8-build-info = { workspace = true }
+sentin8-config = { workspace = true }
+sentin8-crypto = { workspace = true }
+sentin8-errors = { workspace = true }
+sentin8-idempotency = { workspace = true }
+sentin8-jwt = { workspace = true }
+sentin8-m2m = { workspace = true }
+sentin8-workload-registry = { workspace = true }
+sentin8-membus = { workspace = true }
+sentin8-middleware = { workspace = true }
+sentin8-openapi = { workspace = true }
+sentin8-outbox = { workspace = true }
+sentin8-shield = { workspace = true }
+sentin8-registration = { workspace = true }
+sentin8-rfw = { workspace = true }
+sentin8-service-discovery = { workspace = true }
+sentin8-shell = { workspace = true }
+sentin8-tls = { workspace = true }
+sentin8-tls-contracts = { workspace = true }
+sentin8-bus-client = { workspace = true }
+sentin8-bus-contracts = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+mockito = "1"
+# Test-only: install the Graviola PQ provider (reqwest panics without one).
+sentin8-tls = { workspace = true }

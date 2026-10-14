@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Copyright Logically Magic Inc. <hello@logicallymagic.com>
+# SPDX-FileCopyrightText: Copyright Hamid Jahanzad <Hamid@Jahanzad.com>
+# SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "sentin8-shell"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Sentin8 shared service shell — canonical boot sequence + request helpers for all platform and vertical services."
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+dotenvy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+# Valkey certificate identity (group DESIGN.md §3.1): the shell mints-or-
+# loads the service's workload pair before the first Valkey consumer.
+sentin8-m2m.workspace = true
+
+sentin8-config.workspace = true
+# CAPTAIN-10 — the health payload carries the build hash alongside version.
+sentin8-build-info.workspace = true
+sentin8-middleware.workspace = true
+sentin8-tls.workspace = true
+sentin8-auth-client.workspace = true
+# Shared policy-admin mount helper (Phase 28 §3.6 — one surface for every
+# service that boots on the shell; handlers are generic over ServiceCore).
+sentin8-shield.workspace = true
+sentin8-openapi.workspace = true
+# DBX producer path (§6.7): the shell spawns every service's local-outbox
+# relay (build_with_dcr + sentin8_outbox::spawn_relay) at boot step 8b.
+sentin8-bus-client.workspace = true
+sentin8-outbox.workspace = true
+# Audit-journal push loop (§6.8, CC-1): every shell-booted service pushes
+# its local `{service}.audit_journal` rows to Sys POST /v1/audit.
+sentin8-audit.workspace = true
+utoipa.workspace = true

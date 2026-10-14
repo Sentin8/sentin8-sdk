@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright Logically Magic Inc. <hello@logicallymagic.com>
+# SPDX-FileCopyrightText: Copyright Hamid Jahanzad <Hamid@Jahanzad.com>
+# SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "sentin8-openapi"
+version = "0.1.0"
+edition = "2021"
+description = "Shared OpenAPI spec generation for Sentin8 services (utoipa wrapper)"
+
+[dependencies]
+utoipa = "5"
+axum = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+tower.workspace = true
+serde_json.workspace = true
