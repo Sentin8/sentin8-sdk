@@ -708,9 +708,10 @@ where
             // Inline: 3 attempts, 2s apart — covers acme listening but slow
             // (fresh boot). The tier gate (acme Active BEFORE any service
             // spawns) makes the common case a single successful load.
-            let mut landed = sentin8_m2m::ensure_workload_certificate(&issuer, &service_type, &ca_path)
-                .await
-                .is_ok();
+            let mut landed =
+                sentin8_m2m::ensure_workload_certificate(&issuer, &service_type, &ca_path)
+                    .await
+                    .is_ok();
             for attempt in 0..3 {
                 if landed {
                     break;
@@ -774,7 +775,7 @@ where
             std::env::var("VALKEY_URL")
                 .ok()
                 .filter(|s| !s.trim().is_empty())
-                .unwrap_or_else(|| sentin8_config::service_valkey_url()),
+                .unwrap_or_else(sentin8_config::service_valkey_url),
             shell.service_type,
         );
     }
@@ -901,7 +902,7 @@ where
             std::env::var("VALKEY_URL")
                 .ok()
                 .filter(|s| !s.trim().is_empty())
-                .unwrap_or_else(|| sentin8_config::service_valkey_url()),
+                .unwrap_or_else(sentin8_config::service_valkey_url),
             10,
         );
     }

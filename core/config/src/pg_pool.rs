@@ -263,10 +263,8 @@ mod tests {
 
     #[test]
     fn rejects_plaintext_dsn() {
-        let err = connect_options_for(
-            "postgres://user@localhost:5432/sentin8?sslmode=disable",
-        )
-        .expect_err("plaintext DSN must be rejected");
+        let err = connect_options_for("postgres://user@localhost:5432/sentin8?sslmode=disable")
+            .expect_err("plaintext DSN must be rejected");
         assert!(err.to_string().contains("plaintext listener"));
     }
 }

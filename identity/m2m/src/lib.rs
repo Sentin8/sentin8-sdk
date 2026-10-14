@@ -90,9 +90,10 @@ pub async fn ensure_workload_certificate(
         return Ok(pair);
     }
     // First boot (or a corrupt pair): mint from Acme.
-    let (cert_pem, key_pem) = issue_client_certificate(sentin8_auth_base_url, workload, ca_cert_path)
-        .await
-        .map_err(M2mError::Cert)?;
+    let (cert_pem, key_pem) =
+        issue_client_certificate(sentin8_auth_base_url, workload, ca_cert_path)
+            .await
+            .map_err(M2mError::Cert)?;
     let (cert_path, key_path) = persist_cert_files(&cert_pem, &key_pem, workload);
     Ok(WorkloadCertificate {
         workload: workload.to_string(),
@@ -149,7 +150,10 @@ fn load_cert_pair(workload: &str, ca_cert_path: &str) -> Option<WorkloadCertific
         None => {
             // Unparsable validity: treat as corrupt (fail toward re-mint,
             // never toward serving an unverifiable identity).
-            tracing::warn!(workload, "M2M: persisted certificate validity unreadable — re-minting");
+            tracing::warn!(
+                workload,
+                "M2M: persisted certificate validity unreadable — re-minting"
+            );
             return None;
         }
     }
@@ -239,10 +243,7 @@ fn cert_der_not_after(der: &[u8]) -> Option<chrono::DateTime<chrono::Utc>> {
 fn parse_asn1_time(generalized: bool, body: &[u8]) -> Option<chrono::DateTime<chrono::Utc>> {
     let s = std::str::from_utf8(body).ok()?.trim_end_matches('Z');
     let (year, rest) = if generalized {
-        (
-            s.get(0..4)?.to_string(),
-            s.get(4..)?.to_string(),
-        )
+        (s.get(0..4)?.to_string(), s.get(4..)?.to_string())
     } else {
         // RFC 5280: UTCTime years 00-49 → 20xx, 50-99 → 19xx. The century
         // is a TWO-digit prefix (yy + 2000 / 1900 as a number), never a
@@ -264,17 +265,16 @@ fn parse_asn1_time(generalized: bool, body: &[u8]) -> Option<chrono::DateTime<ch
         rest.get(8..10)?.to_string(),
     );
     let (sec, frac_rem) = match se.find('.') {
-        Some(dot) => (se.get(0..dot)?.to_string(), Some(se.get(dot..)?.to_string())),
+        Some(dot) => (
+            se.get(0..dot)?.to_string(),
+            Some(se.get(dot..)?.to_string()),
+        ),
         None => (se.clone(), None),
     };
     let _ = frac_rem; // fractional seconds are dropped (second precision is ample)
-    chrono::NaiveDate::from_ymd_opt(
-        year.parse().ok()?,
-        mo.parse().ok()?,
-        da.parse().ok()?,
-    )?
-    .and_hms_opt(hh.parse().ok()?, mi.parse().ok()?, sec.parse().ok()?)
-    .map(|dt| dt.and_utc())
+    chrono::NaiveDate::from_ymd_opt(year.parse().ok()?, mo.parse().ok()?, da.parse().ok()?)?
+        .and_hms_opt(hh.parse().ok()?, mi.parse().ok()?, sec.parse().ok()?)
+        .map(|dt| dt.and_utc())
 }
 
 /// Acme base URL for a given auth issuer. Derives the platform domain form
@@ -356,8 +356,7 @@ async fn issue_client_certificate(
         }));
     }
 
-    split_combined_pem(&text)
-        .ok_or_else(|| "acme response is not a combined cert+key PEM".into())
+    split_combined_pem(&text).ok_or_else(|| "acme response is not a combined cert+key PEM".into())
 }
 
 /// Split a combined PEM (certificate chain blocks followed by the private
@@ -591,9 +590,7 @@ mod tests {
             der.extend_from_slice(time);
         }
         let b64 = base64::engine::general_purpose::STANDARD.encode(&der);
-        let pem = format!(
-            "-----BEGIN CERTIFICATE-----\n{b64}\n-----END CERTIFICATE-----\n"
-        );
+        let pem = format!("-----BEGIN CERTIFICATE-----\n{b64}\n-----END CERTIFICATE-----\n");
         let t = cert_pem_not_after(&pem).expect("not after");
         assert_eq!(t.to_rfc3339(), "2027-10-05T16:32:18+00:00");
     }

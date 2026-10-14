@@ -1432,7 +1432,10 @@ pub async fn verify_bearer_token(
         )
     })?;
 
-    Ok(AuthContext { claims, workload: None })
+    Ok(AuthContext {
+        claims,
+        workload: None,
+    })
 }
 
 /// Resolve a platform-workload identity from the TLS-injected certificate

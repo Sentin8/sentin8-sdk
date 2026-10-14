@@ -39,10 +39,10 @@ pub mod mtls;
 pub mod otel_tracing;
 pub mod rate_limit;
 pub mod recovery;
-pub mod valkey;
 pub mod shutdown;
 pub mod structured_logging;
 pub mod traffic_counter;
+pub mod valkey;
 
 pub use context::{sentin8_tls_context, TLSContext};
 pub use error_metrics::{init_tracing_with_metrics, spawn_publisher, ErrorMetricsLayer};
@@ -52,7 +52,6 @@ pub use http_client::{
 };
 pub use logging::{correlation_id, request_logging, CorrelationId};
 pub use recovery::recovery;
-pub use valkey::{valkey_client, valkey_client_pubsub, valkey_client_sync, ValkeyError};
 pub use shutdown::shutdown_signal;
 pub use structured_logging::{
     init_structured_logging, init_structured_logging_try, CorrelationIdMarker, Sentin8JsonLayer,
@@ -62,6 +61,7 @@ pub use traffic_counter::{
     process_active_connections, set_process_gauge, spawn_flush_loop, traffic_counter_layer,
     InFlightGuard, RequestCounter,
 };
+pub use valkey::{valkey_client, valkey_client_pubsub, valkey_client_sync, ValkeyError};
 
 // ── JWKS verifier ────────────────────────────────────────────────────────
 

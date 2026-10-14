@@ -294,10 +294,7 @@ async fn ping_sets_liveness_key() {
     .await
     .unwrap();
     use glide::AsyncCommands as _;
-    let exists: Option<bool> = conn
-        .exists("mbus:ping:membus-test")
-        .await
-        .unwrap();
+    let exists: Option<bool> = conn.exists("mbus:ping:membus-test").await.unwrap();
     assert!(exists.unwrap_or(false), "liveness key not set");
 }
 
@@ -315,5 +312,8 @@ async fn plaintext_scheme_rejected_at_connect() {
         trim_default: 100,
         metrics: Arc::new(NoopMetrics),
     };
-    assert!(matches!(MemBus::connect(cfg).await, Err(MemBusError::Connect(_))));
+    assert!(matches!(
+        MemBus::connect(cfg).await,
+        Err(MemBusError::Connect(_))
+    ));
 }

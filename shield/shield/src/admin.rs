@@ -587,9 +587,7 @@ where
         } else {
             body.token_tp.as_str()
         },
-        body.scopes
-            .join(" ")
-            .as_str(),
+        body.scopes.join(" ").as_str(),
     );
     ctx.roles = body.roles.iter().cloned().collect();
     let action = body.action.unwrap_or_else(|| format!("{}:read", s.service));

@@ -135,12 +135,7 @@ pub fn emit_metric_event(
     if !service.is_empty() {
         props.insert("service".to_string(), serde_json::json!(service));
     }
-    publish_frame(
-        event_name,
-        None,
-        metrics,
-        serde_json::Value::Object(props),
-    );
+    publish_frame(event_name, None, metrics, serde_json::Value::Object(props));
 }
 
 /// Serialize one telemetry frame (stat `EventEnvelope` shape) and publish
@@ -202,10 +197,7 @@ fn telemetry_frame(
     metrics: serde_json::Value,
     props: serde_json::Value,
 ) -> Vec<u8> {
-    let has_metrics = metrics
-        .as_object()
-        .map(|m| !m.is_empty())
-        .unwrap_or(false);
+    let has_metrics = metrics.as_object().map(|m| !m.is_empty()).unwrap_or(false);
     let frame = serde_json::json!({
         "event_id": uuid::Uuid::new_v4(),
         "client_id": PROPERTY_SLUG.get().cloned().unwrap_or_default(),

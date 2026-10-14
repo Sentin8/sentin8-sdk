@@ -50,8 +50,8 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use glide::GlideClient;
 use glide::AsyncCommands;
+use glide::GlideClient;
 use glide::PipelineExt;
 
 /// Default stream trim target (approximate `MAXLEN ~`), per family.
@@ -442,10 +442,7 @@ impl EnvBus {
             .subscribe(&[&channel])
             .await
             .map_err(|e| MemBusError::Valkey(e.to_string()))?;
-        Ok(PubSubscriber {
-            client,
-            channel,
-        })
+        Ok(PubSubscriber { client, channel })
     }
 }
 
@@ -467,11 +464,9 @@ impl PubSubscriber {
     /// disconnected are gone by contract.
     pub async fn next_frame(&mut self) -> Result<Option<Envelope>, MemBusError> {
         match self.client.get_pubsub_message().await {
-            Ok(msg) => {
-                Envelope::decode_frame(&msg.payload)
-                    .map(Some)
-                    .map_err(|e| MemBusError::Decode(e.to_string()))
-            }
+            Ok(msg) => Envelope::decode_frame(&msg.payload)
+                .map(Some)
+                .map_err(|e| MemBusError::Decode(e.to_string())),
             Err(e) => {
                 // A closed push channel surfaces as an error — treat it
                 // as the subscription end, not a bus failure.
@@ -487,7 +482,6 @@ impl PubSubscriber {
 /// the single construction path and it REQUIRES `valkeys://`.
 /// A plaintext scheme here is a configuration error surfaced as
 /// `MemBusError::Connect` at `connect` time — never a silent downgrade.
-
 #[cfg(test)]
 mod tests {
     use super::*;

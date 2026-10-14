@@ -161,8 +161,9 @@ pub fn open(key: &MasterKey, envelope: &[u8]) -> Result<Vec<u8>, CryptoError> {
     {
         return Err(CryptoError::Envelope("not a v2 envelope".into()));
     }
-    let nonce_bytes =
-        raw[ENVELOPE_PREFIX.len()..ENVELOPE_PREFIX.len() + NONCE_LEN].try_into().unwrap_or([0u8; NONCE_LEN]);
+    let nonce_bytes = raw[ENVELOPE_PREFIX.len()..ENVELOPE_PREFIX.len() + NONCE_LEN]
+        .try_into()
+        .unwrap_or([0u8; NONCE_LEN]);
     let ct = &raw[ENVELOPE_PREFIX.len() + NONCE_LEN..];
 
     let cipher =

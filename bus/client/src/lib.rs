@@ -123,12 +123,7 @@ impl BusClient {
         )
         .await
         .map_err(|e| BusError::Http(e.to_string()))?;
-        Self::with_workload_identity(
-            bus_url,
-            &cert.ca_cert_path,
-            &cert.cert_path,
-            &cert.key_path,
-        )
+        Self::with_workload_identity(bus_url, &cert.ca_cert_path, &cert.cert_path, &cert.key_path)
     }
 
     /// Trimmed base URL of the Bus server.
@@ -191,10 +186,7 @@ impl BusClient {
     /// response decoding failure. A 4xx status is [`BusError::Permanent`]
     /// — the request itself was rejected (ownership/env gates) and no
     /// retry can succeed.
-    pub async fn produce(
-        &self,
-        req: &ProduceRequest,
-    ) -> Result<ProduceResponse, BusError> {
+    pub async fn produce(&self, req: &ProduceRequest) -> Result<ProduceResponse, BusError> {
         let resp = self
             .http
             .post(self.url("/v1/produce"))
@@ -663,10 +655,7 @@ pub enum ExchangeError {
 /// Bus-side throttling is exactly the condition the retry budget exists
 /// for; parking rows at zero retries on a boot-window rate limit is the
 /// D4 defect class (RS §3), so they route to the retryable branch.
-async fn classify_produce_status(
-    status: reqwest::StatusCode,
-    resp: reqwest::Response,
-) -> BusError {
+async fn classify_produce_status(status: reqwest::StatusCode, resp: reqwest::Response) -> BusError {
     let body = resp.text().await.unwrap_or_default();
     if status.is_client_error() && status.as_u16() != 429 && status.as_u16() != 408 {
         BusError::Permanent {
@@ -706,7 +695,10 @@ mod tests {
     fn client_url_no_trailing_slash() {
         install_provider();
         let url = "https://bus.example.com";
-        assert_eq!(format!("{url}/v1/health"), "https://bus.example.com/v1/health");
+        assert_eq!(
+            format!("{url}/v1/health"),
+            "https://bus.example.com/v1/health"
+        );
     }
 
     // ── VDC-2 require_publisher (design/sentin8-vertical-data-plane-

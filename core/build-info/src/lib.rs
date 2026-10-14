@@ -61,13 +61,11 @@ pub const fn build_hash() -> &'static str {
 /// }
 /// ```
 pub const fn git_sha() -> Option<&'static str> {
-    // A pure Option match — const-legal. Content inspection (the empty-
-    // stamp equivalence) happens at runtime in [`version`]; `const` fns
-    // cannot compare `str` contents (PartialEq is not const yet).
-    match option_env!("SENTIN8_GIT_SHA") {
-        Some(sha) => Some(sha),
-        None => None,
-    }
+    // A pure Option identity — const-legal. Content inspection (the
+    // empty-stamp equivalence) happens at runtime in [`version`];
+    // `const` fns cannot compare `str` contents (PartialEq is not const
+    // yet).
+    option_env!("SENTIN8_GIT_SHA")
 }
 
 /// The effective build profile (`"release"` or `"debug"`).
@@ -209,7 +207,7 @@ mod tests {
     fn version_with_stamp_is_joined() {
         // When a stamp WAS injected, version() is `{version}+{sha}`.
         if let Some(sha) = git_sha() {
-            assert!(sha.contains('+') == false);
+            assert!(!sha.contains('+'));
             if !sha.is_empty() {
                 assert_eq!(version(), format!("{}+{}", env!("CARGO_PKG_VERSION"), sha));
             } else {

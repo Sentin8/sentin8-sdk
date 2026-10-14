@@ -1094,11 +1094,11 @@ pub fn dsn_database_name(dsn: &str) -> Option<String> {
 /// Derive the platform Valkey URL from the plane's coordinates
 /// (VALKEYDERIVE-1, group DESIGN.md §3.1).
 ///
-/// Under certificate identity a Valkey URL is PURE STRUCTURE — scheme
-/// + host + port; the client certificate authenticates and the
-/// per-workload ACL namespaces authorize (no secret component
-/// exists). Host/port come from `SENTIN8_VALKEY_HOST` /
-/// `SENTIN8_VALKEY_PORT`, defaulting to `localhost:6379`.
+/// Under certificate identity a Valkey URL is PURE STRUCTURE (scheme,
+/// host, and port); the client certificate authenticates and the
+/// per-workload ACL namespaces authorize (no secret component exists).
+/// Host/port come from `SENTIN8_VALKEY_HOST` / `SENTIN8_VALKEY_PORT`,
+/// defaulting to `localhost:6379`.
 ///
 /// The `/0` suffix is EXPLICIT-BUT-INERT: the SDK factory's
 /// `parse_host_port` discards the number and GLIDE connects at its
@@ -1118,10 +1118,8 @@ pub fn dsn_database_name(dsn: &str) -> Option<String> {
 ///     "valkeys://localhost:6379/0");
 /// ```
 pub fn service_valkey_url() -> String {
-    let host =
-        std::env::var("SENTIN8_VALKEY_HOST").unwrap_or_else(|_| "localhost".to_string());
-    let port =
-        std::env::var("SENTIN8_VALKEY_PORT").unwrap_or_else(|_| "6379".to_string());
+    let host = std::env::var("SENTIN8_VALKEY_HOST").unwrap_or_else(|_| "localhost".to_string());
+    let port = std::env::var("SENTIN8_VALKEY_PORT").unwrap_or_else(|_| "6379".to_string());
     format!("valkeys://{host}:{port}/0")
 }
 
@@ -1765,5 +1763,3 @@ mod tests {
 }
 
 // ── PostgreSQL 18 OAuth configuration ───────────────────────────────────
-
-

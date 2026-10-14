@@ -34,8 +34,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use glide::AsyncCommands;
 use axum::extract::State;
+use glide::AsyncCommands;
 use parking_lot::Mutex;
 
 /// Thread-safe inbound request counter (excludes health checks).

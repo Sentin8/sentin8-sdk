@@ -369,14 +369,14 @@ async fn mark_attempt(
 /// body reads `rate limit exceeded for stream family; retry-after: 60`.
 /// Falls back to `None` (the short tick) for every other failure form.
 fn retry_after_hint(error_text: &str) -> Option<u64> {
-    error_text
-        .find("retry-after: ")
-        .and_then(|i| error_text[i + "retry-after: ".len()..]
+    error_text.find("retry-after: ").and_then(|i| {
+        error_text[i + "retry-after: ".len()..]
             .chars()
             .take_while(|c| c.is_ascii_digit())
             .collect::<String>()
             .parse::<u64>()
-            .ok())
+            .ok()
+    })
 }
 
 /// Mark a row TERMINALLY rejected (outbox relay design): a permanent 4xx
@@ -403,14 +403,12 @@ async fn mark_terminal(
         .bind(env_id)
         .execute(&mut *tx)
         .await;
-    sqlx::query(
-        "UPDATE outbox SET relay_attempts = $3 WHERE id = $1 AND env_id = $2",
-    )
-    .bind(id)
-    .bind(env_id)
-    .bind(RELAY_MAX_ATTEMPTS)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE outbox SET relay_attempts = $3 WHERE id = $1 AND env_id = $2")
+        .bind(id)
+        .bind(env_id)
+        .bind(RELAY_MAX_ATTEMPTS)
+        .execute(&mut *tx)
+        .await?;
     tx.commit().await?;
     Ok(())
 }
@@ -487,8 +485,7 @@ pub fn spawn_relay(
                         if rows.len() > 1 {
                             match push_batch_to_bus(&bus, &rows).await {
                                 Ok(outcomes) => {
-                                    for (row, outcome) in rows.into_iter().zip(outcomes)
-                                    {
+                                    for (row, outcome) in rows.into_iter().zip(outcomes) {
                                         match outcome {
                                             Some(e) => {
                                                 // Per-row failure inside a
@@ -534,11 +531,7 @@ pub fn spawn_relay(
                                     if let Some((status, body)) = is_permanent(&e) {
                                         for row in &rows {
                                             if let Err(ue) = mark_terminal(
-                                                &pool,
-                                                row.id,
-                                                row.env_id,
-                                                status,
-                                                &body,
+                                                &pool, row.id, row.env_id, status, &body,
                                             )
                                             .await
                                             {
@@ -550,13 +543,8 @@ pub fn spawn_relay(
                                     tracing::warn!(error = %e, rows = "batch", "outbox relay: batch produce failed — will retry");
                                     let hint = retry_after_hint(&e.to_string());
                                     for row in &rows {
-                                        if let Err(ue) = mark_attempt(
-                                            &pool,
-                                            row.id,
-                                            row.env_id,
-                                            hint,
-                                        )
-                                        .await
+                                        if let Err(ue) =
+                                            mark_attempt(&pool, row.id, row.env_id, hint).await
                                         {
                                             tracing::error!(error = %ue, id = %row.id, "outbox relay: mark_attempt failed");
                                         }
@@ -589,11 +577,7 @@ pub fn spawn_relay(
                                         // hot-looped).
                                         if let Some((status, body)) = is_permanent(&e) {
                                             if let Err(ue) = mark_terminal(
-                                                &pool,
-                                                row.id,
-                                                row.env_id,
-                                                status,
-                                                &body,
+                                                &pool, row.id, row.env_id, status, &body,
                                             )
                                             .await
                                             {
@@ -654,7 +638,10 @@ async fn push_to_bus(
         Ok(_) => Ok(()),
         Err(e @ sentin8_bus_client::BusError::Http(_)) => {
             tracing::warn!(error = %e, "outbox relay: connection-level produce failure — retrying once with a fresh call");
-            bus.produce(&req).await.map(|_| ()).map_err(OutboxError::from)
+            bus.produce(&req)
+                .await
+                .map(|_| ())
+                .map_err(OutboxError::from)
         }
         Err(e) => Err(e.into()),
     }
@@ -699,11 +686,11 @@ async fn push_batch_to_bus(
     // errors pass through unchanged.
     let resp = match bus.produce_batch(&events).await {
         Ok(r) => r,
-        Err(
-            e @ sentin8_bus_client::BusError::Http(_)
-        ) => {
+        Err(e @ sentin8_bus_client::BusError::Http(_)) => {
             tracing::warn!(error = %e, rows = rows.len(), "outbox relay: connection-level produce failure — retrying once with a fresh call");
-            bus.produce_batch(&events).await.map_err(OutboxError::from)?
+            bus.produce_batch(&events)
+                .await
+                .map_err(OutboxError::from)?
         }
         Err(e) => return Err(e.into()),
     };

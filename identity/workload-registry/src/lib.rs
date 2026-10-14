@@ -244,7 +244,10 @@ async fn fetch_map(workload: &str) -> Result<HashMap<String, WorkloadRecord>, Re
 /// outage fallback. Best-effort: a write failure only removes the outage
 /// fallback (the in-memory map still serves).
 fn persist_cache_file(entries: &HashMap<String, WorkloadRecord>) {
-    let Some(run_dir) = std::env::var("SENTIN8_RUN_DIR").ok().filter(|s| !s.is_empty()) else {
+    let Some(run_dir) = std::env::var("SENTIN8_RUN_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+    else {
         return;
     };
     let path = std::path::Path::new(&run_dir).join("workload-registry.json");
@@ -303,21 +306,16 @@ pub async fn publish_service(
         for (workload, json) in existing {
             if let Ok(rec) = serde_json::from_str::<WorkloadRecord>(&json) {
                 if &rec.service_type == service_type {
-                    let _: Result<usize, _> =
-                        client.hdel(WORKLOADS_KEY, &workload).await;
-                    let _: Result<usize, _> =
-                        client.srem(DECLARED_KEY, &workload).await;
+                    let _: Result<usize, _> = client.hdel(WORKLOADS_KEY, &workload).await;
+                    let _: Result<usize, _> = client.srem(DECLARED_KEY, &workload).await;
                 }
             }
         }
     }
     for (workload, rec) in entries {
-        let json = serde_json::to_string(rec)
-            .map_err(|e| RegistryError::Decode(e.to_string()))?;
-        let _: Result<usize, _> =
-            client.hset(WORKLOADS_KEY, workload, &json).await;
-        let _: Result<usize, _> =
-            client.sadd(DECLARED_KEY, workload).await;
+        let json = serde_json::to_string(rec).map_err(|e| RegistryError::Decode(e.to_string()))?;
+        let _: Result<usize, _> = client.hset(WORKLOADS_KEY, workload, &json).await;
+        let _: Result<usize, _> = client.sadd(DECLARED_KEY, workload).await;
     }
     Ok(())
 }
@@ -347,11 +345,10 @@ pub async fn set_enabled(
             "workload '{workload}' has no registry entry"
         )));
     };
-    let mut rec: WorkloadRecord = serde_json::from_str(&json)
-        .map_err(|e| RegistryError::Decode(e.to_string()))?;
+    let mut rec: WorkloadRecord =
+        serde_json::from_str(&json).map_err(|e| RegistryError::Decode(e.to_string()))?;
     rec.enabled = enabled;
-    let updated = serde_json::to_string(&rec)
-        .map_err(|e| RegistryError::Decode(e.to_string()))?;
+    let updated = serde_json::to_string(&rec).map_err(|e| RegistryError::Decode(e.to_string()))?;
     let _: Result<usize, _> = client.hset(WORKLOADS_KEY, workload, &updated).await;
     Ok(())
 }

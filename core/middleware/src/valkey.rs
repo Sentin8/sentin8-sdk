@@ -129,7 +129,10 @@ async fn valkey_client_inner(
 /// # Errors
 /// Returns [`ValkeyError::Connect`] on an unreadable pair or a failed
 /// handshake.
-pub fn valkey_client_sync(url: &str, workload: &str) -> Result<glide::sync::SyncGlideClient, ValkeyError> {
+pub fn valkey_client_sync(
+    url: &str,
+    workload: &str,
+) -> Result<glide::sync::SyncGlideClient, ValkeyError> {
     let (host, port, _db) = parse_host_port(url)?;
     let (cert_pem, key_pem) = read_workload_pair(workload)?;
     let ca_path = platform_ca_path();
@@ -143,8 +146,7 @@ pub fn valkey_client_sync(url: &str, workload: &str) -> Result<glide::sync::Sync
         // operator tooling must tolerate blocking reads too.
         .request_timeout(Duration::from_secs(30))
         .connection_timeout(Duration::from_secs(2));
-    glide::sync::SyncGlideClient::connect(config)
-        .map_err(|e| ValkeyError::Connect(e.to_string()))
+    glide::sync::SyncGlideClient::connect(config).map_err(|e| ValkeyError::Connect(e.to_string()))
 }
 
 /// Parse `valkeys://host:port/db` into its parts. Plaintext schemes
@@ -160,9 +162,9 @@ fn parse_host_port(url: &str) -> Result<(String, u16, i64), ValkeyError> {
     let authority = rest.split('/').next().unwrap_or(rest);
     let (host, port) = match authority.rsplit_once(':') {
         Some((h, p)) => {
-            let port: u16 = p.parse().map_err(|_| {
-                ValkeyError::Connect(format!("invalid port in Valkey URL '{url}'"))
-            })?;
+            let port: u16 = p
+                .parse()
+                .map_err(|_| ValkeyError::Connect(format!("invalid port in Valkey URL '{url}'")))?;
             (h.to_string(), port)
         }
         None => (authority.to_string(), 6379),
@@ -192,7 +194,10 @@ fn read_workload_pair(workload: &str) -> Result<(String, String), ValkeyError> {
         let secrets =
             std::env::var("SENTIN8_SECRETS_DIR").unwrap_or_else(|_| "../.run/secrets".into());
         let infra = std::path::Path::new(&secrets).join("infra-tls");
-        (infra.join(format!("{base}.crt")), infra.join(format!("{base}.key")))
+        (
+            infra.join(format!("{base}.crt")),
+            infra.join(format!("{base}.key")),
+        )
     };
     let cert_pem = std::fs::read_to_string(&cert_path).map_err(|e| {
         ValkeyError::Connect(format!(

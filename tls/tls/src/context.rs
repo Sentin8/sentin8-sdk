@@ -85,8 +85,7 @@ pub struct HostContextResolver {
     /// first cache miss — the `{dash}-tls` certificate IS the
     /// identity; no token is fetched). Shared behind an RwLock so
     /// concurrent misses build it once.
-    resolve_http:
-        std::sync::Arc<tokio::sync::RwLock<Option<std::sync::Arc<reqwest::Client>>>>,
+    resolve_http: std::sync::Arc<tokio::sync::RwLock<Option<std::sync::Arc<reqwest::Client>>>>,
 }
 
 impl HostContextResolver {
@@ -265,10 +264,9 @@ impl HostContextResolver {
         // handler's TLS handshake — an unbounded resolve would hang the
         // handshake indefinitely. The miss path itself is the cache-seed
         // exception to the per-request rule (TLS-RLS-4: resolve on miss).
-        let ca_pem = std::fs::read(&cert.ca_cert_path)
-            .map_err(|e| format!("read CA cert: {e}"))?;
-        let ca_cert_obj = reqwest::Certificate::from_pem(&ca_pem)
-            .map_err(|e| format!("parse CA cert: {e}"))?;
+        let ca_pem = std::fs::read(&cert.ca_cert_path).map_err(|e| format!("read CA cert: {e}"))?;
+        let ca_cert_obj =
+            reqwest::Certificate::from_pem(&ca_pem).map_err(|e| format!("parse CA cert: {e}"))?;
         let mut identity_pem = cert.cert_pem.as_bytes().to_vec();
         identity_pem.extend_from_slice(cert.key_pem.as_bytes());
         let identity = reqwest::Identity::from_pem(&identity_pem)

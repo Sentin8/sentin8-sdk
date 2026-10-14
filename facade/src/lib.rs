@@ -55,11 +55,11 @@ pub use sentin8_idempotency as idempotency;
 pub use sentin8_membus as membus;
 pub use sentin8_middleware as middleware;
 pub use sentin8_openapi as openapi;
-pub use sentin8_shield as shield;
 pub use sentin8_registration as registration;
 pub use sentin8_rfw as rfw;
 pub use sentin8_service_discovery as service_discovery;
 pub use sentin8_shell as shell;
+pub use sentin8_shield as shield;
 
 /// Sentin8:Auth domain — platform identity client, JWT helpers, M2M token
 /// source, and the discovery-driven FAPI OAuth client. All identity-plane

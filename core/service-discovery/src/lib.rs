@@ -201,17 +201,21 @@ impl ServiceDiscovery {
                 // A SEPARATE pubsub-enabled client for the change
                 // channel (its push loop is independent of the command
                 // client's pipeline).
-                let pubsub_client =
-                    match sentin8_middleware::valkey_client_pubsub(&valkey_url, &workload).await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            tracing::warn!(error = ?e, "service-discovery: failed to create pubsub client");
-                            tokio::time::sleep(safety).await;
-                            refresh(&client, &inner).await;
-                            last_refresh = Instant::now();
-                            continue;
-                        }
-                    };
+                let pubsub_client = match sentin8_middleware::valkey_client_pubsub(
+                    &valkey_url,
+                    &workload,
+                )
+                .await
+                {
+                    Ok(c) => c,
+                    Err(e) => {
+                        tracing::warn!(error = ?e, "service-discovery: failed to create pubsub client");
+                        tokio::time::sleep(safety).await;
+                        refresh(&client, &inner).await;
+                        last_refresh = Instant::now();
+                        continue;
+                    }
+                };
 
                 use glide::PubSubCommands as _;
                 if let Err(e) = pubsub_client
