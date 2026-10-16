@@ -29,8 +29,8 @@ WHICH binary runs — per instance, per profile.
 
 ```mermaid
 graph TD
-    A[Group Makefile / packaging build] -->|"SENTIN8_GIT_SHA + SENTIN8_BUILD_HASH"| C[option_env! at compile time]
-    B[Local / CI build] -->|unset| D["fallback: hash = version, profile = debug_assertions cfg"]
+    A[Group Makefile / packaging build] -->|"inline env-prefix on the cargo line: SENTIN8_GIT_SHA + SENTIN8_BUILD_PROFILE"| C[option_env! at compile time]
+    B[Local / CI ad-hoc build] -->|unset| D["fallback: hash = version, profile = debug_assertions cfg"]
     C --> E["build_hash() → &'static str"]
     D --> E
     C --> V["version() → {CARGO_PKG_VERSION}+{git_sha} (or bare version when unstamped)"]
@@ -48,13 +48,36 @@ Stamp resolution orders:
    build from the package version + timestamp (or manually for
    reproducible builds); fallback `CARGO_PKG_VERSION`.
 2. **Git short hash**: `SENTIN8_GIT_SHA` env var — set by the group
-   Makefile build targets (`git rev-parse --short HEAD` of the repo
-   being built) and by the packaging build; fallback: omitted from the
+   Makefile targets (`git rev-parse --short HEAD` of the repo being
+   built) and by the packaging build; fallback: omitted from the
    rendered version.
 3. **Build profile**: `SENTIN8_BUILD_PROFILE` env var (`release` /
-   `debug`) — set by the group Makefile build targets to match the
-   active cargo profile; fallback: the `debug_assertions` cfg (the
+   `debug`) — set by the group Makefile targets to match the active
+   cargo profile; fallback: the `debug_assertions` cfg (the
    compile-time signal the binary itself carries into its profile).
+
+**Delivery shape (the `stamp_env` inline env-prefix).** The stamps ride
+the SAME shell line as the cargo command — a single-space env-prefix
+like `SENTIN8_GIT_SHA=$$(git rev-parse --short HEAD) $(CARGO) build …`.
+Make runs each recipe LINE in its own shell, so any
+`export …` line issued before the cargo line evaporates before cargo
+starts (the BUILDID-1 delivery shipped as a standalone multi-line
+`define` whose exports never reached a single build — every binary in
+the fleet rendered `0.1.0 (build unknown)` until STATUSID-1). The
+shell-side `$$()` substitution (not make's `$(shell)`) keeps the
+resolution working inside recipe loops. The hash resolves via PLAIN
+`git rev-parse` from the shell's cwd — the prefix expands AFTER the
+recipe's `cd` into the repo being built, so a repo-relative `git -C
+{repo}` would resolve from INSIDE the repo and miss (the first
+STATUSID-1 iteration did exactly that, stamping every binary EMPTY —
+the empty stamp is treated as unstamped by `version()`, and the CLI
+banner renders `unknown`, never a blank). Every cargo invocation
+through a group Makefile — builds, `test`, and the `cargo run`
+control paths (`start`/`stop`/`status`/`enroll`) — carries the prefix:
+cargo fingerprints `option_env!`, so an unstamped `cargo run` would
+otherwise REBUILD the binary back to an unstamped identity after a
+stamped build (a flip-flop). Ad-hoc builds outside the Makefiles are
+unstamped by design (bare-version fallback).
 
 ## 4. Key Traits and Data Structures
 
