@@ -55,6 +55,10 @@ use serde::Deserialize;
 const SENTIN8_CAPTAIN_CHANGED_CHANNEL: &str = "captain:changed";
 /// Glob matching one hash per service type: `captain:svc:{service_type}`.
 const SENTIN8_CAPTAIN_SVC_GLOB: &str = "captain:svc:*";
+/// Hash-key prefix for one service type's registry hash (FIREHOSE-1's
+/// targeted refresh builds `{prefix}{service_type}` from the notification
+/// payload).
+const SENTIN8_CAPTAIN_SVC_PREFIX: &str = "captain:svc:";
 /// A service instance is considered live if its `last_health_check` is
 /// within this many seconds of `now`.
 const HEALTH_FRESHNESS_S: i64 = 30;
@@ -251,9 +255,29 @@ impl ServiceDiscovery {
                                 break;
                             }
                             // Debounce: small delay to coalesce bursts,
-                            // then refresh.
+                            // then refresh. FIREHOSE-1: the payload names the
+                            // service type that changed — refresh ONLY that
+                            // type's hash (1 HGETALL) instead of a full
+                            // registry scan. `captain:changed` broadcasts to
+                            // every subscriber; a full-scan-per-message was
+                            // 63 HGETALL x 64 services x msg rate ≈ 13,000
+                            // HGETALL/s fleet-wide — the root cause of the
+                            // fleet-wide idle CPU (~20%/service) and RSS drift
+                            // (heaptrack: ~5,000 TLS-decrypt allocations/s
+                            // per idle service; MTALEAK-1). A payload that is
+                            // not a known service type (or the "alert"
+                            // marker) falls back to the coalesced full scan.
                             tokio::time::sleep(Duration::from_millis(200)).await;
-                            refresh(&client, &inner).await;
+                            if let Some(msg) = maybe_msg.ok() {
+                                let changed = String::from_utf8_lossy(&msg.payload).to_string();
+                                if changed == "alert" {
+                                    refresh(&client, &inner).await;
+                                } else {
+                                    refresh_one(&client, &inner, &changed).await;
+                                }
+                            } else {
+                                refresh(&client, &inner).await;
+                            }
                             last_refresh = Instant::now();
                         }
                         _ = tokio::time::sleep(safety) => {
@@ -367,6 +391,35 @@ async fn refresh(
     let count: usize = new_map.values().map(|v| v.len()).sum();
     *map = new_map;
     tracing::debug!(total_instances = count, "service-discovery: refreshed");
+}
+
+/// Refresh ONE service type's instances from its registry hash — the
+/// FIREHOSE-1 targeted path. `captain:changed` messages name the changed
+/// service type in the payload, so a notification for a single type costs
+/// one HGETALL (not a full KEYS + 63-HGETALL scan). Unknown types insert an
+/// empty list (the type's hash vanished — every instance stopped), matching
+/// the full scan's behavior for missing keys.
+async fn refresh_one(
+    client: &glide::GlideClient,
+    inner: &Arc<RwLock<HashMap<String, Vec<ServiceInstance>>>>,
+    service_type: &str,
+) {
+    use glide::AsyncCommands as _;
+    let key = format!("{SENTIN8_CAPTAIN_SVC_PREFIX}{service_type}");
+    let entries: Vec<(String, String)> = client.hgetall(&key).await.unwrap_or_default();
+    let mut fresh: Vec<ServiceInstance> = Vec::new();
+    for (_field, json) in entries {
+        if let Ok(inst) = serde_json::from_str::<ServiceInstance>(&json) {
+            fresh.push(inst);
+        }
+    }
+    fresh.sort_by(|a, b| {
+        a.load_score()
+            .partial_cmp(&b.load_score())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mut map = inner.write().unwrap();
+    map.insert(service_type.to_string(), fresh);
 }
 
 // Pure-seam tests: load-score math, local-machine bonus, health
