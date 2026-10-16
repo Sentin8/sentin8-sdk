@@ -28,11 +28,11 @@ Policy Studio page constructors every adopting service reuses.
 
 ```mermaid
 graph TD
-    A[Service: GET /v1/admin/ui/{page}] --> B[AdminUiPage — title + widgets + actions]
+    A["Service: GET /v1/admin/ui/{page}"] --> B[AdminUiPage — title + widgets + actions]
     B --> C[Dash RFW renderer — inflate to Flutter]
     C --> D[User interaction]
     D --> E[Form submit / row action]
-    E -->|POST /v1/admin/{resource}| F[Service handler]
+    E -->|"POST /v1/admin/{resource}"| F[Service handler]
     F --> G["AdminUiResponse — Page | Redirect | Error(field_errors)"]
     G --> C
     H[DataTable / Chart data_endpoint] -->|GET rows/series| F

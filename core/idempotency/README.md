@@ -23,7 +23,7 @@ operations replay-safe. A no-op store implementation ships with the crate.
 graph TD
     A[Caller presents Idempotency-Key] --> B[Service handler]
     B --> C["IdempotencyStore::get_or_claim(key)"]
-    C -->|Some(record)| D[Return cached original response]
+    C -->|"Some(record)"| D[Return cached original response]
     C -->|None| E[Execute operation]
     E --> F["store(key, record)"]
     F --> G[Return fresh response]

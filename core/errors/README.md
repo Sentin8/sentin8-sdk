@@ -24,7 +24,8 @@ platform.
 
 ```mermaid
 graph TD
-    A[Service handler] --> B[Sentin8Error::new(code, message)]
+    A["Service handler"]
+    A --> B["Sentin8Error.new(code, message)"]
     B --> C[.with_correlation_id / .with_detail]
     C --> D[IntoResponse — axum integration]
     D --> E["(status, JSON error body)"]

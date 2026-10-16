@@ -30,8 +30,8 @@ graph TD
         A[ServiceBus — fail-soft composition] --> B[MemBus handle]
         B --> C[EnvBus — tenant-bound handle]
     end
-    C -->|XADD MAXLEN ~ / XREADGROUP / XACK / XAUTOCLAIM| D[(Valkey Stream mbus:{env}:{family})]
-    C -->|PUBLISH / SUBSCRIBE| E[(Valkey Pub/Sub mchan:{env}:{family})]
+    C -->|XADD MAXLEN ~ / XREADGROUP / XACK / XAUTOCLAIM| D["(Valkey Stream mbus:{env}:{family})"]
+    C -->|PUBLISH / SUBSCRIBE| E["(Valkey Pub/Sub mchan:{env}:{family})"]
     F[Consumer group] --> D
 ```
 
