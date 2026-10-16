@@ -45,6 +45,10 @@ pub fn engine_for(service: impl Into<String>) -> Arc<PolicyEngine> {
 /// while Acme comes up), presented in the TLS handshake on every call.
 /// No DCR, no token. Every service calls this with its own colon
 /// service_type — one implementation instead of 13 identical shims.
+/// Resolve the policy hot-reload bus client — retrying until the workload
+/// certificate can be minted (fresh-boot: Acme comes up after the caller
+/// spawns the fleet). Kept public for non-`boot_full` callers that want
+/// the same guaranteed-client semantics.
 pub async fn policy_bus_client(service: &str) -> sentin8_bus_client::BusClient {
     let cfg = sentin8_config::Sentin8Config::from_env();
     let workload = format!("{service}-policy");
@@ -58,10 +62,7 @@ pub async fn policy_bus_client(service: &str) -> sentin8_bus_client::BusClient {
         {
             Ok(client) => return client,
             Err(e) => {
-                // First birth: Acme may still be coming up. The consumer
-                // loop retries via its own reconnect; keep the boot-path
-                // wait bounded and quiet.
-                tracing::debug!(error = %e, workload, "policy bus client: certificate not ready yet");
+                tracing::debug!(error = %e, %workload, "policy bus client: certificate not ready yet");
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             }
         }
@@ -85,8 +86,16 @@ pub async fn boot_full(
         .await
         .map_err(|e| anyhow::anyhow!("policy engine boot load failed: {e}"))?;
     init_shared_deps(issuer, pool.clone());
-    let bus = policy_bus_client(service).await;
-    spawn_hot_reload(pool.clone(), bus, Arc::clone(engine));
+    // BOOTDEAD-1: on a fresh tree the supervisor (captain) reaches this
+    // boot step BEFORE any service — including Acme, the certificate
+    // minting authority — is spawned (it spawns them itself, after this
+    // step). Waiting for the bus client HERE would deadlock the boot:
+    // the supervisor never gets to spawn the very services whose
+    // certificates it is waiting for. The hot-reload consumer therefore
+    // resolves its client inside its OWN loop (bounded-quiet until the
+    // certificate lands), and the engine serves from the boot-loaded
+    // policy sets meanwhile.
+    spawn_hot_reload(pool.clone(), issuer, service, Arc::clone(engine));
     // Deny/would-deny decision telemetry — failure degrades to log-only.
     // Transport is MemBus `stat.telemetry` Pub/Sub (SDD §2.3) — no pool,
     // no DCR workload; stat resolves the slug server-side at ingest.
@@ -819,12 +828,21 @@ async fn run_sse_epoch(
 /// a fixed idle request budget on Sentin8:Bus.
 pub fn spawn_hot_reload(
     pool: sqlx::PgPool,
-    bus_client: sentin8_bus_client::BusClient,
+    issuer: &str,
+    service: &str,
     engine: Arc<PolicyEngine>,
 ) {
+    let issuer = issuer.to_string();
+    let service = service.to_string();
     tokio::spawn(async move {
-        let service = engine.service().to_string();
         tracing::info!(service, "policy hot-reload consumer starting (SSE)");
+        // BOOTDEAD-1: the client resolution retries INSIDE the loop — a
+        // fresh-boot supervisor spawns Acme only after its own boot, so
+        // the certificate may not be mintable yet; the consumer keeps
+        // resolving (quietly) until it lands. The engine serves from the
+        // boot-loaded policy sets meanwhile.
+        let bus_client = policy_bus_client(&service).await;
+        let _ = issuer;
         loop {
             run_sse_epoch(&bus_client, &service, &pool, &engine).await;
             tokio::time::sleep(SSE_RECONNECT_DELAY).await;
