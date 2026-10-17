@@ -1,4 +1,4 @@
-# DESIGN.md: sentin8-sdk — Detailed Design Document
+# sentin8-sdk — Detailed Design Document
 
 > Audience: maintainers, reviewers, and architects modifying the shared
 > library workspace. For overview read `README.md`; for business
