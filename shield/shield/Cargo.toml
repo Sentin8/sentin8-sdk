@@ -13,6 +13,10 @@ rust-version.workspace = true
 description = "Sentin8:Policy — declarative authorization (Shield, embedded). Implements authorization-pipeline step 5."
 
 [dependencies]
+# Wire-contract derives for the shared policy-admin DTOs (OAPEC design §2
+# rule 3 — the admin surface is a ServedRoute of every Shell-served
+# service, so its schema types need ToSchema/IntoParams).
+utoipa.workspace = true
 # Boot-full helper (runtime::boot_full) surfaces load failures as anyhow
 # errors — shell boot aborts fail-closed (policy design §3.3).
 anyhow.workspace = true

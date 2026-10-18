@@ -245,6 +245,8 @@ impl sentin8_shield::admin::HasPolicyAdmin for AppState {
 // Wiring per service (one line in `build_state`, one in `routes`):
 //   state.policy = core.admin.policy.clone();
 //   routes(... .merge(sentin8_shell::value_policy_admin_router(admin_arc)))
+pub mod drift_guard;
+
 pub mod policy {
     //! Step-5 gate glue for services that boot on the shell but keep their
     //! own state (value-state convention). The shell's boot step 8 already
@@ -1263,8 +1265,22 @@ pub fn mount_policy_admin(
 // ── Forwarding handlers ─────────────────────────────────────────────────
 // Each wraps `Arc<AppState>` in the coherence newtype [`PolicyAdminState`]
 // and delegates to the generic handler in `sentin8-shield::admin`.
+//
+// Every wrapper carries a `#[utoipa::path]` annotation (OAPEC design §2:
+// the mount is a ServedRoute on every Shell-served service, so it must be
+// spec'd). The annotation documents the wire contract — path, tuple query
+// params, body/response shapes — and each service references the wrapper
+// from its `#[openapi(paths(...))]` list as `sentin8_shell::{name}`
+// (utoipa resolves cross-crate paths to the generated `__path_{fn}`
+// struct; no turbofish).
 macro_rules! fwd {
-    ($name:ident, $inner:path, ($($arg:ident : $ty:ty),* $(,)?)) => {
+    (
+        $name:ident,
+        $inner:path,
+        ($($arg:ident : $ty:ty),* $(,)?),
+        $($attr:tt)*
+    ) => {
+        $($attr)*
         async fn $name(
             axum::extract::State(st): axum::extract::State<std::sync::Arc<AppState>>,
             $($arg: $ty,)*
@@ -1277,101 +1293,343 @@ macro_rules! fwd {
 fwd!(policy_list_sets, sentin8_shield::admin::list_policy_sets, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
-));
+), #[utoipa::path(
+    get,
+    path = "/v1/admin/policy-sets",
+    responses(
+        (status = 200, description = "Policy sets of this service", body = Vec<serde_json::Value>),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_get_set, sentin8_shield::admin::get_policy_set, (
     headers: axum::http::HeaderMap,
     name: axum::extract::Path<String>,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
-));
+), #[utoipa::path(
+    get,
+    path = "/v1/admin/policy-sets/{name}",
+    params(("name" = String, Path, description = "Policy set name")),
+    responses(
+        (status = 200, description = "The policy set", body = serde_json::Value),
+        (status = 404, description = "Unknown policy set name"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_put_set, sentin8_shield::admin::put_policy_set, (
     headers: axum::http::HeaderMap,
     name: axum::extract::Path<String>,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
     body: axum::Json<sentin8_shield::admin::PutPolicySetBody>,
-));
+), #[utoipa::path(
+    put,
+    path = "/v1/admin/policy-sets/{name}",
+    params(("name" = String, Path, description = "Policy set name")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Policy set stored", body = serde_json::Value),
+        (status = 400, description = "Invalid policy set definition"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_delete_set, sentin8_shield::admin::delete_policy_set, (
     headers: axum::http::HeaderMap,
     name: axum::extract::Path<String>,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
-));
+), #[utoipa::path(
+    delete,
+    path = "/v1/admin/policy-sets/{name}",
+    params(("name" = String, Path, description = "Policy set name")),
+    responses(
+        (status = 200, description = "Policy set deleted"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_test_set, sentin8_shield::admin::test_policy_set, (
     headers: axum::http::HeaderMap,
     name: axum::extract::Path<String>,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
     body: axum::Json<sentin8_shield::admin::TestPolicySetBody>,
-));
+), #[utoipa::path(
+    post,
+    path = "/v1/admin/policy-sets/{name}/test",
+    params(("name" = String, Path, description = "Policy set name")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Dry-run decision trace", body = serde_json::Value),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_mode_enforce, sentin8_shield::admin::admin_enforce_policy_set, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
     body: axum::Json<sentin8_shield::admin::PolicyModeBody>,
-));
+), #[utoipa::path(
+    post,
+    path = "/v1/admin/policy-sets/enforce",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Sets switched to enforce mode"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_mode_shadow, sentin8_shield::admin::admin_shadow_policy_set, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
     body: axum::Json<sentin8_shield::admin::PolicyModeBody>,
-));
+), #[utoipa::path(
+    post,
+    path = "/v1/admin/policy-sets/shadow",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Sets switched to shadow mode"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_mode_disable, sentin8_shield::admin::admin_disable_policy_set, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
     body: axum::Json<sentin8_shield::admin::PolicyModeBody>,
-));
+), #[utoipa::path(
+    post,
+    path = "/v1/admin/policy-sets/disable",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Sets disabled"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_create_set, sentin8_shield::admin::create_policy_set, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
     body: axum::Json<sentin8_shield::admin::CreatePolicySetBody>,
-));
+), #[utoipa::path(
+    post,
+    path = "/v1/admin/policy-sets",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Policy set created", body = serde_json::Value),
+        (status = 400, description = "Invalid policy set definition"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_save_set, sentin8_shield::admin::save_policy_set, (
     headers: axum::http::HeaderMap,
     name: axum::extract::Path<String>,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
     body: axum::Json<sentin8_shield::admin::PutPolicySetBody>,
-));
+), #[utoipa::path(
+    post,
+    path = "/v1/admin/policy-sets/{name}/save",
+    params(("name" = String, Path, description = "Policy set name")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Policy set saved", body = serde_json::Value),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_flip_set, sentin8_shield::admin::admin_flip_policy_set, (
     headers: axum::http::HeaderMap,
     path: axum::extract::Path<(String, String)>,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
-));
+), #[utoipa::path(
+    post,
+    path = "/v1/admin/policy-sets/{name}/{action}",
+    params(
+        ("name" = String, Path, description = "Policy set name"),
+        ("action" = String, Path, description = "Row action (enforce, shadow, disable)")
+    ),
+    responses(
+        (status = 200, description = "Action applied", body = serde_json::Value),
+        (status = 400, description = "Unknown row action"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_list_decisions, sentin8_shield::admin::list_policy_decisions, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
-));
+), #[utoipa::path(
+    get,
+    path = "/v1/admin/policy-decisions",
+    responses(
+        (status = 200, description = "Recent decision log", body = Vec<serde_json::Value>),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_delete_relation_path, sentin8_shield::admin::admin_delete_relation, (
     headers: axum::http::HeaderMap,
     id: axum::extract::Path<String>,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
-));
+), #[utoipa::path(
+    post,
+    path = "/v1/admin/relations/{id}/delete",
+    params(("id" = String, Path, description = "Relation id")),
+    responses(
+        (status = 200, description = "Relation deleted"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_delete_attribute_path, sentin8_shield::admin::admin_delete_attribute, (
     headers: axum::http::HeaderMap,
     id: axum::extract::Path<String>,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
-));
+), #[utoipa::path(
+    post,
+    path = "/v1/admin/attributes/{id}/delete",
+    params(("id" = String, Path, description = "Attribute id")),
+    responses(
+        (status = 200, description = "Attribute deleted"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_list_relations, sentin8_shield::admin::list_relations, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
-));
+), #[utoipa::path(
+    get,
+    path = "/v1/admin/relations",
+    responses(
+        (status = 200, description = "ReBAC relations of this service", body = Vec<serde_json::Value>),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_put_relation, sentin8_shield::admin::put_relation, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
     body: axum::Json<sentin8_shield::admin::PutRelationBody>,
-));
+), #[utoipa::path(
+    put,
+    path = "/v1/admin/relations",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Relation stored", body = serde_json::Value),
+        (status = 400, description = "Invalid relation definition"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_delete_relation, sentin8_shield::admin::delete_relation, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::DeleteRelationQuery>,
-));
+), #[utoipa::path(
+    delete,
+    path = "/v1/admin/relations",
+    params(("id" = String, Query, description = "Relation id to delete")),
+    responses(
+        (status = 200, description = "Relation deleted"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_check_relation, sentin8_shield::admin::check_relation, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::RelationCheckQuery>,
-));
+), #[utoipa::path(
+    get,
+    path = "/v1/admin/relations/check",
+    params(
+        ("subject" = String, Query, description = "Subject key"),
+        ("relation" = String, Query, description = "Relation name"),
+        ("object" = String, Query, description = "Object key")
+    ),
+    responses(
+        (status = 200, description = "The check verdict", body = serde_json::Value),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_list_attributes, sentin8_shield::admin::list_attributes, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::ListAttributesQuery>,
-));
+), #[utoipa::path(
+    get,
+    path = "/v1/admin/attributes",
+    responses(
+        (status = 200, description = "Principal attributes of this service", body = Vec<serde_json::Value>),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_put_attribute, sentin8_shield::admin::put_attribute, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::TargetEnv>,
     body: axum::Json<sentin8_shield::admin::PutAttributeBody>,
-));
+), #[utoipa::path(
+    put,
+    path = "/v1/admin/attributes",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Attribute stored", body = serde_json::Value),
+        (status = 400, description = "Invalid attribute definition"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);
+
 fwd!(policy_delete_attribute, sentin8_shield::admin::delete_attribute, (
     headers: axum::http::HeaderMap,
     q: axum::extract::Query<sentin8_shield::admin::DeleteAttributeQuery>,
-));
+), #[utoipa::path(
+    delete,
+    path = "/v1/admin/attributes",
+    params(("id" = String, Query, description = "Attribute id to delete")),
+    responses(
+        (status = 200, description = "Attribute deleted"),
+        (status = 403, description = "Caller lacks the admin scope"),
+    ),
+    security(("sentin8:admin" = [])),
+    tag = "policy",
+)]);

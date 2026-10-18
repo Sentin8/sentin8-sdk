@@ -114,7 +114,7 @@ fn scope_prefix(service: &str) -> String {
 }
 
 /// Query carrying `target_env_id` (REQUIRED — the caller's RLS context).
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct TargetEnv {
     #[serde(default)]
     pub target_env_id: Option<String>,
@@ -343,7 +343,7 @@ where
 }
 
 /// `PUT /v1/admin/policy-sets/{name}` body.
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct PutPolicySetBody {
     pub policies: String,
     #[serde(default)]
@@ -521,7 +521,7 @@ where
 }
 
 /// `POST /v1/admin/policy-sets/{name}/test` body.
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct TestPolicySetBody {
     pub policies: String,
     #[serde(default)]
@@ -601,7 +601,7 @@ where
 }
 
 /// `POST /v1/admin/policy-sets/{mode}` body (RFW row actions).
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct PolicyModeBody {
     pub policy_set_name: String,
     #[serde(default)]
@@ -738,7 +738,7 @@ fn check_text_caps(policies: &str, schema: Option<&str>) -> Result<(), (StatusCo
 /// The RFW create form is POST-only and cannot PUT to a path with
 /// the name; the shared `put_policy_set` core runs with `origin='tenant'`
 /// validation, then the renderer is redirected to the editor page.
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreatePolicySetBody {
     pub policy_set_name: String,
     pub policies: String,
@@ -1032,7 +1032,7 @@ where
 // ── Relations endpoints ──────────────────────────────────────────
 
 /// `PUT /v1/admin/relations` body — one relation tuple.
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct PutRelationBody {
     pub subject_type: String,
     pub subject_id: String,
@@ -1165,7 +1165,7 @@ where
 }
 
 /// `DELETE /v1/admin/relations` query — identifies the tuple.
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct DeleteRelationQuery {
     pub subject_type: String,
     pub subject_id: String,
@@ -1232,7 +1232,7 @@ where
 }
 
 /// `GET /v1/admin/relations/check` query — Zanzibar-style dry-run.
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct RelationCheckQuery {
     pub subject_type: String,
     pub subject_id: String,
@@ -1304,7 +1304,7 @@ where
 // ── Attributes endpoints ─────────────────────────────────────────
 
 /// `PUT /v1/admin/attributes` body — one principal attribute.
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct PutAttributeBody {
     pub subject_id: String,
     pub attr_key: String,
@@ -1313,7 +1313,7 @@ pub struct PutAttributeBody {
 
 /// `GET /v1/admin/attributes` query — list attributes for one subject (or
 /// all subjects in the env when omitted).
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct ListAttributesQuery {
     #[serde(default)]
     pub subject_id: Option<String>,
@@ -1448,7 +1448,7 @@ where
 }
 
 /// `DELETE /v1/admin/attributes` query — identifies the attribute.
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct DeleteAttributeQuery {
     pub subject_id: String,
     pub attr_key: String,
