@@ -10,7 +10,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Sentin8 — at-rest secret encryption (AES-256-GCM envelope) shared by Auth and verticals."
+description = "Sentin8 - at-rest secret encryption (AES-256-GCM envelope) shared by Auth and verticals."
 
 [dependencies]
 aes-gcm.workspace = true

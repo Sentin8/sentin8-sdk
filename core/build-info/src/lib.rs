@@ -21,7 +21,7 @@
 //! on debug builds (`0.3.0+5f3a9c1.d`).
 //!
 //! Values are baked in at compile time via `option_env!`. This makes the
-//! crate work in any environment — the build system (group Makefile,
+//! crate work in any environment - the build system (group Makefile,
 //! packaging build) resolves and injects the stamps, and all other builds
 //! fall back to the always-available cargo values. No `git` invocation.
 
@@ -49,7 +49,7 @@ pub const fn build_hash() -> &'static str {
 /// (ad-hoc builds; the group Makefile and the packaging build set it
 /// via `git rev-parse --short HEAD` of the repo being built). An EMPTY
 /// stamp value (a repo without `.git`) is treated as unstamped by the
-/// rendering functions — [`version`] omits the `+hash` part rather than
+/// rendering functions - [`version`] omits the `+hash` part rather than
 /// rendering a dangling `+`.
 ///
 /// # Examples
@@ -61,7 +61,7 @@ pub const fn build_hash() -> &'static str {
 /// }
 /// ```
 pub const fn git_sha() -> Option<&'static str> {
-    // A pure Option identity — const-legal. Content inspection (the
+    // A pure Option identity - const-legal. Content inspection (the
     // empty-stamp equivalence) happens at runtime in [`version`];
     // `const` fns cannot compare `str` contents (PartialEq is not const
     // yet).
@@ -71,13 +71,13 @@ pub const fn git_sha() -> Option<&'static str> {
 /// The effective build profile (`"release"` or `"debug"`).
 ///
 /// Resolution order (see crate docs): the `SENTIN8_BUILD_PROFILE` stamp
-/// set by the build system first, then the `debug_assertions` cfg — the
+/// set by the build system first, then the `debug_assertions` cfg - the
 /// signal the binary itself carries into its profile, correct for ad-hoc
 /// builds too.
 ///
 /// Not a `const fn`: matching `str` CONTENT is not const-callable yet
 /// (`PartialEq` for `str` is not a const trait), so the stamp comparison
-/// runs at runtime — the match is over compile-time-baked literals, the
+/// runs at runtime - the match is over compile-time-baked literals, the
 /// result is still a fixed `&'static str` per binary.
 ///
 /// # Examples
@@ -117,7 +117,7 @@ pub fn build_profile() -> &'static str {
 pub fn version() -> String {
     match git_sha() {
         // An empty stamp value (a build without a resolvable git HEAD) is
-        // unstamped-equivalent — no dangling `+`.
+        // unstamped-equivalent - no dangling `+`.
         Some(sha) if !sha.is_empty() => format!("{}+{}", env!("CARGO_PKG_VERSION"), sha),
         _ => env!("CARGO_PKG_VERSION").to_string(),
     }
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn build_hash_is_const_stable() {
-        // const fn — same value every call, usable in const contexts.
+        // const fn - same value every call, usable in const contexts.
         const H: &str = build_hash();
         assert_eq!(build_hash(), H);
     }
@@ -196,7 +196,7 @@ mod tests {
     #[test]
     fn version_without_stamp_is_bare_crate_version() {
         // When no stamp was injected, version() must be the bare crate
-        // version — no dangling `+`.
+        // version - no dangling `+`.
         if git_sha().is_none() {
             assert_eq!(version(), env!("CARGO_PKG_VERSION"));
             assert!(!version().contains('+'));

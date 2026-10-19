@@ -10,7 +10,7 @@
 //! AES-256-GCM authenticated envelope encryption for secret material stored
 //! in application tables (OAuth signing keys, DCR client secrets, IdP client
 //! secrets, webhook signing secrets, TOTP secrets). Secret material is never
-//! stored as plaintext in application tables — it is stored by reference or
+//! stored as plaintext in application tables - it is stored by reference or
 //! encrypted with this crate's envelope format.
 //!
 //! ## Envelope format
@@ -28,7 +28,7 @@
 //!
 //! ## Plaintext detection
 //!
-//! [`is_envelope`] returns false for anything not starting with `"v2:"` —
+//! [`is_envelope`] returns false for anything not starting with `"v2:"` -
 //! callers use this to detect un-encrypted rows and encrypt them on first
 //! read (read value, seal, update row).
 
@@ -58,7 +58,7 @@ pub enum CryptoError {
     /// The envelope structure is invalid (missing prefix, too short).
     #[error("envelope decode failed: {0}")]
     Envelope(String),
-    /// Authentication failed — wrong key or tampered ciphertext.
+    /// Authentication failed - wrong key or tampered ciphertext.
     #[error("decryption failed (wrong key or tampered data)")]
     DecryptFailed,
 }
@@ -140,7 +140,7 @@ pub fn seal(key: &MasterKey, plaintext: &[u8]) -> Result<String, CryptoError> {
 /// The envelope may be either:
 /// - the **Base64 string** returned by [`seal`] (TEXT columns), or
 /// - the **raw decoded envelope bytes** (`"v2:" || nonce || ct`, BYTEA
-///   columns) — recognized by the literal `v2:` prefix surviving UTF-8
+///   columns) - recognized by the literal `v2:` prefix surviving UTF-8
 ///   decoding without being valid Base64 of the standard alphabet prefix.
 pub fn open(key: &MasterKey, envelope: &[u8]) -> Result<Vec<u8>, CryptoError> {
     use base64::Engine as _;
@@ -150,7 +150,7 @@ pub fn open(key: &MasterKey, envelope: &[u8]) -> Result<Vec<u8>, CryptoError> {
     } else if let Ok(s) = std::str::from_utf8(envelope) {
         // TEXT column: the whole "v2:..." string is Base64 of
         // prefix+nonce+ct. (A Base64-encoded "v2:" prefix always begins
-        // with "djI6" — never the literal "v2:" — so the raw check above
+        // with "djI6" - never the literal "v2:" - so the raw check above
         // is unambiguous.)
         base64::engine::general_purpose::STANDARD.decode(s.trim())?
     } else {
@@ -183,7 +183,7 @@ pub fn open_str(key: &MasterKey, envelope: &str) -> Result<Vec<u8>, CryptoError>
 }
 
 /// Encrypt `plaintext` into the **raw** envelope bytes (`"v2:" || nonce || ct`)
-/// for BYTEA columns — the form [`open`] recognizes directly. This is the
+/// for BYTEA columns - the form [`open`] recognizes directly. This is the
 /// byte-column counterpart of [`seal`] (TEXT form = base64 of these bytes).
 pub fn seal_raw(key: &MasterKey, plaintext: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let mut nonce_bytes = [0u8; NONCE_LEN];
@@ -251,7 +251,7 @@ mod tests {
     fn seal_raw_open_round_trip_byte_form() {
         // BYTEA-column form: seal_raw emits the raw "v2:" || nonce || ct
         // bytes; open recognizes them directly. Also proves the TEXT and RAW
-        // forms are the same envelope (TEXT = base64 of RAW) — the pair must
+        // forms are the same envelope (TEXT = base64 of RAW) - the pair must
         // stay interchangeable for encrypt/decrypt consumers.
         let k = key();
         let secret = b"super-secret-client-secret";

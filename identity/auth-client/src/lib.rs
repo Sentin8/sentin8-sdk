@@ -7,7 +7,7 @@
 //!
 //! Rust client library for the Auth identity service.
 //!
-//! Covers stories 1.1b.1–1.1b.25 (P0 + P1).
+//! Covers stories 1.1b.1-1.1b.25 (P0 + P1).
 
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -101,7 +101,7 @@ pub struct Client {
     base_url: String,
     auth_token: Arc<Option<String>>,
     /// HTTP client behind a lock so callers can install an mTLS-capable
-    /// client at runtime (`set_http_client`) — credentials become known
+    /// client at runtime (`set_http_client`) - credentials become known
     /// only after DCR activation.
     http: Arc<RwLock<Sentin8HttpClient>>,
     discovery: Arc<TokioRwLock<Option<CachedDiscovery>>>,
@@ -137,7 +137,7 @@ impl Client {
     /// Install a custom HTTP client (e.g. an mTLS client built via
     /// `sentin8_middleware::mtls::build_mtls_client`) for calls that
     /// present cert-bound M2M tokens to RFC 8705 sender-constrained
-    /// endpoints — TLS must inject `X-Sentin8-Client-Cert-Thumbprint`
+    /// endpoints - TLS must inject `X-Sentin8-Client-Cert-Thumbprint`
     /// from the handshake, which a plain client cannot do (SEC-2.4.10).
     /// Opt-in; the default correlation-propagating client is unchanged.
     pub fn set_http_client(&self, http: Sentin8HttpClient) {
@@ -163,7 +163,7 @@ impl Client {
 
     // ── Frontend API ──────────────────────────────────────────────────────
 
-    /// `POST /v1/sign-in` — email/password authentication.
+    /// `POST /v1/sign-in` - email/password authentication.
     pub async fn sign_in(&self, email: &str, password: &str) -> Result<SignInResponse, AuthError> {
         let resp = self
             .request(reqwest::Method::POST, "/v1/sign-in")
@@ -179,7 +179,7 @@ impl Client {
             .map_err(|e| AuthError::Decode(e.to_string()))
     }
 
-    /// `POST /v1/sign-up` — customer registration.
+    /// `POST /v1/sign-up` - customer registration.
     pub async fn sign_up(
         &self,
         email: &str,
@@ -208,7 +208,7 @@ impl Client {
             .map_err(|e| AuthError::Decode(e.to_string()))
     }
 
-    /// `POST /v1/sign-out` — session termination.
+    /// `POST /v1/sign-out` - session termination.
     pub async fn sign_out(&self) -> Result<(), AuthError> {
         let resp = self
             .request(reqwest::Method::POST, "/v1/sign-out")
@@ -221,7 +221,7 @@ impl Client {
         Ok(())
     }
 
-    /// `GET /v1/session` — return current session.
+    /// `GET /v1/session` - return current session.
     pub async fn get_session(&self) -> Result<SessionInfo, AuthError> {
         let resp = self
             .request(reqwest::Method::GET, "/v1/session")
@@ -249,7 +249,7 @@ impl Client {
             }
         }
         // Clone out (reqwest clients share the pool; Arc-clone is cheap) so
-        // the lock guard never lives across the .await — the future must stay
+        // the lock guard never lives across the .await - the future must stay
         // Send for the axum Handler bounds.
         let http = self.http.read().unwrap().clone();
         let resp = http
@@ -308,7 +308,7 @@ impl Client {
         code_verifier: &str,
     ) -> Result<TokenResponse, AuthError> {
         // Clone out (reqwest clients share the pool; Arc-clone is cheap) so
-        // the lock guard never lives across the .await — the future must stay
+        // the lock guard never lives across the .await - the future must stay
         // Send for the axum Handler bounds.
         let http = self.http.read().unwrap().clone();
         let resp = http
@@ -338,7 +338,7 @@ impl Client {
         client_id: &str,
     ) -> Result<TokenResponse, AuthError> {
         // Clone out (reqwest clients share the pool; Arc-clone is cheap) so
-        // the lock guard never lives across the .await — the future must stay
+        // the lock guard never lives across the .await - the future must stay
         // Send for the axum Handler bounds.
         let http = self.http.read().unwrap().clone();
         let resp = http
@@ -395,7 +395,7 @@ impl Client {
         }
 
         // Clone out (reqwest clients share the pool; Arc-clone is cheap) so
-        // the lock guard never lives across the .await — the future must stay
+        // the lock guard never lives across the .await - the future must stay
         // Send for the axum Handler bounds.
         let http = self.http.read().unwrap().clone();
         let resp = http
@@ -418,7 +418,7 @@ impl Client {
     ///
     /// BFF calls this with its cert-bound M2M token + the staff user's
     /// identity + target env. Auth validates the caller's CERTIFICATE
-    /// identity ( — the mTLS transport presents the
+    /// identity ( - the mTLS transport presents the
     /// `bff-delegator` workload certificate; the TLS layer injects the
     /// identity headers), checks `may_act` for the staff user, and mints
     /// a cert-bound delegated token.
@@ -430,7 +430,7 @@ impl Client {
     /// - `audience`: Target service audience (RFC 8707 resource indicator).
     ///
     /// The call MUST ride an mTLS-configured transport (BFF installs it
-    /// via `install_mtls_auth_client`) — a plain transport carries no
+    /// via `install_mtls_auth_client`) - a plain transport carries no
     /// certificate and Auth fail-closed rejects the exchange.
     pub async fn delegate_access_token(
         &self,
@@ -449,7 +449,7 @@ impl Client {
         });
 
         // Clone out (reqwest clients share the pool; Arc-clone is cheap) so
-        // the lock guard never lives across the .await — the future must stay
+        // the lock guard never lives across the .await - the future must stay
         // Send for the axum Handler bounds.
         let http = self.http.read().unwrap().clone();
         let resp = http
@@ -471,7 +471,7 @@ impl Client {
     /// Revoke a token.
     pub async fn revoke_token(&self, token: &str) -> Result<(), AuthError> {
         // Clone out (reqwest clients share the pool; Arc-clone is cheap) so
-        // the lock guard never lives across the .await — the future must stay
+        // the lock guard never lives across the .await - the future must stay
         // Send for the axum Handler bounds.
         let http = self.http.read().unwrap().clone();
         let resp = http
@@ -489,7 +489,7 @@ impl Client {
     /// Introspect a token.
     pub async fn introspect_token(&self, token: &str) -> Result<IntrospectionResponse, AuthError> {
         // Clone out (reqwest clients share the pool; Arc-clone is cheap) so
-        // the lock guard never lives across the .await — the future must stay
+        // the lock guard never lives across the .await - the future must stay
         // Send for the axum Handler bounds.
         let http = self.http.read().unwrap().clone();
         let resp = http
@@ -509,7 +509,7 @@ impl Client {
     /// Fetch UserInfo for an access token.
     pub async fn user_info(&self, access_token: &str) -> Result<serde_json::Value, AuthError> {
         // Clone out (reqwest clients share the pool; Arc-clone is cheap) so
-        // the lock guard never lives across the .await — the future must stay
+        // the lock guard never lives across the .await - the future must stay
         // Send for the axum Handler bounds.
         let http = self.http.read().unwrap().clone();
         let resp = http
@@ -540,7 +540,7 @@ impl Client {
         }
         let doc = self.discover().await?;
         // Clone out (reqwest clients share the pool; Arc-clone is cheap) so
-        // the lock guard never lives across the .await — the future must stay
+        // the lock guard never lives across the .await - the future must stay
         // Send for the axum Handler bounds.
         let http = self.http.read().unwrap().clone();
         let resp = http
@@ -563,7 +563,7 @@ impl Client {
         Ok(keys)
     }
 
-    // ── Admin API (1.1b.13–1.1b.22) ──────────────────────────────────────
+    // ── Admin API (1.1b.13-1.1b.22) ──────────────────────────────────────
 
     /// Verify a JWT access token against the Auth JWKS.
     ///
@@ -599,10 +599,10 @@ impl Client {
         // Determine the algorithm from the JWK's alg field or the JWT header.
         let alg = jwk.alg.as_deref().unwrap_or(jwt_alg);
 
-        // Extract the verified claims — support both RS256 (RSA) and ML-DSA-65.
+        // Extract the verified claims - support both RS256 (RSA) and ML-DSA-65.
         use base64::Engine;
         let claims_json: serde_json::Value = if alg == "MLDSA65" || jwk.kty == "MLWE" {
-            // ML-DSA-65 verification (manual — jsonwebtoken doesn't support ML-DSA).
+            // ML-DSA-65 verification (manual - jsonwebtoken doesn't support ML-DSA).
             let x = jwk
                 .x
                 .as_ref()
@@ -635,7 +635,7 @@ impl Client {
             sentin8_jwt::decode_payload(token)
                 .map_err(|e| AuthError::Decode(format!("failed to parse claims: {e}")))?
         } else {
-            // RS256 verification (jsonwebtoken crate) — existing RSA path.
+            // RS256 verification (jsonwebtoken crate) - existing RSA path.
             let n = jwk
                 .n
                 .as_ref()
@@ -683,7 +683,7 @@ impl Client {
         Ok(claims)
     }
 
-    /// `GET /v1/admin/users` — list users (admin).
+    /// `GET /v1/admin/users` - list users (admin).
     pub async fn admin_list_users(
         &self,
         limit: u32,
@@ -705,7 +705,7 @@ impl Client {
             .map_err(|e| AuthError::Decode(e.to_string()))
     }
 
-    /// `POST /v1/admin/users` — create a user (admin).
+    /// `POST /v1/admin/users` - create a user (admin).
     pub async fn admin_create_user(
         &self,
         req: &CreateUserRequest,
@@ -724,7 +724,7 @@ impl Client {
             .map_err(|e| AuthError::Decode(e.to_string()))
     }
 
-    /// `POST /v1/admin/applications` — register an OAuth application (admin).
+    /// `POST /v1/admin/applications` - register an OAuth application (admin).
     pub async fn admin_register_application(
         &self,
         req: &RegisterApplicationRequest,
@@ -743,7 +743,7 @@ impl Client {
             .map_err(|e| AuthError::Decode(e.to_string()))
     }
 
-    /// `POST /v1/admin/api-keys` — create an API key (admin).
+    /// `POST /v1/admin/api-keys` - create an API key (admin).
     pub async fn admin_create_api_key(
         &self,
         req: &CreateApiKeyRequest,
@@ -762,7 +762,7 @@ impl Client {
             .map_err(|e| AuthError::Decode(e.to_string()))
     }
 
-    /// `DELETE /v1/admin/api-keys/{id}` — revoke an API key (admin).
+    /// `DELETE /v1/admin/api-keys/{id}` - revoke an API key (admin).
     pub async fn admin_revoke_api_key(&self, id: &str) -> Result<(), AuthError> {
         let resp = self
             .request(reqwest::Method::DELETE, &format!("/v1/admin/api-keys/{id}"))
@@ -775,7 +775,7 @@ impl Client {
         Ok(())
     }
 
-    /// `GET /v1/admin/sessions` — list active sessions (admin).
+    /// `GET /v1/admin/sessions` - list active sessions (admin).
     pub async fn admin_list_sessions(
         &self,
         limit: u32,
@@ -797,7 +797,7 @@ impl Client {
             .map_err(|e| AuthError::Decode(e.to_string()))
     }
 
-    /// `DELETE /v1/admin/sessions/{id}` — terminate a session (admin).
+    /// `DELETE /v1/admin/sessions/{id}` - terminate a session (admin).
     pub async fn admin_terminate_session(&self, id: &str) -> Result<(), AuthError> {
         let resp = self
             .request(reqwest::Method::DELETE, &format!("/v1/admin/sessions/{id}"))
@@ -810,7 +810,7 @@ impl Client {
         Ok(())
     }
 
-    /// `GET /v1/admin/audit` — query audit events (admin).
+    /// `GET /v1/admin/audit` - query audit events (admin).
     pub async fn admin_list_audit_events(
         &self,
         limit: u32,
@@ -832,7 +832,7 @@ impl Client {
             .map_err(|e| AuthError::Decode(e.to_string()))
     }
 
-    /// `GET /v1/admin/memberships` — list org memberships (admin).
+    /// `GET /v1/admin/memberships` - list org memberships (admin).
     pub async fn admin_list_memberships(
         &self,
         limit: u32,
@@ -854,7 +854,7 @@ impl Client {
             .map_err(|e| AuthError::Decode(e.to_string()))
     }
 
-    /// `POST /v1/admin/invitations` — send an invitation (admin).
+    /// `POST /v1/admin/invitations` - send an invitation (admin).
     pub async fn admin_send_invitation(
         &self,
         req: &SendInvitationRequest,
@@ -906,9 +906,9 @@ pub fn pkce_s256_challenge(verifier: &str) -> String {
 /// signature.
 ///
 /// Returns the raw JSON value of the header. Common fields:
-/// - `alg` — the signing algorithm (e.g. `"MLDSA65"`, `"RS256"`)
-/// - `kid` — the key ID used to look up the signing key in JWKS
-/// - `typ` — the JWT type (e.g. `"JWT"`, `"dpop+jwt"`)
+/// - `alg` - the signing algorithm (e.g. `"MLDSA65"`, `"RS256"`)
+/// - `kid` - the key ID used to look up the signing key in JWKS
+/// - `typ` - the JWT type (e.g. `"JWT"`, `"dpop+jwt"`)
 pub fn decode_jwt_header(token: &str) -> Result<serde_json::Value, String> {
     sentin8_jwt::decode_header(token)
 }
@@ -919,7 +919,7 @@ pub fn decode_jwt_header(token: &str) -> Result<serde_json::Value, String> {
 /// deserializing into a specific type if needed.
 ///
 /// **Security note**: This does NOT verify the token signature. Never use
-/// this for authorization decisions — use `Client::verify_token()` for that.
+/// this for authorization decisions - use `Client::verify_token()` for that.
 pub fn decode_jwt_payload(token: &str) -> Result<serde_json::Value, String> {
     sentin8_jwt::decode_payload(token)
 }
@@ -937,12 +937,12 @@ pub fn decode_jwt_payload_typed<T: serde::de::DeserializeOwned>(token: &str) -> 
 
 /// Decode JWT claims without signature verification. This is a lightweight
 /// helper for inspecting token claims (token_tp, env_id, sub) when
-/// full verification is not needed — e.g. BFF checking the token type before
+/// full verification is not needed - e.g. BFF checking the token type before
 /// deciding whether to exchange a token, or the CLI inspecting a cached
 /// token's expiry.
 ///
 /// **Security note**: This does NOT verify the token signature. Never use
-/// this for authorization decisions — use `Client::verify_token()` for that.
+/// this for authorization decisions - use `Client::verify_token()` for that.
 /// Only use this for routing/optimization decisions (e.g. "is this an
 /// M2M token that needs exchange?").
 pub fn decode_claims_unverified(token: &str) -> Option<UnverifiedClaims> {
@@ -1057,11 +1057,11 @@ pub struct IntrospectionResponse {
 /// Bearer tokens via the auth-client SDK.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct VerifiedClaims {
-    /// Subject — user ID or client_id.
+    /// Subject - user ID or client_id.
     pub sub: String,
-    /// Issuer — Auth issuer URL.
+    /// Issuer - Auth issuer URL.
     pub iss: String,
-    /// Audience — space-separated list of intended audiences (RFC 9068 `aud`).
+    /// Audience - space-separated list of intended audiences (RFC 9068 `aud`).
     #[serde(default)]
     pub aud: String,
     /// JWT ID.
@@ -1076,13 +1076,13 @@ pub struct VerifiedClaims {
     /// Space-separated scope string.
     #[serde(default)]
     pub scope: String,
-    /// Environment ID (tenant binding — globally unique, sole tenant key).
+    /// Environment ID (tenant binding - globally unique, sole tenant key).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env_id: Option<String>,
     /// Email (for user tokens).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
-    /// RFC 8693 `act` claim — the ORIGINAL actor for delegated/token-exchange
+    /// RFC 8693 `act` claim - the ORIGINAL actor for delegated/token-exchange
     /// tokens (`{sub, email}`) or the external IdP identity for federated M2M.
     /// Absent on plain user/M2M tokens. Services that resolve the acting
     /// USER for authorization/audit read `act.sub` when present (the plain
@@ -1096,7 +1096,7 @@ pub struct VerifiedClaims {
     /// it). Absent on user/delegated tokens.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vertical: Option<String>,
-    /// The service this M2M workload performs work FOR (VDC-4, §VDC.5) —
+    /// The service this M2M workload performs work FOR (VDC-4, §VDC.5) -
     /// stamped from the same enroll row; Sys's tenant-snapshot scoped
     /// discovery uses it (the caller sees only envs where its own service
     /// is enabled). Absent on user/delegated tokens.
@@ -1113,10 +1113,10 @@ impl VerifiedClaims {
             .unwrap_or(sentin8_config::SYSTEM_ENV_ID)
     }
 
-    /// The acting USER id — `act.sub` when the token is delegated (RFC 8693;
+    /// The acting USER id - `act.sub` when the token is delegated (RFC 8693;
     /// the plain `sub` is the delegator's client_id), else `sub` for user
     /// tokens. Returns `None` when neither parses as a user UUID (plain M2M
-    /// tokens carry a client_id subject — not a user).
+    /// tokens carry a client_id subject - not a user).
     pub fn acting_user_uuid(&self) -> Option<uuid::Uuid> {
         if let Some(act) = &self.act {
             if let Some(sub) = act.get("sub").and_then(|v| v.as_str()) {
@@ -1146,7 +1146,7 @@ impl VerifiedClaims {
     }
 
     /// Check if the caller is a platform admin.
-    /// Returns true if the token holder has the `sentin8:sys:admin` scope —
+    /// Returns true if the token holder has the `sentin8:sys:admin` scope -
     /// granted via the `sentin8:org:sys:admins` group → `sentin8:org:sys:admin` role →
     /// `sentin8:sys:admin` role (nests all service-admin roles). This is
     /// **permission-based**, not identity-based: any caller (user or
@@ -1172,10 +1172,10 @@ impl VerifiedClaims {
         }
     }
 
-    /// Is the caller an org admin? (Epic 15.5 option a — resolved from
+    /// Is the caller an org admin? (Epic 15.5 option a - resolved from
     /// scopes at context-set time, no per-row join.) True if the token
     /// carries the `sentin8:sys:org:admin` scope (granted via the `sentin8:sys:org:admin`
-    /// role — see `sentin8-sentin8-auth-technical-design.md`
+    /// role - see `sentin8-sentin8-auth-technical-design.md`
     /// the auth seed data).
     pub fn is_org_admin(&self) -> bool {
         self.has_scope("sentin8:sys:org:admin")
@@ -1207,7 +1207,7 @@ impl VerifiedClaims {
 
 // ── AuthContext + verify_bearer_token (shared across all services) ──────
 
-/// Authenticated request context — contains verified claims from the
+/// Authenticated request context - contains verified claims from the
 /// Auth access token. Used by all Sentin8 backend services.
 ///
 /// This struct replaces the per-service `auth.rs` files that duplicated
@@ -1222,7 +1222,7 @@ pub struct AuthContext {
     /// client certificate INSTEAD of a bearer token. `None` on the bearer
     /// path (user/delegated JWT flows). When set, `claims` carries the
     /// SYNTHETIC projection of the identity (see
-    /// [`AuthContext::from_workload`]) — `has_scope`/`effective_*`
+    /// [`AuthContext::from_workload`]) - `has_scope`/`effective_*`
     /// consult the workload record first, the claims second.
     pub workload: Option<WorkloadIdentity>,
 }
@@ -1236,16 +1236,16 @@ pub struct AuthContext {
 pub struct WorkloadIdentity {
     /// The workload name (certificate CN minus `m2m-`).
     pub workload: String,
-    /// The map-granted scopes (empty when missing/disabled — fail-closed).
+    /// The map-granted scopes (empty when missing/disabled - fail-closed).
     pub scopes: Vec<String>,
     /// The map-stamped vertical (VDC-2 gate input; `None` when
-    /// missing/disabled — produce refuses).
+    /// missing/disabled - produce refuses).
     pub vertical: Option<String>,
-    /// The service_type the workload performs work FOR (VDC-4 — Sys's
+    /// The service_type the workload performs work FOR (VDC-4 - Sys's
     /// tenant-snapshot scoped discovery keys on this claim; `None` when
     /// the map row carries no value).
     pub service_type: Option<String>,
-    /// The presented certificate thumbprint (base64url SHA-256 of DER —
+    /// The presented certificate thumbprint (base64url SHA-256 of DER -
     /// the audit identity).
     pub thumbprint: String,
 }
@@ -1260,7 +1260,7 @@ impl WorkloadIdentity {
 impl AuthContext {
     /// Build the certificate-path context: a SYNTHETIC claims projection
     /// of the resolved identity (`sub = m2m-{workload}`, `token_tp =
-    /// "m2m"`, scope/vertical from the map row, no expiry — the identity
+    /// "m2m"`, scope/vertical from the map row, no expiry - the identity
     /// is the certificate) so the existing handler seams read the same
     /// fields they always did. `workload` marks the provenance for the
     /// effective accessors.
@@ -1294,7 +1294,7 @@ impl AuthContext {
         }
     }
 
-    /// The caller's vertical for the VDC-2 event-ownership gate — the
+    /// The caller's vertical for the VDC-2 event-ownership gate - the
     /// map-stamped vertical on the certificate path, the JWT claim on
     /// the bearer path.
     pub fn effective_vertical(&self) -> Option<String> {
@@ -1304,7 +1304,7 @@ impl AuthContext {
         self.claims.vertical.clone()
     }
 
-    /// The caller's subject for audit stamps — the workload CN on the
+    /// The caller's subject for audit stamps - the workload CN on the
     /// certificate path, the JWT `sub` on the bearer path.
     pub fn effective_subject(&self) -> String {
         if let Some(w) = &self.workload {
@@ -1318,7 +1318,7 @@ impl AuthContext {
         self.claims.env_uuid()
     }
 
-    /// Check if the caller has a specific scope — map-granted on the
+    /// Check if the caller has a specific scope - map-granted on the
     /// certificate path, JWT claim on the bearer path.
     pub fn has_scope(&self, scope: &str) -> bool {
         if let Some(w) = &self.workload {
@@ -1386,7 +1386,7 @@ impl AuthContext {
 
 /// Extract and verify the Bearer token from the `Authorization` header.
 ///
-/// This is the single canonical implementation — all services should call
+/// This is the single canonical implementation - all services should call
 /// this instead of maintaining their own `auth.rs` with a duplicated
 /// `verify_token` function.
 ///
@@ -1440,18 +1440,18 @@ pub async fn verify_bearer_token(
 
 /// Resolve a platform-workload identity from the TLS-injected certificate
 /// headers against the boot-loaded registry map (, auth DESIGN
-/// §4.3f — request-path read, in-memory snapshot, no I/O).
+/// §4.3f - request-path read, in-memory snapshot, no I/O).
 ///
 /// Returns `Ok(None)` when the request carried NO client certificate
-/// (the caller falls through to the bearer path or 401s — user flows keep
+/// (the caller falls through to the bearer path or 401s - user flows keep
 /// their JWTs). The TLS layer injects these headers ONLY after
 /// CA-verifying the presented certificate (client-supplied copies are
-/// stripped before injection) — the same trust model as
+/// stripped before injection) - the same trust model as
 /// `X-Sentin8-Env-Id`.
 ///
 /// # Errors
 /// Returns the rejection (status + message) for an unenrolled or disabled
-/// workload — the authorization record is the map row.
+/// workload - the authorization record is the map row.
 pub async fn resolve_workload_identity(
     registry: &sentin8_workload_registry::WorkloadMap,
     headers: &http::HeaderMap,
@@ -1566,7 +1566,7 @@ pub struct Jwk {
     pub x: Option<String>,
 }
 
-// ── Admin API types (1.1b.13–1.1b.22) ───────────────────────────────────
+// ── Admin API types (1.1b.13-1.1b.22) ───────────────────────────────────
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UserSummary {
@@ -1684,7 +1684,7 @@ pub struct SendInvitationRequest {
 mod tests {
     use super::*;
 
-    /// Install the Graviola PQ crypto provider once — reqwest panics with
+    /// Install the Graviola PQ crypto provider once - reqwest panics with
     /// "No provider set" when a client is built without one.
     fn install_provider() {
         use std::sync::Once;
@@ -1775,7 +1775,7 @@ mod tests {
     #[test]
     fn introspection_response_deserializes() {
         // `realm`/`org_id` were removed from the identity model (see the
-        // realm-org-id-removal design note) — env_id is the sole tenant key.
+        // realm-org-id-removal design note) - env_id is the sole tenant key.
         let json = r#"{"active":true,"scope":"openid profile","sub":"user-123","exp":1700000000,"env_id":"env-1"}"#;
         let resp: IntrospectionResponse = serde_json::from_str(json).unwrap();
         assert!(resp.active);

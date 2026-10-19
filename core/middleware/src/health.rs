@@ -42,7 +42,7 @@ pub enum HealthStatus {
 }
 
 impl HealthStatus {
-    /// Merge two statuses — the worse one wins.
+    /// Merge two statuses - the worse one wins.
     pub fn merge(self, other: HealthStatus) -> HealthStatus {
         use HealthStatus::*;
         match (self, other) {

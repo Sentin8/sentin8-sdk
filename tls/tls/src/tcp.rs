@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! Raw-TCP TLS listener support — STARTTLS upgrade + implicit TLS for
+//! Raw-TCP TLS listener support - STARTTLS upgrade + implicit TLS for
 //! non-HTTP protocols (SMTP, IMAP, POP3, ManageSieve, LMTP), plus
 //! connection introspection for Received headers and DANE TLSA
 //! verification.
@@ -38,7 +38,7 @@ use crate::crypto::{sentin8_pq_provider, sentin8_tls_versions};
 
 /// A raw-TCP listener that can upgrade connections to TLS on demand
 /// (STARTTLS) or accept implicit-TLS connections (TLS from the first
-/// byte — SMTPS/IMAPS/POP3S).
+/// byte - SMTPS/IMAPS/POP3S).
 ///
 /// Created via [`crate::Sentin8Tls::raw_tcp_listener`].
 pub struct RawTcpListener {
@@ -55,7 +55,7 @@ pub struct TlsInfo {
     /// Negotiated cipher suite name.
     pub cipher_suite: String,
     /// The peer certificate chain (DER, leaf first) when the client
-    /// presented one — DANE TLSA verification input.
+    /// presented one - DANE TLSA verification input.
     pub peer_chain_der: Vec<Vec<u8>>,
 }
 
@@ -134,7 +134,7 @@ impl RawTcpListener {
     }
 
     /// Accept the next connection and wrap it in TLS immediately
-    /// (implicit-TLS mode — SMTPS/IMAPS/POP3S).
+    /// (implicit-TLS mode - SMTPS/IMAPS/POP3S).
     pub async fn accept_tls(
         &self,
     ) -> Result<(TlsStream<tokio::net::TcpStream>, SocketAddr), std::io::Error> {
@@ -152,7 +152,7 @@ impl RawTcpListener {
     ///
     /// The handshake runs on the same socket; buffered plaintext must
     /// be drained by the caller first (an STARTTLS-after-data pipeliner
-    /// is a protocol violation — the caller should reject).
+    /// is a protocol violation - the caller should reject).
     pub async fn upgrade_starttls(
         &self,
         tcp: tokio::net::TcpStream,

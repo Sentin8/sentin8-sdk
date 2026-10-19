@@ -18,12 +18,12 @@
 //!
 //! ## AI-friendliness
 //!
-//! - **One line per event** — the channel is line-oriented, not
+//! - **One line per event** - the channel is line-oriented, not
 //!   batch-framed, so the consumer (Loki, ES, an LLM) sees the same
 //!   wire format whether or not the writer is in use.
-//! - **No NDJSON frames** — we don't ship `[{...},{...}]` blobs. The
+//! - **No NDJSON frames** - we don't ship `[{...},{...}]` blobs. The
 //!   LLM and `grep` would have to re-split, costing tokens and CPU.
-//! - **Backpressure with loss-limit** — if the channel is full
+//! - **Backpressure with loss-limit** - if the channel is full
 //!   (the consumer is slow or the writer is paused), newer events are
 //!   dropped **and a single rate-limited `log_writer.backpressure` WARN
 //!   is emitted** so the agent can see we're losing lines without
@@ -42,7 +42,7 @@
 //! writer.shutdown().await; // flush + stop
 //! ```
 //!
-//! The writer is a [`LogSink`] — pluggable, so future deployments
+//! The writer is a [`LogSink`] - pluggable, so future deployments
 //! can ship directly to a TCP socket, a Unix pipe, or a remote
 //! collector without changing the layer.
 
@@ -64,7 +64,7 @@ pub const DEFAULT_BATCH_SIZE: usize = 128;
 /// within a quarter-second, well under any human-perceptible delay.
 pub const DEFAULT_FLUSH_INTERVAL: Duration = Duration::from_millis(250);
 
-/// A handle to the batched log writer. Clone it freely — it's an
+/// A handle to the batched log writer. Clone it freely - it's an
 /// `Arc` over the sender side. The writer task is reference-counted
 /// and lives until every handle is dropped (or until
 /// [`shutdown`](Self::shutdown) is called).
@@ -197,7 +197,7 @@ impl BatchedLogWriter {
     /// Flush + stop the writer. Safe to call multiple times.
     pub async fn shutdown(&self) {
         self.state.shutdown.store(true, Ordering::Relaxed);
-        // Drain by sending a scout — easier than restructuring the
+        // Drain by sending a scout - easier than restructuring the
         // receiver side. The receiver loop in run_writer checks the
         // shutdown flag and drains the remaining items on exit.
         let _ = self.tx.send(String::new()).await;
@@ -218,7 +218,7 @@ impl BatchedLogWriter {
         if now_ms.saturating_sub(prev) < 5_000 {
             return;
         }
-        // Best-effort CAS — if we lose the race, the other thread will
+        // Best-effort CAS - if we lose the race, the other thread will
         // emit the WARN this round, which is fine.
         if self
             .state
@@ -279,7 +279,7 @@ pub trait LogSink: Send + Sync + 'static {
     fn written(&self) -> u64 {
         0
     }
-    /// Number of lines dropped (backpressure/overflow) — observability for
+    /// Number of lines dropped (backpressure/overflow) - observability for
     /// log loss.
     fn dropped(&self) -> u64 {
         0
@@ -504,7 +504,7 @@ mod tests {
         assert!(!handle.push("c".into()));
         assert_eq!(state.dropped.load(Ordering::Relaxed), 2);
         // The rate limiter is consulted but the WARN itself is emitted
-        // via println! — we don't assert the println content here, just
+        // via println! - we don't assert the println content here, just
         // that the dropped counter is consistent.
     }
 }

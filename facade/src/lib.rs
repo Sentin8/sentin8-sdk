@@ -3,12 +3,12 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! # sentin8 — the Sentin8 shared-plane facade
+//! # sentin8 - the Sentin8 shared-plane facade
 //!
 //! The namespace facade for the **shared library plane only** (SDD §2.2):
 //! every platform shared crate is reachable as `sentin8::{leaf}` or
 //! `sentin8::{domain}::{kind}`. Service-scoped SDK crates
-//! (`{svc}-client`/`{svc}-contracts`) are **not** re-exported here — each
+//! (`{svc}-client`/`{svc}-contracts`) are **not** re-exported here - each
 //! lives in its owning service repo behind a per-service mini-facade
 //! (`sentin8-{svc}-sdk`), because the shared plane links no service SDK
 //! crate (SDD-1) and the facade never pins a service repo (SDD-6).
@@ -45,7 +45,7 @@
 // See `design/sentin8-sdk-dependency-cleanup-design.md` §2.2 and
 // `sentin8/design/sentin8-architecture-principles.md` §2.1.
 
-// Infrastructure crates — one level.
+// Infrastructure crates - one level.
 pub use sentin8_audit as audit;
 pub use sentin8_build_info as build_info;
 pub use sentin8_config as config;
@@ -61,10 +61,10 @@ pub use sentin8_service_discovery as service_discovery;
 pub use sentin8_shell as shell;
 pub use sentin8_shield as shield;
 
-/// Sentin8:Auth domain — platform identity client, JWT helpers, M2M token
+/// Sentin8:Auth domain - platform identity client, JWT helpers, M2M token
 /// source, and the discovery-driven FAPI OAuth client. All identity-plane
 /// crates live here (architecture-principles §4.1). The identity plane is
-/// shared (shell/shield link it) — it stays in the SDK workspace.
+/// shared (shell/shield link it) - it stays in the SDK workspace.
 pub mod auth {
     pub use sentin8_auth_client as client;
     pub use sentin8_fapiclient as fapi;
@@ -73,7 +73,7 @@ pub mod auth {
     pub use sentin8_workload_registry as workload_registry;
 }
 
-/// Sentin8:Bus domain — platform client + contracts, outbox.
+/// Sentin8:Bus domain - platform client + contracts, outbox.
 pub mod bus {
     pub use sentin8_bus_client as client;
     pub use sentin8_bus_contracts as contracts;

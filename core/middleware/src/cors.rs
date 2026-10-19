@@ -6,7 +6,7 @@
 //! # CORS configuration (stories 14.1.5)
 //!
 //! Returns a configured `tower_http::cors::CorsLayer` for Sentin8 services.
-//! Origins are explicitly whitelisted — no wildcard origins in production.
+//! Origins are explicitly whitelisted - no wildcard origins in production.
 //! Credentials are allowed (for BFF cookie-based auth), so the
 //! `Access-Control-Allow-Origin` response is always the specific origin,
 //! never `*`.

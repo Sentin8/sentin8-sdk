@@ -5,7 +5,7 @@
 
 //! Live integration tests against the platform Valkey (`valkey://localhost:6379`).
 //!
-//! Skipped automatically when Valkey is unreachable — run with
+//! Skipped automatically when Valkey is unreachable - run with
 //! `cargo test -p sentin8-membus` on a host where `make infra-up` has
 //! been executed. These prove the two delivery classes end-to-end:
 //! XADD/XREADGROUP/XACK with trim, XAUTOCLAIM crash recovery, PUBLISH/
@@ -21,7 +21,7 @@ use sentin8_membus::{
 };
 use tokio::time::{sleep, timeout};
 
-/// A random env id per run — the `mbus:{env}:…` keys are disposable test
+/// A random env id per run - the `mbus:{env}:…` keys are disposable test
 /// data in a dev Valkey; no cleanup contract needed.
 fn mk_env() -> String {
     uuid::Uuid::new_v4().to_string()
@@ -38,7 +38,7 @@ async fn bus() -> Option<MemBus> {
     match MemBus::connect(cfg).await {
         Ok(b) => Some(b),
         Err(e) => {
-            eprintln!("skipping live tests — Valkey unreachable: {e}");
+            eprintln!("skipping live tests - Valkey unreachable: {e}");
             None
         }
     }
@@ -52,7 +52,7 @@ async fn stream_publish_consume_ack_round_trip() {
     let env = bus.for_env(&mk_env()).unwrap();
     // Group must be created BEFORE publishing (XGROUP CREATE uses `$`,
     // so entries XADDed before the group exists are not delivered to
-    // it — the durable class is subscribe-then-publish for a new group).
+    // it - the durable class is subscribe-then-publish for a new group).
     let mut sub = env
         .subscribe_stream("it.trade", "oms", StreamOpts::default())
         .await
@@ -134,7 +134,7 @@ async fn pubsub_frame_round_trip_and_loss_contract() {
     let Some(bus) = bus().await else { return };
     let env = bus.for_env(&mk_env()).unwrap();
 
-    // Subscribe BEFORE publish — an ephemeral message with no live
+    // Subscribe BEFORE publish - an ephemeral message with no live
     // subscriber is gone by contract.
     let mut sub = env.subscribe_pubsub("it.tick").await.unwrap();
     assert!(sub.channel().starts_with("mchan:"));
@@ -250,7 +250,7 @@ async fn trim_bounds_stream_length() {
     assert!(len <= 200, "stream not trimmed: len={len}");
 }
 
-/// Counting hooks — proves the sampled-observation surface works.
+/// Counting hooks - proves the sampled-observation surface works.
 #[derive(Default)]
 struct Counting {
     count: std::sync::atomic::AtomicU64,
@@ -300,10 +300,10 @@ async fn ping_sets_liveness_key() {
 
 #[tokio::test]
 async fn plaintext_scheme_rejected_at_connect() {
-    // Group DESIGN.md §3.1: the Valkey data plane is TLS-ONLY — MemBus
+    // Group DESIGN.md §3.1: the Valkey data plane is TLS-ONLY - MemBus
     // connects through the cert-presenting factory, which REQUIRES the
     // `valkeys://` scheme. A plaintext URL is a configuration error surfaced
-    // as `MemBusError::Connect` — never a silent downgrade (there is no
+    // as `MemBusError::Connect` - never a silent downgrade (there is no
     // plaintext listener to reach).
     let cfg = MemBusConfig {
         url: "plaintext://localhost:6379/0".into(),

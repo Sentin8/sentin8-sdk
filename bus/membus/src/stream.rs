@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! Durable-class consumer — `XREADGROUP … BLOCK` on a **dedicated**
+//! Durable-class consumer - `XREADGROUP … BLOCK` on a **dedicated**
 //! connection, with the library-owned `XAUTOCLAIM` crash-recovery sweep
 //! and coalesced `XACK`.
 //!
@@ -30,11 +30,11 @@ type RawAutoclaim = (String, Vec<(String, Vec<(String, Vec<u8>)>)>, Vec<String>)
 /// Consumer tuning knobs.
 #[derive(Debug, Clone)]
 pub struct StreamOpts {
-    /// `XREADGROUP COUNT` — max entries per read.
+    /// `XREADGROUP COUNT` - max entries per read.
     pub count: u64,
     /// `XREADGROUP BLOCK` in ms; `0` = non-blocking drain for
     /// spin-style consumers. Default 50ms (snappier than the
-    /// control-plane bus's 10s — the fast path wants quick shutdown and
+    /// control-plane bus's 10s - the fast path wants quick shutdown and
     /// tight claim sweeps).
     pub block_ms: u64,
 }
@@ -67,7 +67,7 @@ pub struct StreamSubscriber {
     pub(crate) consumer: String,
     pub(crate) opts: StreamOpts,
     pub(crate) metrics: Arc<dyn MetricsHooks>,
-    /// Ids delivered but not yet acked — flushed (coalesced) with the
+    /// Ids delivered but not yet acked - flushed (coalesced) with the
     /// next `next_batch()` call or by `ack_now()`.
     pub(crate) unacked: Vec<String>,
     pub(crate) last_autoclaim: Instant,
@@ -105,7 +105,7 @@ impl StreamSubscriber {
 
         let mut batch = Vec::new();
 
-        // Crash-recovery sweep — abandoned PEL entries from a crashed
+        // Crash-recovery sweep - abandoned PEL entries from a crashed
         // sibling instance of the same group.
         if self.last_autoclaim.elapsed() >= Duration::from_millis(self.autoclaim_interval_ms) {
             self.last_autoclaim = Instant::now();
@@ -113,7 +113,7 @@ impl StreamSubscriber {
         }
 
         let conn = self.conn.clone();
-        // Byte-typed fields — the `p` payload is opaque binary and must
+        // Byte-typed fields - the `p` payload is opaque binary and must
         // NOT be forced through UTF-8.
         let read: Option<RawStreamEntries> = {
             let mut cmd = glide::Cmd::new();
@@ -140,7 +140,7 @@ impl StreamSubscriber {
                         self.unacked.push(id);
                         batch.push(msg);
                     } else {
-                        // Undecodable entry: ack and skip — the fast
+                        // Undecodable entry: ack and skip - the fast
                         // path has no DLQ by design.
                         self.unacked.push(id);
                     }
@@ -152,7 +152,7 @@ impl StreamSubscriber {
             self.metrics.on_batch(&self.key, &self.group, batch.len());
         }
         // With BLOCK=0 (non-blocking drain) an empty batch is a normal
-        // poll result, not a stream end — surface it as Some(vec![]).
+        // poll result, not a stream end - surface it as Some(vec![]).
         Ok(Some(batch))
     }
 
@@ -209,7 +209,7 @@ impl StreamSubscriber {
                 Ok(out)
             }
             Err(e) => {
-                // The sweep is best-effort — a transient failure must
+                // The sweep is best-effort - a transient failure must
                 // not kill the consume loop; the PEL keeps the entries.
                 tracing::debug!(error = %e, key = %self.key, "membus: XAUTOCLAIM sweep skipped");
                 Ok(Vec::new())

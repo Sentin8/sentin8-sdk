@@ -10,12 +10,12 @@
 //! Every service that publishes domain events owns a **local outbox table**
 //! (`{service}.outbox`, in its own database/schema). The producer writes an
 //! outbox row **in the same DB transaction as the domain change**
-//! (outbox-first — the row commits atomically with the domain rows). A
+//! (outbox-first - the row commits atomically with the domain rows). A
 //! post-commit relay task ([`spawn_relay`]) drains unrelayed rows and pushes
 //! each one to Bus's `POST /v1/produce` (M2M token, scope
 //! `sentin8:bus:produce`), marking the row relayed on success.
 //!
-//! Producers hold NO grants on `bus.inbox` — that table is Bus's own
+//! Producers hold NO grants on `bus.inbox` - that table is Bus's own
 //! internal durability. Delivery is at-least-once: a Bus outage leaves rows
 //! unrelayed in the local outbox and the relay retries with backoff;
 //! consumers dedupe on `idempotency_key` (the outbox row id).
@@ -40,7 +40,7 @@ pub enum OutboxError {
     #[error("invalid stream_family: {0}")]
     InvalidStreamFamily(String),
     /// The Bus produce API rejected the row. The payload is the typed
-    /// client error — a [`sentin8_bus_client::BusError::Permanent`] 4xx is
+    /// client error - a [`sentin8_bus_client::BusError::Permanent`] 4xx is
     /// a terminal rejection (parked, never retried) while every other form
     /// stays retryable (outbox relay design).
     #[error("bus produce failed: {0}")]
@@ -74,7 +74,7 @@ pub fn validate_stream_family(family: &str) -> Result<(), OutboxError> {
 ///
 /// Applied by each service's init.sql with its own schema. `relayed` is
 /// `false` until the produce API accepts the row (idempotency_key = row id).
-/// `relay_attempts` counts produce failures — the relay stops retrying at
+/// `relay_attempts` counts produce failures - the relay stops retrying at
 /// [`RELAY_MAX_ATTEMPTS`] (the row stays unrelayed for manual replay;
 /// architecture-principles §6.7: exhausted retries must never hot-loop).
 pub fn outbox_table_sql(schema: &str) -> String {
@@ -190,11 +190,11 @@ where
 ///
 /// Opens its own EXPLICIT transaction and sets the RLS tenant context on
 /// THAT transaction before the INSERT. The helpers are
-/// transaction-local (`set_config(..., true)`) — a context set on a bare
+/// transaction-local (`set_config(..., true)`) - a context set on a bare
 /// autocommit connection evaporates at the statement's implicit commit
 /// and the INSERT lands with `context_initialized=false`, so FORCE-RLS
 /// rejects it (every row silently warn-dropped). The pool variant cannot
-/// share the caller's transaction — prefer [`insert_outbox_row`] on the
+/// share the caller's transaction - prefer [`insert_outbox_row`] on the
 /// domain transaction.
 pub async fn insert_outbox_row_pool(
     pool: &sqlx::PgPool,
@@ -220,7 +220,7 @@ pub async fn insert_outbox_row_pool(
 /// One outbox row as read by the relay.
 #[derive(Debug)]
 pub struct OutboxRow {
-    /// Row id — also the produce idempotency key.
+    /// Row id - also the produce idempotency key.
     pub id: Uuid,
     /// Tenant environment of the event.
     pub env_id: Uuid,
@@ -238,28 +238,28 @@ pub struct OutboxRow {
 
 /// Drain up to `batch` unrelayed outbox rows (oldest first) that have not
 /// exhausted their retry budget and are not in retryable backoff
-/// (`next_retry_at` in the future — set by a 429/5xx/transport failure).
+/// (`next_retry_at` in the future - set by a 429/5xx/transport failure).
 async fn drain_rows(pool: &sqlx::PgPool, batch: i64) -> Result<Vec<OutboxRow>, sqlx::Error> {
-    // RLS: `outbox` is FORCE-RLS'd on (context_initialized, env_id) — the
+    // RLS: `outbox` is FORCE-RLS'd on (context_initialized, env_id) - the
     // relay task has NO tenant context of its own, so a bare-pool SELECT
     // silently returns 0 rows and the relay drains NOTHING while rows
     // accumulate (incident 2026-09-23: every service's unrelayed outbox grew
     // unbounded; sys's identity:updated invalidation events never reached
     // Bus). The relay is the OWNER of this table (its own schema): read it
     // inside a transaction whose context covers ALL of its envs. There is
-    // no single env_id to set — rows span every tenant the service touched
-    // — so the drain runs per-env: collect distinct envs first (bypass via
+    // no single env_id to set - rows span every tenant the service touched
+    // - so the drain runs per-env: collect distinct envs first (bypass via
     // owner-role table read is not available under FORCE RLS), then drain
     // each env under its own context transaction.
     //
     // Simpler + correct: set context for each env present in the queue. The
     // env list itself is derived from the rows we can see, so the first
     // pass runs with context on SYSTEM_ENV_ID (the outbox rows for platform
-    // families live there) — but tenant-family rows would be invisible.
+    // families live there) - but tenant-family rows would be invisible.
     //
     // Target state: the relay drains env-by-env using `sentin8_outbox_envs()`
     // (SECURITY DEFINER, owner-side helper returning DISTINCT env_id of
-    // unrelayed rows) — installed by the shared outbox init (see below).
+    // unrelayed rows) - installed by the shared outbox init (see below).
     let envs: Vec<Uuid> =
         sqlx::query_scalar("SELECT DISTINCT env_id FROM sentin8_outbox_unrelayed_envs()")
             .fetch_all(pool)
@@ -305,7 +305,7 @@ async fn drain_rows(pool: &sqlx::PgPool, batch: i64) -> Result<Vec<OutboxRow>, s
 }
 
 /// Retry budget per outbox row (relay design): a row that failed produce
-/// this many times is no longer drained — it stays `relayed = false` with
+/// this many times is no longer drained - it stays `relayed = false` with
 /// its attempts count as the DLQ marker for manual replay/inspection.
 /// At-least-once delivery means a transient outage always drains long
 /// before the cap; only a PERMANENT rejection (4xx, e.g. a cross-env
@@ -314,7 +314,7 @@ pub const RELAY_MAX_ATTEMPTS: i32 = 10;
 
 /// Mark a row relayed (produce API accepted it).
 async fn mark_relayed(pool: &sqlx::PgPool, id: Uuid, env_id: Uuid) -> Result<(), sqlx::Error> {
-    // RLS: same-connection context in an explicit transaction (§4.3d) — a
+    // RLS: same-connection context in an explicit transaction (§4.3d) - a
     // bare-pool UPDATE fails the FORCE-RLS policy (context_initialized
     // false) exactly like drain_rows' SELECT.
     let mut tx = pool.begin().await?;
@@ -335,11 +335,11 @@ async fn mark_relayed(pool: &sqlx::PgPool, id: Uuid, env_id: Uuid) -> Result<(),
 
 /// Record one failed produce attempt for a row (retry budget / DLQ marker)
 /// and schedule its next attempt. `retry_after` honors Bus's explicit
-/// backoff signal (the 429 body carries `retry-after: 60` — the token-bucket
+/// backoff signal (the 429 body carries `retry-after: 60` - the token-bucket
 /// window); `None` takes the relay's short tick. Without this, a burst
 /// backlog larger than Bus's per-minute rate limit burns the whole
 /// 10-attempt budget against 429s in ~50s and self-parks (the D4 defect
-/// class — rate limiting is exactly what the budget exists to absorb).
+/// class - rate limiting is exactly what the budget exists to absorb).
 /// Same-connection tenant-context discipline as [`mark_relayed`].
 async fn mark_attempt(
     pool: &sqlx::PgPool,
@@ -381,9 +381,9 @@ fn retry_after_hint(error_text: &str) -> Option<u64> {
 
 /// Mark a row TERMINALLY rejected (outbox relay design): a permanent 4xx
 /// from Bus can never succeed on retry (the rejection is a property of the
-/// request — e.g. an env that no longer exists), so the row is pinned at
-/// the retry cap — the drain predicate (`relay_attempts < cap`) stops
-/// re-reading it — and stays `relayed = false` for manual
+/// request - e.g. an env that no longer exists), so the row is pinned at
+/// the retry cap - the drain predicate (`relay_attempts < cap`) stops
+/// re-reading it - and stays `relayed = false` for manual
 /// inspection/replay. One warn line carries the rejection body.
 async fn mark_terminal(
     pool: &sqlx::PgPool,
@@ -396,7 +396,7 @@ async fn mark_terminal(
         id = %id,
         status,
         body = %body,
-        "outbox relay: produce REJECTED permanently — row parked (no retry)"
+        "outbox relay: produce REJECTED permanently - row parked (no retry)"
     );
     let mut tx = pool.begin().await?;
     let _ = sqlx::query("SELECT sentin8_set_tenant_context($1)")
@@ -413,7 +413,7 @@ async fn mark_terminal(
     Ok(())
 }
 
-/// True when the produce failure is PERMANENT (a 4xx rejection) — the row
+/// True when the produce failure is PERMANENT (a 4xx rejection) - the row
 /// must be parked, never retried. [`sentin8_bus_client::BusError::Permanent`]
 /// carries the status + body; every other error form stays retryable.
 fn is_permanent(e: &OutboxError) -> Option<(u16, String)> {
@@ -444,18 +444,18 @@ pub fn spawn_relay(
         let mut listener = match sqlx::postgres::PgListener::connect_with(&pool).await {
             Ok(l) => l,
             Err(e) => {
-                tracing::warn!(error = %e, "outbox relay: LISTEN connect failed — poll-only mode");
+                tracing::warn!(error = %e, "outbox relay: LISTEN connect failed - poll-only mode");
                 sqlx::postgres::PgListener::connect_with(&pool)
                     .await
                     .expect("outbox relay: could not connect listener")
             }
         };
         if let Err(e) = listener.listen(&notify_channel).await {
-            tracing::warn!(error = %e, channel = %notify_channel, "outbox relay: LISTEN failed — poll-only mode");
+            tracing::warn!(error = %e, channel = %notify_channel, "outbox relay: LISTEN failed - poll-only mode");
         }
         tracing::info!(channel = %notify_channel, "outbox relay started (local outbox + produce API)");
         loop {
-            // Wait for a notification or the 5s safety tick — then drain
+            // Wait for a notification or the 5s safety tick - then drain
             // IMMEDIATELY on either wakeup (bus DESIGN §4.3). A notification
             // resolves `recv()` in milliseconds; the previous structure
             // (`while let Ok(Ok(_))` until a timeout expiry) consumed the
@@ -471,7 +471,7 @@ pub fn spawn_relay(
             let _ = wakeup;
             // Drain + push until empty. Batches of >1 row go through
             // `produce_batch` (BUS-3, one HTTP call per drained batch,
-            // ≤ 100 rows — the drain cap); a single row keeps the plain
+            // ≤ 100 rows - the drain cap); a single row keeps the plain
             // `produce` path. Per-row failure semantics are identical in
             // both paths: successes are marked relayed, failures record
             // an attempt (retry budget / DLQ marker) and back off.
@@ -480,7 +480,7 @@ pub fn spawn_relay(
                     Ok(rows) if rows.is_empty() => break,
                     Ok(rows) => {
                         // BUS-3: >1 pending row → one `produce_batch` HTTP
-                        // call for the whole drain batch (≤ 100 — the drain
+                        // call for the whole drain batch (≤ 100 - the drain
                         // cap); a lone row keeps the plain `produce` path.
                         if rows.len() > 1 {
                             match push_batch_to_bus(&bus, &rows).await {
@@ -491,7 +491,7 @@ pub fn spawn_relay(
                                                 // Per-row failure inside a
                                                 // successful batch: record the
                                                 // attempt (retry budget / DLQ
-                                                // marker) — siblings stay
+                                                // marker) - siblings stay
                                                 // relayed, no hot-loop backoff
                                                 // is needed (the batch already
                                                 // returned; the next pass
@@ -507,7 +507,7 @@ pub fn spawn_relay(
                                                 {
                                                     tracing::error!(error = %ue, id = %row.id, "outbox relay: mark_attempt failed");
                                                 }
-                                                tracing::warn!(error = %e, id = %row.id, event_type = %row.event_type, "outbox relay: batch produce row failed — will retry");
+                                                tracing::warn!(error = %e, id = %row.id, event_type = %row.event_type, "outbox relay: batch produce row failed - will retry");
                                             }
                                             None => {
                                                 if let Err(e) =
@@ -523,10 +523,10 @@ pub fn spawn_relay(
                                     // The whole batch call failed at the
                                     // transport level: every row records an
                                     // attempt and the relay backs off one tick
-                                    // (same discipline as the single path) —
+                                    // (same discipline as the single path) -
                                     // EXCEPT a permanent 4xx, which parks
-                                    // EVERY row (a transport-level 4xx — e.g.
-                                    // the gate rejecting the batch body —
+                                    // EVERY row (a transport-level 4xx - e.g.
+                                    // the gate rejecting the batch body -
                                     // applies to all rows in it).
                                     if let Some((status, body)) = is_permanent(&e) {
                                         for row in &rows {
@@ -540,7 +540,7 @@ pub fn spawn_relay(
                                         }
                                         continue;
                                     }
-                                    tracing::warn!(error = %e, rows = "batch", "outbox relay: batch produce failed — will retry");
+                                    tracing::warn!(error = %e, rows = "batch", "outbox relay: batch produce failed - will retry");
                                     let hint = retry_after_hint(&e.to_string());
                                     for row in &rows {
                                         if let Err(ue) =
@@ -564,7 +564,7 @@ pub fn spawn_relay(
                                     }
                                     Err(e) => {
                                         // A PERMANENT 4xx parks the row
-                                        // immediately (never retried — the
+                                        // immediately (never retried - the
                                         // rejection is a property of the
                                         // request, e.g. an env that no longer
                                         // exists); other failures record the
@@ -595,7 +595,7 @@ pub fn spawn_relay(
                                         {
                                             tracing::error!(error = %ue, id = %row.id, "outbox relay: mark_attempt failed");
                                         }
-                                        tracing::warn!(error = %e, id = %row.id, event_type = %row.event_type, "outbox relay: produce failed — will retry");
+                                        tracing::warn!(error = %e, id = %row.id, event_type = %row.event_type, "outbox relay: produce failed - will retry");
                                         // Back off a tick before the next pass so a
                                         // Bus outage does not hot-loop.
                                         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -632,12 +632,12 @@ async fn push_to_bus(
         ..Default::default()
     };
     // BUSRELAY-1: one connection-level retry on the single-row path too
-    // (same contract as `push_batch_to_bus` — idempotency_key dedupes a
+    // (same contract as `push_batch_to_bus` - idempotency_key dedupes a
     // re-send; HTTP-status errors pass through unchanged).
     match bus.produce(&req).await {
         Ok(_) => Ok(()),
         Err(e @ sentin8_bus_client::BusError::Http(_)) => {
-            tracing::warn!(error = %e, "outbox relay: connection-level produce failure — retrying once with a fresh call");
+            tracing::warn!(error = %e, "outbox relay: connection-level produce failure - retrying once with a fresh call");
             bus.produce(&req)
                 .await
                 .map(|_| ())
@@ -648,11 +648,11 @@ async fn push_to_bus(
 }
 
 /// Push a drained batch (2..=100 rows) to Bus in ONE `produce_batch` call
-/// (BUS-3, bus DESIGN §4.3 / README §7 — the relay's transport-level batch).
+/// (BUS-3, bus DESIGN §4.3 / README §7 - the relay's transport-level batch).
 /// Returns one outcome per input row, IN ORDER: `None` = produced
 /// (mark relayed), `Some(error)` = that row was rejected (record the
 /// attempt). A transport-level failure of the whole call is returned as
-/// the outer `Err` — the caller then records an attempt for every row.
+/// the outer `Err` - the caller then records an attempt for every row.
 async fn push_batch_to_bus(
     bus: &sentin8_bus_client::BusClient,
     rows: &[OutboxRow],
@@ -673,7 +673,7 @@ async fn push_batch_to_bus(
         .collect();
     // BUSRELAY-1: a CONNECTION-level failure (never an HTTP status) is
     // retried once with a fresh call. The relay's reqwest transport reuses
-    // pooled connections routed through the proxy's L4 pipe — a Bus
+    // pooled connections routed through the proxy's L4 pipe - a Bus
     // restart mid-pool kills the piped socket and the next produce rides
     // a half-open connection; reqwest treats POST as non-idempotent and
     // refuses its own retry, surfacing `error sending request` forever
@@ -682,12 +682,12 @@ async fn push_batch_to_bus(
     // `idempotency_key = row id` and Bus dedupes on it, so a re-send
     // after a request that never reached Bus (connection died before the
     // response) is at-worst a duplicate Bus already rejects. A 4xx/5xx
-    // HTTP status is NOT retried — `BusError::Permanent`/status-bearing
+    // HTTP status is NOT retried - `BusError::Permanent`/status-bearing
     // errors pass through unchanged.
     let resp = match bus.produce_batch(&events).await {
         Ok(r) => r,
         Err(e @ sentin8_bus_client::BusError::Http(_)) => {
-            tracing::warn!(error = %e, rows = rows.len(), "outbox relay: connection-level produce failure — retrying once with a fresh call");
+            tracing::warn!(error = %e, rows = rows.len(), "outbox relay: connection-level produce failure - retrying once with a fresh call");
             bus.produce_batch(&events)
                 .await
                 .map_err(OutboxError::from)?
@@ -722,11 +722,11 @@ pub async fn pending_count(pool: &sqlx::PgPool, stream_family: &str) -> Result<i
 // Identity-cache invalidation + policy reload events ride the `policy`
 // stream family: policy sets (`…:updated`), relation tuples
 // (`…:relations:updated`), principal attributes (`…:attrs:updated`). Under
-// DBX these are ordinary local-outbox rows on the `policy` family — the
+// DBX these are ordinary local-outbox rows on the `policy` family - the
 // produce path accepts them because sys/auth's registry entries declare
 // `policy` as one of their families.
 
-/// Self-contained envelope for `sentin8:sys:policy:updated` — payload
+/// Self-contained envelope for `sentin8:sys:policy:updated` - payload
 /// completeness: the consumer reloads from the envelope alone.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PolicyUpdatedEnvelope {

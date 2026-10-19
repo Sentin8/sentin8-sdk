@@ -7,7 +7,7 @@
 //!
 //! Every adopting service serves the same four admin pages from its
 //! `GET /v1/admin/ui/{page}` handler by calling these constructors with its
-//! own colon service identity. The dash is a pure rendering host — the
+//! own colon service identity. The dash is a pure rendering host - the
 //! pages are *definitions*; all data and mutations flow through the shared
 //! policy-admin API this service already mounts.
 //!
@@ -16,10 +16,10 @@
 //!   attribute key) because the dash renderer substitutes ONLY `{id}` from
 //!   the row's `id` field in row-action endpoints.
 //! - The editor page is generated PER SET with the concrete name embedded in
-//!   the native widget props — `{name}` placeholders would render literally
+//!   the native widget props - `{name}` placeholders would render literally
 //!   (the renderer has no row context on a static page).
 //! - Simulation evaluates SERVER-side via the dry-run endpoint
-//!   (`POST /v1/admin/policy-sets/{name}/test`) — the browser never
+//!   (`POST /v1/admin/policy-sets/{name}/test`) - the browser never
 //!   evaluates policy (fail-closed single decision point).
 
 use crate::page::{AdminPage, AdminUiAction, AdminUiActionType};
@@ -125,7 +125,7 @@ fn form_field(
 }
 
 /// The shadow/enforced mode selector (§3.5: tenant-authored sets start in
-/// shadow — a mistake degrades to logging, not lockout).
+/// shadow - a mistake degrades to logging, not lockout).
 fn select_mode_field() -> WidgetFormField {
     WidgetFormField {
         key: "mode".into(),
@@ -137,7 +137,7 @@ fn select_mode_field() -> WidgetFormField {
         options: Some(vec![
             FormFieldOption {
                 value: "shadow".into(),
-                label: "Shadow (evaluate, never block — recommended start)".into(),
+                label: "Shadow (evaluate, never block - recommended start)".into(),
             },
             FormFieldOption {
                 value: "enforced".into(),
@@ -153,13 +153,13 @@ fn select_mode_field() -> WidgetFormField {
     }
 }
 
-/// `policy-sets` — the list page. Row `id` = policy_set_name (the data
+/// `policy-sets` - the list page. Row `id` = policy_set_name (the data
 /// endpoint maps it), so the `{id}` aliases resolve at click time.
 ///
-/// `service_type` — the colon identity (e.g. `sentin8:cron`); only used for
+/// `service_type` - the colon identity (e.g. `sentin8:cron`); only used for
 /// the page title so an admin can see WHICH service's policies they edit.
 pub fn policy_sets_page(service_type: &str) -> AdminPage {
-    AdminPage::new(format!("Policy Sets (Shield) — {service_type}"))
+    AdminPage::new(format!("Policy Sets (Shield) - {service_type}"))
         .action(AdminUiAction {
             label: "New Policy Set".into(),
             action_type: AdminUiActionType::Link,
@@ -187,7 +187,7 @@ pub fn policy_sets_page(service_type: &str) -> AdminPage {
         ))
 }
 
-/// `policy-sets/new` — the tenant-set create form. Submits the shared
+/// `policy-sets/new` - the tenant-set create form. Submits the shared
 /// `POST /v1/admin/policy-sets` alias, which validates at write time (§3.1)
 /// and redirects the renderer to the editor (§3.7).
 pub fn policy_sets_new_page(service_type: &str) -> AdminPage {
@@ -225,7 +225,7 @@ pub fn policy_sets_new_page(service_type: &str) -> AdminPage {
                         "permit(principal, action == Action::\"ACTION_ID\", resource) when { principal.scopes.contains(\"SCOPE\") };",
                     ),
                     Some(
-                        "One Shield statement per permit/forbid. Validated at write time — invalid text is rejected with 422 and nothing is stored (fail-closed §3.1).",
+                        "One Shield statement per permit/forbid. Validated at write time - invalid text is rejected with 422 and nothing is stored (fail-closed §3.1).",
                     ),
                 ),
                 form_field(
@@ -246,7 +246,7 @@ pub fn policy_sets_new_page(service_type: &str) -> AdminPage {
         }))
 }
 
-/// `policy-sets/{name}/edit` — the per-set editor + simulator. The set name
+/// `policy-sets/{name}/edit` - the per-set editor + simulator. The set name
 /// is extracted from the page path by the caller and embedded CONCRETELY in
 /// the native widget props (the renderer has no row context here).
 pub fn policy_edit_page(service_type: &str, set_name: &str) -> AdminPage {
@@ -263,11 +263,11 @@ pub fn policy_edit_page(service_type: &str, set_name: &str) -> AdminPage {
     }))
 }
 
-/// `policy-decisions` — the deny / would-deny feed (would-deny visibility,
+/// `policy-decisions` - the deny / would-deny feed (would-deny visibility,
 /// §3.7). Data comes from `GET /v1/admin/policy-decisions` (the shared
 /// audit-trail reader).
 pub fn policy_decisions_page(service_type: &str) -> AdminPage {
-    AdminPage::new(format!("Policy Decisions — {service_type}")).widget(table(
+    AdminPage::new(format!("Policy Decisions - {service_type}")).widget(table(
         vec![
             cols("timestamp", "Time"),
             cols("decision", "Decision"),
@@ -284,7 +284,7 @@ pub fn policy_decisions_page(service_type: &str) -> AdminPage {
 /// constructors. Returns `None` for non-policy pages so the service's own
 /// match arm handles them.
 ///
-/// The editor route shape is `policy-sets/{name}/edit` — the set name is the
+/// The editor route shape is `policy-sets/{name}/edit` - the set name is the
 /// path suffix, so pages are generated per set at request time.
 pub fn policy_page(service_type: &str, page: &str) -> Option<AdminPage> {
     match page {

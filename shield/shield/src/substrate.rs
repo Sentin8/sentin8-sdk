@@ -4,16 +4,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Sentin8:Policy substrates (design/sentin8-shield-technical-design.md
-//! three models) — the authorization data the engine evaluates against:
+//! three models) - the authorization data the engine evaluates against:
 //!
-//! - **RBAC — live roles**: `resolve_roles(env_id, subject_id)` fetches
+//! - **RBAC - live roles**: `resolve_roles(env_id, subject_id)` fetches
 //!   the caller's resolved role names from Sentin8:Auth (the role/group/nesting
-//!   graph behind the scope resolution). Roles are NEVER read from the JWT —
+//!   graph behind the scope resolution). Roles are NEVER read from the JWT -
 //!   a role change takes effect on the next request. Short-TTL cache,
 //!   env+subject keyed, invalidated by the Auth role-change Bus events.
-//! - **ABAC — principal attributes**: `policy_principal_attrs`
+//! - **ABAC - principal attributes**: `policy_principal_attrs`
 //!   rows, loaded env-scoped per service.
-//! - **ReBAC — relation tuples**: `policy_relations` rows,
+//! - **ReBAC - relation tuples**: `policy_relations` rows,
 //!   loaded as Shield entity-hierarchy `parents` edges (size-capped).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -40,7 +40,7 @@ pub enum RoleError {
 /// Response shape of Sentin8:Auth's `GET /oauth/userinfo` (the resolved
 /// identity endpoint). Both branches (user / M2M) return `roles` and
 /// `scopes`; `groups` is user-only. `scopes` is the LIVE effective scope set
-/// (the role-permission closure recomputed per request — the exact
+/// (the role-permission closure recomputed per request - the exact
 /// computation sign-in stamps into the JWT, resolved live per design
 /// so role changes take effect on the next request).
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -66,13 +66,13 @@ struct RoleEntry {
     fetched_at: Instant,
 }
 
-/// Live role resolution for step 5. Keys on `(env_id, subject_id)` — the
+/// Live role resolution for step 5. Keys on `(env_id, subject_id)` - the
 /// resolved roles of a principal are env-scoped (roles live in the Auth
 /// env realm), so the cache never leaks across tenants.
 ///
 /// Freshness: entries older than [`Self::ttl`] are re-fetched on the next
 /// call; [`Self::invalidate_env`] clears an env after a role-change Bus
-/// event. Resolution failure is returned to the caller — `require_policy`
+/// event. Resolution failure is returned to the caller - `require_policy`
 /// treats it as a fail-closed deny.
 pub struct RoleResolver {
     auth_base_url: String,
@@ -105,7 +105,7 @@ impl RoleResolver {
 
     /// Resolve the caller's identity (live): role names AND the live
     /// effective scope set. `access_token` is the caller's verified Bearer
-    /// token — passed through to Auth's userinfo endpoint, which re-verifies
+    /// token - passed through to Auth's userinfo endpoint, which re-verifies
     /// it server-side (the resolver never trusts a client-supplied identity).
     pub async fn resolve_identity(
         &self,
@@ -147,10 +147,10 @@ impl RoleResolver {
         };
         let mut next = HashMap::clone(&*self.cache.load());
         // The TTL is an eviction bound, not only a staleness check: prune
-        // entries that expired before storing the new one — otherwise the
+        // entries that expired before storing the new one - otherwise the
         // cache grows with every unique `(env_id, subject_id)` that ever
         // passed a policy gate, for the life of the process (policy
-        // README §6 — bounded role-resolver cache).
+        // README §6 - bounded role-resolver cache).
         next.retain(|_, entry| entry.fetched_at.elapsed() < self.ttl);
         next.insert(key, entry.clone());
         self.cache.store(Arc::new(next));
@@ -158,7 +158,7 @@ impl RoleResolver {
     }
 
     /// Resolve the caller's role names (live). Roles-only convenience over
-    /// [`Self::resolve_identity`] (same cache entry — no extra fetch).
+    /// [`Self::resolve_identity`] (same cache entry - no extra fetch).
     pub async fn resolve(
         &self,
         env_id: Uuid,
@@ -209,7 +209,7 @@ pub struct PrincipalAttrRecord {
     pub env_id: Uuid,
     pub subject_id: String,
     pub attr_key: String,
-    /// JSON value (string/number/bool/array) — stored as `jsonb`.
+    /// JSON value (string/number/bool/array) - stored as `jsonb`.
     pub attr_value: serde_json::Value,
     /// `platform` | `tenant`.
     pub origin: String,
@@ -281,7 +281,7 @@ pub fn json_to_restricted_expr(v: &serde_json::Value) -> Option<shield::Restrict
                 Some(RestrictedExpression::new_long(i))
             } else {
                 // Shield 4.12 restricted expressions support strings, longs,
-                // bools, sets, and entity references — floats are truncated
+                // bools, sets, and entity references - floats are truncated
                 // to long (attribute values are admin-authored, not floats
                 // in practice).
                 n.as_f64().map(|f| RestrictedExpression::new_long(f as i64))
@@ -291,7 +291,7 @@ pub fn json_to_restricted_expr(v: &serde_json::Value) -> Option<shield::Restrict
             let elems: Vec<RestrictedExpression> =
                 items.iter().filter_map(json_to_restricted_expr).collect();
             if elems.len() != items.len() {
-                return None; // mixed nulls/objects — not representable
+                return None; // mixed nulls/objects - not representable
             }
             Some(RestrictedExpression::new_set(elems))
         }
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn role_entry_env_keying_prevents_cross_tenant_leak() {
-        // The cache key includes env_id — two envs with the same subject id
+        // The cache key includes env_id - two envs with the same subject id
         // never share entries (tenant-isolation invariant).
         let a = Uuid::new_v4();
         let b = Uuid::new_v4();

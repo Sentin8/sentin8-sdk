@@ -13,7 +13,7 @@ fleet.
 ## 2. Motivation
 
 - **Uniform request context.** Every request must carry a correlation ID
-  end-to-end and a tenant context extracted from TLS-injected headers —
+  end-to-end and a tenant context extracted from TLS-injected headers -
   per-service implementations would drift and break log/audit correlation.
 - **One observability stack.** Structured logs, metrics, and traces must be
   identical in shape across ~20 services so aggregation tooling works once.
@@ -27,56 +27,56 @@ fleet.
 graph TD
     A[Incoming request] --> B[recovery]
     B --> C[traffic_counter / metrics]
-    C --> D[sentin8_tls_context — TLSContext from headers]
-    D --> E[correlation_id — generate or propagate]
+    C --> D[sentin8_tls_context - TLSContext from headers]
+    D --> E[correlation_id - generate or propagate]
     E --> F[rate_limit]
     F --> G[request_logging / otel span]
     G --> H[Service handler]
-    H --> I[structured JSON logs — batched_log sink]
-    H --> J[Outbound: Sentin8HttpClient — context propagation]
+    H --> I[structured JSON logs - batched_log sink]
+    H --> J[Outbound: Sentin8HttpClient - context propagation]
     H --> K[Outbound: mtls client / ValkeyPool]
 ```
 
 Module map:
 
-- **`context` / `logging` / `recovery`** — the request-scoped core:
+- **`context` / `logging` / `recovery`** - the request-scoped core:
   `TLSContext` extraction, correlation id (thread-local + header),
   request logging, panic → 500.
-- **`http_client`** — `Sentin8HttpClient` with thread-local correlation-id
+- **`http_client`** - `Sentin8HttpClient` with thread-local correlation-id
   propagation to outbound calls, plus a streaming variant without a total
   request timeout.
-- **`rate_limit` / `cors` / `csp` / `mtls`** — edge policy middleware and
+- **`rate_limit` / `cors` / `csp` / `mtls`** - edge policy middleware and
   client builders.
-- **`structured_logging` / `batched_log`** — JSON event pipeline with
+- **`structured_logging` / `batched_log`** - JSON event pipeline with
   batching sinks (written/dropped counters).
-- **`otel_tracing` / `metrics` / `error_metrics`** — tracing and metric
+- **`otel_tracing` / `metrics` / `error_metrics`** - tracing and metric
   emission layers.
-- **`health` / `shutdown` / `valkey_pool` / `traffic_counter`** —
+- **`health` / `shutdown` / `valkey_pool` / `traffic_counter`** -
   operational helpers shared by every service shell. The traffic counter
   also carries the in-flight request gauge (`RequestCounter::enter()` +
   RAII `InFlightGuard`) exposed as `active_connections` in the health
-  payload — the drain signal captain polls during rolling upgrades.
+  payload - the drain signal captain polls during rolling upgrades.
 
 ## 4. Key Traits and Data Structures
 
-- **`TLSContext`** — tenant context parsed from `X-Sentin8-*` headers:
+- **`TLSContext`** - tenant context parsed from `X-Sentin8-*` headers:
   `env_id`, `application_id`, `service`, `hostname`, `domain_type`,
   `client_cert_thumbprint`. `env_id` is `None` for system-scoped requests.
-- **`JwksVerifier` + `VerifiedClaims`** — the token-verification seam:
+- **`JwksVerifier` + `VerifiedClaims`** - the token-verification seam:
   claims (sub/iss/aud/exp/iat/jti/token_tp/env_id/scope) the authorization
   pipeline consumes; the current implementation is a stub returning an
   error, with services using the auth client SDK for real verification.
-- **`Sentin8HttpClient`** — reqwest wrapper that attaches the current
+- **`Sentin8HttpClient`** - reqwest wrapper that attaches the current
   thread's correlation/tenant context to outbound calls (`current_context`,
   `set_thread_correlation_id`, `attach_context_to`).
-- **`LogSink`** — the batching sink contract (`push`/`push_ref`, with
+- **`LogSink`** - the batching sink contract (`push`/`push_ref`, with
   `written`/`dropped` counters); `BatchedLogWriter` is the buffered
   implementation.
-- **`RequestCounter`** — the in-process request counter feeding the metrics
+- **`RequestCounter`** - the in-process request counter feeding the metrics
   flush loop, plus the in-flight gauge (`enter()` → `InFlightGuard`,
   decrement-on-drop) surfaced as `active_connections` in the shell health
   payload (the drain contract captain polls during rolling upgrades).
-- **`ValkeyPool`** — cheap-clone wrapper over a reconnecting multiplexed
+- **`ValkeyPool`** - cheap-clone wrapper over a reconnecting multiplexed
   connection.
 
 ## 5. Rationale, Trade-offs, and Alternatives
@@ -88,14 +88,14 @@ Module map:
   `set_thread_correlation_id`.
 - **Headers as the tenant-context transport.** The TLS layer strips and
   injects `X-Sentin8-*` headers; middleware extracts them into `TLSContext`
-  once per request. Services never parse hostnames themselves — one trust
+  once per request. Services never parse hostnames themselves - one trust
   boundary, one parser.
 - **Stub JWKS verifier in the crate.** Real verification lives in the
   auth client SDK (JWKS caching is non-trivial and belongs beside Auth);
   the middleware keeps the claim shape so the authorization pipeline is
   typed regardless of the verifier implementation.
 - **In-memory token-bucket rate limiting.** Per-process limiting with no
-  shared state — cheap and dependency-free; multi-node deployments need a
+  shared state - cheap and dependency-free; multi-node deployments need a
   shared-store limiter, which is a future extension (the module documents
   the seam).
 - **Batched log writing.** Synchronous per-event file/network writes would
@@ -103,14 +103,14 @@ Module map:
   per event on the hot path, and dropped-line counters make log loss
   observable instead of silent.
 - **Separate streaming HTTP client.** SSE consume must not be aborted by a
-  total-request timeout, so `new_streaming()` builds a client without one —
+  total-request timeout, so `new_streaming()` builds a client without one -
   keeping the default client's timeout for ordinary calls.
 
 ## 6. Internal Implementation & Invariants (Private Design)
 
 - **Invariants:**
   - `correlation_id` middleware generates a UUID when the incoming request
-    has none and echoes the existing one otherwise — exactly one
+    has none and echoes the existing one otherwise - exactly one
     correlation id per request.
   - `TLSContext::from_headers` reads only the stripped-and-reinjected
     header set; client-supplied copies were removed by the TLS layer.
@@ -122,7 +122,7 @@ Module map:
     lines through `LogSink::dropped`.
 - **Shutdown.** `shutdown_signal` unifies graceful-stop signal handling so
   every service terminates listeners the same way.
-- **Header name constants are `HeaderName` (lowercased, static)** —
+- **Header name constants are `HeaderName` (lowercased, static)** -
   parsing once, not per request.
 
 ## 7. Unresolved Questions / Future Designs

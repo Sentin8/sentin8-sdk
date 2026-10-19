@@ -41,7 +41,7 @@ pub const HEADER_CLIENT_CERT_ISSUER: HeaderName =
 /// `env_id` is `None` for system-scoped requests
 /// (platform Auth, platform BFF). It is required for env-scoped requests
 /// and the caller should reject requests where it is missing when expected.
-/// `org_id` is no longer carried in the TLS context — it is resolved from
+/// `org_id` is no longer carried in the TLS context - it is resolved from
 /// `env_id` via DB lookup when needed.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TLSContext {

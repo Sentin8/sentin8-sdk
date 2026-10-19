@@ -1,4 +1,4 @@
-# sentin8 — Rust SDK
+# sentin8 - Rust SDK
 
 Unified, type-safe Rust client library for the Sentin8 platform. Provides
 one client per backend service, all following the same builder pattern with
@@ -98,7 +98,7 @@ documentation.
 cargo test -p sentin8
 ```
 
-All tests use mock HTTP servers (`mockito`) — no real network calls are
+All tests use mock HTTP servers (`mockito`) - no real network calls are
 made.
 
 ---

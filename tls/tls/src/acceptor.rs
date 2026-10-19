@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! TLS listener — wraps a `tokio::net::TcpListener` with a rustls `TlsAcceptor`.
+//! TLS listener - wraps a `tokio::net::TcpListener` with a rustls `TlsAcceptor`.
 //!
 //! The listener accepts incoming TCP connections and wraps them in a TLS
 //! handshake using the `WildcardCertResolver`.
@@ -22,7 +22,7 @@ use crate::crypto::{sentin8_pq_provider, sentin8_tls_versions};
 ///
 /// Created by `Sentin8Tls::tls_listener()`. The caller accepts raw TCP
 /// connections via `accept()` and runs the TLS handshake (via
-/// [`Self::tls_acceptor`]) inside its per-connection task — a stalled
+/// [`Self::tls_acceptor`]) inside its per-connection task - a stalled
 /// handshake delays one task, never the accept loop (tls README §6).
 pub struct TlsListener {
     tcp_listener: TcpListener,
@@ -54,7 +54,7 @@ impl TlsListener {
     }
 
     /// Bind a TLS listener that **requests** client certificates (optional
-    /// mTLS — see the sentin8-tls design doc).
+    /// mTLS - see the sentin8-tls design doc).
     ///
     /// The presented cert is verified against `client_ca_pem` (Sentin8:Acme
     /// Root CA); a handshake *without* a client cert is still accepted
@@ -109,14 +109,14 @@ impl TlsListener {
         self.tcp_listener.local_addr().ok()
     }
 
-    /// Accept the next raw TCP connection (TLS handshake is deferred —
+    /// Accept the next raw TCP connection (TLS handshake is deferred -
     /// run it with [`Self::tls_acceptor`] inside the per-connection task).
     pub async fn accept(&self) -> Result<(tokio::net::TcpStream, SocketAddr), std::io::Error> {
         self.tcp_listener.accept().await
     }
 
     /// The TLS acceptor for this listener (handshake inside the
-    /// per-connection task — see the type-level doc).
+    /// per-connection task - see the type-level doc).
     pub fn tls_acceptor(&self) -> &TlsAcceptor {
         &self.tls_acceptor
     }
@@ -130,7 +130,7 @@ impl TlsListener {
 /// Extensions over the accepted server TLS stream.
 ///
 /// `ServerConnection` derefs through `ConnectionCommon` to `CommonState`,
-/// which exposes `peer_certificates()` — the client's certificate chain
+/// which exposes `peer_certificates()` - the client's certificate chain
 /// after an optional-client-auth handshake.
 pub trait TlsStreamExt {
     /// The DER bytes of the client's leaf certificate, when the client

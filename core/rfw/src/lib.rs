@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! sentin8-rfw — Remote Flutter Widget (RFW) types for service-owned admin UI.
+//! sentin8-rfw - Remote Flutter Widget (RFW) types for service-owned admin UI.
 //!
 //! Every service that provides admin UI exposes RFW definitions via
 //! `GET /v1/admin/ui/{page}`. The Sentin8:Dash fetches these at runtime,
@@ -30,7 +30,7 @@ pub use widget::{
     WidgetNative, WidgetText, WidgetTextType,
 };
 
-// Wire-contract tests — what every service's `GET /v1/admin/ui/{page}`
+// Wire-contract tests - what every service's `GET /v1/admin/ui/{page}`
 // must produce for the dash RFW renderer.
 
 #[cfg(test)]
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn tagged_enum_wire_names() {
-        // serde tag = "type" with default (PascalCase) variant names — the
+        // serde tag = "type" with default (PascalCase) variant names - the
         // dash RFW runtime dispatches on these exact strings.
         let w = RemoteWidget::Card(WidgetCard {
             title: Some("Balances".into()),

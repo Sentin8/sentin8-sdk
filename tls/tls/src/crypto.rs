@@ -10,9 +10,9 @@
 //!
 //! | Mode         | Key exchange              | TLS versions     | Use case                    |
 //! |-------------|---------------------------|------------------|-----------------------------|
-//! | `exclusive` | X25519MLKEM768 only       | TLS 1.3 only     | **Default** — full PQ, no fallback |
+//! | `exclusive` | X25519MLKEM768 only       | TLS 1.3 only     | **Default** - full PQ, no fallback |
 //! | `hybrid`    | X25519MLKEM768 + classical| TLS 1.3 only     | PQ-preferred, classical fallback for old clients |
-//! | `classical` | X25519, P-256, P-384      | TLS 1.2 + 1.3    | **Emergency rollback** — no ML-KEM, max compatibility |
+//! | `classical` | X25519, P-256, P-384      | TLS 1.2 + 1.3    | **Emergency rollback** - no ML-KEM, max compatibility |
 //!
 //! Uses [Graviola](https://github.com/ctz/graviola) (pure Rust, no C compiler
 //! or cmake) as the crypto backend.
@@ -30,9 +30,9 @@ fn pq_mode() -> String {
 
 /// Sentin8's CryptoProvider, keyed off `SENTIN8_TLS_PQ_MODE`.
 ///
-/// - `exclusive`: only X25519MLKEM768 — no classical fallback.
+/// - `exclusive`: only X25519MLKEM768 - no classical fallback.
 /// - `hybrid`: Graviola default (X25519MLKEM768 first, classical fallback).
-/// - `classical`: classical groups only (no ML-KEM) — emergency rollback.
+/// - `classical`: classical groups only (no ML-KEM) - emergency rollback.
 pub fn sentin8_pq_provider() -> CryptoProvider {
     let base = rustls_graviola::default_provider();
     match pq_mode().as_str() {

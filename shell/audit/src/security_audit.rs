@@ -9,18 +9,18 @@
 //! edge cases and coverage requirements for the three Sentin8 security
 //! pillars:
 //!
-//! 1. **Token validation edge cases** — every malformed,
+//! 1. **Token validation edge cases** - every malformed,
 //!    expired, replayed, or mismatched token scenario that Auth (and every
 //!    downstream verifier) must reject.
-//! 2. **Row-Level Security coverage** — every tenant-scoped
+//! 2. **Row-Level Security coverage** - every tenant-scoped
 //!    table must have an RLS policy that filters by `org_id`/`env_id` from
 //!    the session context.
-//! 3. **Secret reference enforcement** — no plaintext secrets
+//! 3. **Secret reference enforcement** - no plaintext secrets
 //!    may be stored in the database; every secret column must hold a
 //!    `sentin8-secrets://` reference that resolves via the `sentin8-secrets`
 //!    crate.
 //!
-//! Each helper returns a `Vec<SecurityAuditResult>` — a machine-readable
+//! Each helper returns a `Vec<SecurityAuditResult>` - a machine-readable
 //! checklist that an operator or CI job can iterate to verify coverage.
 //! The `recommendation` field describes the expected state; the `finding`
 //! field describes what to look for in the running system.
@@ -31,15 +31,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AuditSeverity {
-    /// Critical — exploitable vulnerability that must be fixed before release.
+    /// Critical - exploitable vulnerability that must be fixed before release.
     Critical,
-    /// High — likely exploitable; fix in the current sprint.
+    /// High - likely exploitable; fix in the current sprint.
     High,
-    /// Medium — defence-in-depth concern; schedule a fix.
+    /// Medium - defence-in-depth concern; schedule a fix.
     Medium,
-    /// Low — informational or hardening opportunity.
+    /// Low - informational or hardening opportunity.
     Low,
-    /// Info — checklist item that has been verified compliant.
+    /// Info - checklist item that has been verified compliant.
     Info,
 }
 
@@ -55,7 +55,7 @@ pub enum AuditCategory {
     SecretReferences,
 }
 
-/// A single security audit result — one checklist item.
+/// A single security audit result - one checklist item.
 ///
 /// `category` and `severity` classify the finding, `finding` describes the
 /// condition to check, and `recommendation` describes the expected state.
@@ -71,7 +71,7 @@ pub struct SecurityAuditResult {
     pub recommendation: String,
 }
 
-/// Story 14.1.1 — Token validation edge cases.
+/// Story 14.1.1 - Token validation edge cases.
 ///
 /// Returns the full checklist of token-validation edge cases that Auth and
 /// every downstream token verifier (sentin8-middleware JWKS verifier, BFF
@@ -195,7 +195,7 @@ pub fn audit_token_validation_edge_cases() -> Vec<SecurityAuditResult> {
     ]
 }
 
-/// Story 14.1.2 — RLS policy coverage.
+/// Story 14.1.2 - RLS policy coverage.
 ///
 /// Returns the checklist for verifying that every tenant-scoped table in the
 /// Sentin8 schema has a Row-Level Security policy that filters rows by the
@@ -269,7 +269,7 @@ pub fn audit_rls_coverage() -> Vec<SecurityAuditResult> {
             severity: H,
             finding: "Platform-level table accidentally given an RLS policy".to_string(),
             recommendation: "System tables (sentin8_auth_users, sentin8_sys_organizations, \
-                 sentin8_sys_environments, sentin8_app_listings) must NOT have RLS policies — \
+                 sentin8_sys_environments, sentin8_app_listings) must NOT have RLS policies - \
                  they are global. An RLS policy on these tables would break \
                  cross-tenant lookups. Verify via `pg_policies`."
                 .to_string(),
@@ -296,7 +296,7 @@ pub fn audit_rls_coverage() -> Vec<SecurityAuditResult> {
     ]
 }
 
-/// Story 14.1.3 — Secret reference enforcement.
+/// Story 14.1.3 - Secret reference enforcement.
 ///
 /// Returns the checklist for verifying that no plaintext secrets are stored
 /// in the database. Every secret (OAuth client secrets, m2m tokens, API
@@ -334,7 +334,7 @@ pub fn audit_secret_references() -> Vec<SecurityAuditResult> {
             finding: "m2m token stored in the database".to_string(),
             recommendation: "m2m access tokens are never persisted. They live in memory \
                  (or a short-TTL Valkey cache). Any `m2m_token` column in a \
-                 tenant table is a finding — remove it and fetch tokens \
+                 tenant table is a finding - remove it and fetch tokens \
                  on-demand via the m2m client."
                 .to_string(),
         },
@@ -367,7 +367,7 @@ pub fn audit_secret_references() -> Vec<SecurityAuditResult> {
             recommendation: "Run `sentin8-cli secrets resolve --ref <sentin8-secrets://...>` \
                  against every `sentin8-secrets://` reference in the database. \
                  A reference that returns \
-                 `NotFound` is a stale reference — the secret was deleted but \
+                 `NotFound` is a stale reference - the secret was deleted but \
                  the row was not updated."
                 .to_string(),
         },
@@ -380,7 +380,7 @@ pub fn audit_secret_references() -> Vec<SecurityAuditResult> {
                  in the Sentin8:Secrets service tables (`sentin8.secrets`, \
                  AES-256-GCM envelopes) and referenced by URI in consumer \
                  columns. Ad-hoc backends (`env://` outside dev bootstrap, \
-                 `file://` outside dev) are a finding — migrate to \
+                 `file://` outside dev) are a finding - migrate to \
                  `sentin8-secrets://` refs resolved via `sentin8-cli secrets`."
                 .to_string(),
         },

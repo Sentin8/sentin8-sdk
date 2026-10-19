@@ -149,7 +149,7 @@ impl ClientOptionsBuilder {
         self.opts.tls_client_auth_subject_dn = Some(subject_dn.into());
         self
     }
-    /// Set only the TLS client cert path (for testing validation — use
+    /// Set only the TLS client cert path (for testing validation - use
     /// [`tls_client_auth`](Self::tls_client_auth) for real mTLS config).
     pub fn tls_cert(mut self, cert: impl Into<PathBuf>) -> Self {
         self.opts.tls_cert = Some(cert.into());

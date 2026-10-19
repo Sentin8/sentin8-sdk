@@ -9,7 +9,7 @@
 //! `#[utoipa::path]`. This crate provides:
 //!
 //! - The `OpenApi` derive macro (re-exported from `utoipa`)
-//! - The `openapi_route()` helper — mounts `GET /openapi.json` on an axum
+//! - The `openapi_route()` helper - mounts `GET /openapi.json` on an axum
 //!   `Router`, serving the generated OpenAPI spec
 //!
 //! ## Usage
@@ -63,7 +63,7 @@ mod tests {
 
     #[tokio::test]
     async fn openapi_route_serves_spec_at_openapi_json() {
-        // Build a minimal spec by hand — the route only hosts it.
+        // Build a minimal spec by hand - the route only hosts it.
         let mut spec = utoipa::openapi::OpenApi::default();
         spec.info.title = "Sentin8:Test".into();
         spec.info.version = "1".into();

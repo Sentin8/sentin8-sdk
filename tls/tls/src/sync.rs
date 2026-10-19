@@ -22,5 +22,5 @@ pub fn spawn_sync(
     _cert_resolver: std::sync::Arc<crate::certs::WildcardCertResolver>,
     _notify_channel: String,
 ) {
-    // No maintenance loop — see the module doc.
+    // No maintenance loop - see the module doc.
 }

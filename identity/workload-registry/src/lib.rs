@@ -9,12 +9,12 @@
 //! §4.3f): the enroll-published registry map that replaces the M2M token's
 //! `scope`/`vertical`/`service_type` claims on the platform plane.
 //!
-//! `sentin8-cli vertical enroll` — which already provisions
-//! `auth.m2m_scope_grants` and the `captain:*` Valkey keys — additionally
+//! `sentin8-cli vertical enroll` - which already provisions
+//! `auth.m2m_scope_grants` and the `captain:*` Valkey keys - additionally
 //! publishes the `m2m:workloads` hash: workload CN →
 //! `{vertical, service_type, scopes[], enabled}` (JSON per field). Every
 //! service boot-loads the map into an in-process `OnceLock` cache and
-//! refreshes it on a TTL — the platform's mandated pattern (owner data is
+//! refreshes it on a TTL - the platform's mandated pattern (owner data is
 //! seeded on cold start / cache refresh, NEVER read on the request path).
 //!
 //! Authentication is the TLS client certificate (`sentin8-tls` CA-verifies
@@ -40,7 +40,7 @@ use tokio::sync::RwLock;
 /// The Valkey hash key holding the platform workload registry map.
 pub const WORKLOADS_KEY: &str = "m2m:workloads";
 
-/// The Valkey SET of declared workload names — the bootstrap-mint pinning
+/// The Valkey SET of declared workload names - the bootstrap-mint pinning
 /// set : Acme's bootstrap-enrollment channel accepts client-cert
 /// mints only for declared workloads (permissive on a miss so a Valkey
 /// outage cannot wedge first births).
@@ -56,25 +56,25 @@ pub enum RegistryError {
     /// Valkey could not be reached and no usable cache file exists.
     #[error("workload registry unreachable: {0}")]
     Unreachable(String),
-    /// A map entry could not be decoded (corrupt publish — enroll owns
+    /// A map entry could not be decoded (corrupt publish - enroll owns
     /// the write; a corrupt entry is skipped at load).
     #[error("workload registry decode error: {0}")]
     Decode(String),
 }
 
-/// One workload's authorization record — the enroll-published form of
+/// One workload's authorization record - the enroll-published form of
 /// `auth.m2m_scope_grants`' row for the token-free plane.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WorkloadRecord {
-    /// The vertical this workload belongs to (VDC-2 — Bus's event-ownership
+    /// The vertical this workload belongs to (VDC-2 - Bus's event-ownership
     /// gate: `bank8` workloads may not produce `sentin8:*` events).
     pub vertical: String,
-    /// The service_type the workload performs work FOR (VDC-4 — Sys's
+    /// The service_type the workload performs work FOR (VDC-4 - Sys's
     /// tenant-snapshot scoped discovery).
     pub service_type: String,
     /// The closed scope set this workload may exercise (Shield input).
     pub scopes: Vec<String>,
-    /// The revocation flag — `false` refuses every call within the TTL.
+    /// The revocation flag - `false` refuses every call within the TTL.
     pub enabled: bool,
 }
 
@@ -99,18 +99,18 @@ pub struct WorkloadMap {
 impl WorkloadMap {
     /// Boot-load the map from Valkey (falling back to the persisted cache
     /// file on an outage) and spawn the TTL refresh loop. Called ONCE per
-    /// process at boot — the request path reads the in-memory snapshot.
+    /// process at boot - the request path reads the in-memory snapshot.
     ///
     /// `workload` is the CALLING SERVICE's workload name: the Valkey
     /// plane authenticates by certificate (the CN maps to the ACL user
-    /// of the same name — group DESIGN.md §3.1), so the map fetch presents
+    /// of the same name - group DESIGN.md §3.1), so the map fetch presents
     /// the caller's own m2m pair. Every workload user holds READ rights on
-    /// `m2m:workloads` — only the enroll-side `m2m-registry-writer`
+    /// `m2m:workloads` - only the enroll-side `m2m-registry-writer`
     /// identity may write it.
     ///
     /// # Errors
     /// [`RegistryError::Unreachable`] when Valkey cannot be reached AND no
-    /// cache file exists (nothing to serve — fail-closed: callers refuse
+    /// cache file exists (nothing to serve - fail-closed: callers refuse
     /// workload traffic).
     pub async fn boot_load(workload: &str) -> Result<Self, RegistryError> {
         let map = Self {
@@ -130,7 +130,7 @@ impl WorkloadMap {
                         tracing::warn!(
                             error = %e,
                             count = entries.len(),
-                            "workload-registry: Valkey unreachable at boot — serving the persisted cache snapshot"
+                            "workload-registry: Valkey unreachable at boot - serving the persisted cache snapshot"
                         );
                         *map.inner.write().await = entries;
                     }
@@ -144,7 +144,7 @@ impl WorkloadMap {
 
     /// The fail-open boot path for callers that must NOT abort when the
     /// map is unreachable (e.g. a service whose bearer path still serves
-    /// users): an EMPTY snapshot with the TTL refresh loop attached —
+    /// users): an EMPTY snapshot with the TTL refresh loop attached -
     /// certificate-workload calls fail-closed (no map rows) until a
     /// refresh succeeds, and the refresh loop heals the map within the
     /// TTL. Prefer [`Self::boot_load`] and handle the error explicitly
@@ -157,14 +157,14 @@ impl WorkloadMap {
         map
     }
 
-    /// Look up a workload's authorization record (request-path read —
+    /// Look up a workload's authorization record (request-path read -
     /// in-memory, no I/O).
     pub async fn get(&self, workload: &str) -> Option<WorkloadRecord> {
         self.inner.read().await.get(workload).cloned()
     }
 
     /// The scopes Shield evaluates for a workload (empty for unknown /
-    /// disabled workloads — fail-closed: an unenrolled identity exercises
+    /// disabled workloads - fail-closed: an unenrolled identity exercises
     /// nothing).
     pub async fn scopes(&self, workload: &str) -> Vec<String> {
         match self.get(workload).await {
@@ -183,7 +183,7 @@ impl WorkloadMap {
     }
 
     /// Spawn the TTL refresh loop (one background task per process). The
-    /// workload identity is moved into the loop — the refresh presents the
+    /// workload identity is moved into the loop - the refresh presents the
     /// same certificate as the boot fetch.
     fn spawn_refresh(&self, workload: String) {
         let inner = Arc::clone(&self.inner);
@@ -196,9 +196,9 @@ impl WorkloadMap {
                         *inner.write().await = entries;
                     }
                     Err(e) => {
-                        // Transient outage — keep serving the snapshot; the
+                        // Transient outage - keep serving the snapshot; the
                         // next tick retries. NEVER fail-open to empty.
-                        tracing::debug!(error = %e, "workload-registry refresh failed — keeping snapshot");
+                        tracing::debug!(error = %e, "workload-registry refresh failed - keeping snapshot");
                     }
                 }
             }
@@ -206,12 +206,12 @@ impl WorkloadMap {
     }
 }
 
-/// The map's WRITER workload name — the enroll/admin-side identity. Its
+/// The map's WRITER workload name - the enroll/admin-side identity. Its
 /// certificate (minted by `make infra-tls`, held by the operator's CLI) maps
 /// to the sole ACL user with write rights on `m2m:workloads`/`m2m:declared`.
 pub const WRITER_WORKLOAD: &str = "valkey-registry-writer";
 
-/// Fetch the whole map from Valkey (one HGETALL on the boot/refresh path —
+/// Fetch the whole map from Valkey (one HGETALL on the boot/refresh path -
 /// never per-request). Presents the CALLING workload's certificate over
 /// the TLS plane (the CN maps to its read-scoped ACL user) via Valkey
 /// GLIDE (group DESIGN.md §3.1).
@@ -232,7 +232,7 @@ async fn fetch_map(workload: &str) -> Result<HashMap<String, WorkloadRecord>, Re
                 out.insert(workload, rec);
             }
             Err(e) => {
-                // Corrupt field — skip it (fail-closed for that workload).
+                // Corrupt field - skip it (fail-closed for that workload).
                 tracing::warn!(error = %e, workload, "workload-registry: corrupt entry skipped");
             }
         }
@@ -240,7 +240,7 @@ async fn fetch_map(workload: &str) -> Result<HashMap<String, WorkloadRecord>, Re
     Ok(out)
 }
 
-/// Persist the map snapshot under `SENTIN8_RUN_DIR` — the boot-time Valkey
+/// Persist the map snapshot under `SENTIN8_RUN_DIR` - the boot-time Valkey
 /// outage fallback. Best-effort: a write failure only removes the outage
 /// fallback (the in-memory map still serves).
 fn persist_cache_file(entries: &HashMap<String, WorkloadRecord>) {
@@ -266,10 +266,10 @@ fn load_cache_file() -> Option<HashMap<String, WorkloadRecord>> {
     serde_json::from_str(&json).ok()
 }
 
-// ── Publish helpers (the enroll/CLI side — the map's owner) ──────────
+// ── Publish helpers (the enroll/CLI side - the map's owner) ──────────
 
 /// Publish one SERVICE's map entries (the enroll path: delete the
-/// service's stale fields first — entries whose `service_type` matches —
+/// service's stale fields first - entries whose `service_type` matches -
 /// then publish the fresh set + declared set; idempotent, whole-state per
 /// service). Keyed per SERVICE, not per vertical: a vertical owns many
 /// services (platform = every service under `sentin8`), and a
@@ -277,7 +277,7 @@ fn load_cache_file() -> Option<HashMap<String, WorkloadRecord>> {
 /// pass.
 ///
 /// # Errors
-/// [`RegistryError::Unreachable`] when Valkey cannot be reached — enroll
+/// [`RegistryError::Unreachable`] when Valkey cannot be reached - enroll
 /// aborts loudly (the map is the authorization record; a silent skip
 /// would leave services serving stale authorization).
 pub async fn publish_service(
@@ -286,7 +286,7 @@ pub async fn publish_service(
 ) -> Result<(), RegistryError> {
     // The map's WRITER identity (group DESIGN.md §3.1): the enroll-side
     // `m2m-registry-writer` pair is the ONLY identity holding write rights
-    // on `m2m:workloads`/`m2m:declared` — the token-free authorization
+    // on `m2m:workloads`/`m2m:declared` - the token-free authorization
     // record is not writable by any service. The CLI loads the same
     // infra-admin material `make infra-tls` minted.
     let client = sentin8_middleware::valkey_client(valkey_url, WRITER_WORKLOAD)
@@ -295,7 +295,7 @@ pub async fn publish_service(
     use glide::AsyncCommands as _;
 
     // The SERVICE's stale fields must go (a workload re-enrolled away or
-    // deleted must not linger) — but ONLY this service's: match on the
+    // deleted must not linger) - but ONLY this service's: match on the
     // record's `service_type`, never on `vertical` (siblings share it).
     let service_type = entries.first().map(|(_, r)| r.service_type.clone());
     if let Some(service_type) = &service_type {
@@ -320,7 +320,7 @@ pub async fn publish_service(
     Ok(())
 }
 
-/// Set a workload's `enabled` flag (the revocation surface — admin
+/// Set a workload's `enabled` flag (the revocation surface - admin
 /// disable / re-enable; observed by services within the TTL).
 ///
 /// # Errors
@@ -330,7 +330,7 @@ pub async fn set_enabled(
     workload: &str,
     enabled: bool,
 ) -> Result<(), RegistryError> {
-    // Admin-side revocation presents the same WRITER identity as enroll —
+    // Admin-side revocation presents the same WRITER identity as enroll -
     // the only one that may touch the map.
     let client = sentin8_middleware::valkey_client(valkey_url, WRITER_WORKLOAD)
         .await
@@ -372,7 +372,7 @@ mod tests {
 
     #[test]
     fn keys_are_stable_contract() {
-        // The wire contract — enroll publishes, services consume; renaming
+        // The wire contract - enroll publishes, services consume; renaming
         // either breaks the fleet.
         assert_eq!(WORKLOADS_KEY, "m2m:workloads");
         assert_eq!(DECLARED_KEY, "m2m:declared");

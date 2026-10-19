@@ -39,7 +39,7 @@ pub struct TracingConfig {
     pub otel_endpoint: String,
     /// Service name (e.g. `ledger`, `payments`).
     pub service_name: String,
-    /// Sampling ratio (0.0–1.0). 1.0 = all spans, 0.1 = 10%.
+    /// Sampling ratio (0.0-1.0). 1.0 = all spans, 0.1 = 10%.
     pub sample_ratio: f64,
 }
 
@@ -83,7 +83,7 @@ pub fn init_otel_tracing(config: &TracingConfig) -> Result<(), String> {
         endpoint = %config.otel_endpoint,
         service = %config.service_name,
         sample_ratio = config.sample_ratio,
-        "OpenTelemetry tracing initialised (stub — no exporter linked). \
+        "OpenTelemetry tracing initialised (stub - no exporter linked). \
          Enable the `otel` feature on sentin8-middleware to export spans."
     );
     Ok(())

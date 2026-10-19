@@ -10,7 +10,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Sentin8 shared service shell — canonical boot sequence + request helpers for all platform and vertical services."
+description = "Sentin8 shared service shell - canonical boot sequence + request helpers for all platform and vertical services."
 
 [dependencies]
 anyhow.workspace = true
@@ -29,12 +29,12 @@ uuid.workspace = true
 sentin8-m2m.workspace = true
 
 sentin8-config.workspace = true
-# CAPTAIN-10 — the health payload carries the build hash alongside version.
+# CAPTAIN-10 - the health payload carries the build hash alongside version.
 sentin8-build-info.workspace = true
 sentin8-middleware.workspace = true
 sentin8-tls.workspace = true
 sentin8-auth-client.workspace = true
-# Shared policy-admin mount helper (Phase 28 §3.6 — one surface for every
+# Shared policy-admin mount helper (Phase 28 §3.6 - one surface for every
 # service that boots on the shell; handlers are generic over ServiceCore).
 sentin8-shield.workspace = true
 sentin8-openapi.workspace = true

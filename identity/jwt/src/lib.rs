@@ -65,9 +65,9 @@ fn decode_segment(segment: &str) -> Result<Vec<u8>, String> {
 /// Decode a JWT header into a raw `serde_json::Value`.
 ///
 /// The header typically contains:
-/// - `alg` — the signing algorithm (e.g. `"MLDSA65"`, `"RS256"`)
-/// - `kid` — the key ID for JWKS lookup
-/// - `typ` — the JWT type (e.g. `"JWT"`, `"dpop+jwt"`)
+/// - `alg` - the signing algorithm (e.g. `"MLDSA65"`, `"RS256"`)
+/// - `kid` - the key ID for JWKS lookup
+/// - `typ` - the JWT type (e.g. `"JWT"`, `"dpop+jwt"`)
 ///
 /// Does NOT verify the signature.
 pub fn decode_header(token: &str) -> Result<serde_json::Value, String> {
@@ -116,7 +116,7 @@ pub fn decode_signature(token: &str) -> Result<Vec<u8>, String> {
 
 /// Get the signing input for signature verification (header.payload).
 ///
-/// This is the `signing_input` that gets hashed/signed — the concatenation
+/// This is the `signing_input` that gets hashed/signed - the concatenation
 /// of the base64url-encoded header and payload, joined by a dot.
 pub fn signing_input(token: &str) -> Result<String, String> {
     let parts = split_jwt(token)?;

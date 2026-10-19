@@ -5,7 +5,7 @@
 
 //! # tls-contracts
 //!
-//! Rust types and OpenAPI contract for TLS hostname resolution — the
+//! Rust types and OpenAPI contract for TLS hostname resolution - the
 //! `Mapping` type produced by host-context resolution and consumed as
 //! `X-Sentin8-*` request headers by every backend service.
 
@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 /// A hostname → service + tenant mapping. Deduced at runtime by the
 /// domain resolver from `sys.organizations`, `sys.environments`,
-/// and `sys.app_instances` — no `domains` table needed.
+/// and `sys.app_instances` - no `domains` table needed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Mapping {
     /// Synthetic identity of this mapping (freshly generated per deduction).
@@ -94,9 +94,9 @@ mod tests {
     fn mapping_optional_fields_omitted_when_none() {
         let m = sample();
         let v = serde_json::to_value(&m).unwrap();
-        // application_id has skip_serializing_if — absent when None.
+        // application_id has skip_serializing_if - absent when None.
         assert!(v.get("application_id").is_none());
-        // backend_url has NO skip attr — None serializes as null (wire
+        // backend_url has NO skip attr - None serializes as null (wire
         // contract pinned here; services always emit the field).
         assert!(v.get("backend_url").is_some_and(|x| x.is_null()));
         let back: Mapping = serde_json::from_value(v).unwrap();
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn mapping_app_backend_shape_roundtrip() {
-        // App-hostname mapping: application_id + backend_url set —
+        // App-hostname mapping: application_id + backend_url set -
         // backend_url is developer-provided metadata.
         let mut m = sample();
         m.application_id = Some(uuid::Uuid::new_v4());

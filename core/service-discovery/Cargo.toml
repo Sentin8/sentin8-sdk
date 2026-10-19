@@ -9,7 +9,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Valkey GLIDE — the platform's mandated client engine (group DESIGN.md §3.1).
+# Valkey GLIDE - the platform's mandated client engine (group DESIGN.md §3.1).
 valkey-glide = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

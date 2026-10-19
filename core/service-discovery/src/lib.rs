@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! Sentin8 Service Discovery — resolve service backends from the Captain
+//! Sentin8 Service Discovery - resolve service backends from the Captain
 //! Valkey registry with automatic reconnection and load-aware selection.
 //!
 //! ## Architecture
@@ -28,7 +28,7 @@
 //!
 //! When an instance's port changes (e.g. after a rolling upgrade), the
 //! discovery client picks it up on the next Valkey notification. The
-//! caller gets the new URL — no restart needed.
+//! caller gets the new URL - no restart needed.
 //!
 //! ## Usage
 //!
@@ -108,14 +108,14 @@ pub struct ServiceInstance {
 impl ServiceInstance {
     /// Build the backend URL for this instance.
     ///
-    /// Returns `https://` — all Sentin8 services terminate TLS directly.
+    /// Returns `https://` - all Sentin8 services terminate TLS directly.
     /// The Sentin8 Root CA (served by acme at `/v1/ca/root.crt`) must be
     /// installed in the OS trust store so `rustls-tls-native-roots` trusts it.
     pub fn url(&self) -> String {
         format!("https://{}:{}", self.local_ip, self.local_port)
     }
 
-    /// Compute a load score — lower is better.
+    /// Compute a load score - lower is better.
     /// Weighted: 50% CPU, 30% memory, 20% latency (normalized to 0-100).
     /// A local-machine bonus is applied at selection time, not here.
     pub fn load_score(&self) -> f32 {
@@ -125,7 +125,7 @@ impl ServiceInstance {
         cpu * 0.5 + mem * 0.3 + lat * 0.2
     }
 
-    /// Compute a selection score — lower is better. Applies a local
+    /// Compute a selection score - lower is better. Applies a local
     /// bonus (score reduction) for instances on the same machine,
     /// but a very busy local instance can still lose to a less busy
     /// remote one.
@@ -153,7 +153,7 @@ impl ServiceInstance {
                 let now = chrono::Utc::now().timestamp();
                 now - ts < HEALTH_FRESHNESS_S
             }
-            None => true, // Active but not yet probed — give it the benefit of the doubt
+            None => true, // Active but not yet probed - give it the benefit of the doubt
         }
     }
 }
@@ -170,7 +170,7 @@ impl ServiceDiscovery {
     /// The task subscribes to Valkey pub/sub and maintains the in-memory
     /// map. `valkey_url` is the Captain Valkey URL, `local_ip` is this
     /// machine's IP (for same-machine preference). `workload` is the
-    /// CALLING SERVICE's identity — the certificate it presents over
+    /// CALLING SERVICE's identity - the certificate it presents over
     /// the TLS plane (the CN maps to its enroll-provisioned ACL user;
     /// group DESIGN.md §3.1).
     pub fn spawn(valkey_url: String, local_ip: String, workload: String) -> Self {
@@ -183,7 +183,7 @@ impl ServiceDiscovery {
         tokio::spawn(async move {
             // Certificate identity via Valkey GLIDE (group DESIGN.md §3.1):
             // one shared command client (scan + instance reads) and a
-            // SEPARATE pubsub-enabled client for the change channel —
+            // SEPARATE pubsub-enabled client for the change channel -
             // each heals independently in glide-core.
             let client = match sentin8_middleware::valkey_client(&valkey_url, &workload).await {
                 Ok(c) => c,
@@ -233,7 +233,7 @@ impl ServiceDiscovery {
                     continue;
                 }
 
-                // Message loop — ONE subscription, many `captain:changed`
+                // Message loop - ONE subscription, many `captain:changed`
                 // notifications. The subscription is rebuilt only on a
                 // terminal stream end (connection closed, Valkey restart);
                 // a per-message client teardown churned a GLIDE connect +
@@ -244,11 +244,11 @@ impl ServiceDiscovery {
                             if maybe_msg.is_err() {
                                 // Pub/sub channel ended (Valkey restart, idle
                                 // eviction, network blip). Break to the outer
-                                // loop — the pubsub client + subscription
+                                // loop - the pubsub client + subscription
                                 // rebuild keeps discovery refreshing; without
                                 // this the map freezes and is_healthy()
                                 // (30s freshness) fails for every service.
-                                tracing::warn!("service-discovery: pubsub stream ended — reconnecting");
+                                tracing::warn!("service-discovery: pubsub stream ended - reconnecting");
                                 tokio::time::sleep(Duration::from_millis(500)).await;
                                 refresh(&client, &inner).await;
                                 last_refresh = Instant::now();
@@ -256,12 +256,12 @@ impl ServiceDiscovery {
                             }
                             // Debounce: small delay to coalesce bursts,
                             // then refresh. FIREHOSE-1: the payload names the
-                            // service type that changed — refresh ONLY that
+                            // service type that changed - refresh ONLY that
                             // type's hash (1 HGETALL) instead of a full
                             // registry scan. `captain:changed` broadcasts to
                             // every subscriber; a full-scan-per-message was
                             // 63 HGETALL x 64 services x msg rate ≈ 13,000
-                            // HGETALL/s fleet-wide — the root cause of the
+                            // HGETALL/s fleet-wide - the root cause of the
                             // fleet-wide idle CPU (~20%/service) and RSS drift
                             // (heaptrack: ~5,000 TLS-decrypt allocations/s
                             // per idle service; MTALEAK-1). A payload that is
@@ -281,7 +281,7 @@ impl ServiceDiscovery {
                             last_refresh = Instant::now();
                         }
                         _ = tokio::time::sleep(safety) => {
-                            // Safety poll — catches missed notifications.
+                            // Safety poll - catches missed notifications.
                             if last_refresh.elapsed() >= safety {
                                 refresh(&client, &inner).await;
                                 last_refresh = Instant::now();
@@ -393,11 +393,11 @@ async fn refresh(
     tracing::debug!(total_instances = count, "service-discovery: refreshed");
 }
 
-/// Refresh ONE service type's instances from its registry hash — the
+/// Refresh ONE service type's instances from its registry hash - the
 /// FIREHOSE-1 targeted path. `captain:changed` messages name the changed
 /// service type in the payload, so a notification for a single type costs
 /// one HGETALL (not a full KEYS + 63-HGETALL scan). Unknown types insert an
-/// empty list (the type's hash vanished — every instance stopped), matching
+/// empty list (the type's hash vanished - every instance stopped), matching
 /// the full scan's behavior for missing keys.
 async fn refresh_one(
     client: &glide::GlideClient,
@@ -590,7 +590,7 @@ mod tests {
 
     #[test]
     fn active_without_health_check_is_healthy() {
-        // Active but not yet probed — benefit of the doubt.
+        // Active but not yet probed - benefit of the doubt.
         let fresh = inst("auth", "10.0.0.5", 3101, "Active", 0.0, 0.0, 0.0, None);
         assert!(fresh.is_healthy());
     }

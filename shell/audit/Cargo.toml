@@ -27,7 +27,7 @@ reqwest.workspace = true
 # `{service}.audit_journal` rows to Sys `POST /v1/audit`.
 tokio.workspace = true
 sentin8-m2m.workspace = true
-# Pooled PQ-TLS HTTP client for the journal push (`spawn_journal_pusher` —
+# Pooled PQ-TLS HTTP client for the journal push (`spawn_journal_pusher` -
 # one client per process; see the mtls helper in sentin8-middleware).
 sentin8-middleware.workspace = true
 

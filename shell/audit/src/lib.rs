@@ -10,7 +10,7 @@
 //! Every state-changing operation in the Sentin8 platform emits an audit
 //! event. Events are written to a transactional audit-journal table in the
 //! service's DB schema and relayed to the Sys audit ingest API asynchronously
-//! (journal-first — same transaction-local pattern as the Bus outbox).
+//! (journal-first - same transaction-local pattern as the Bus outbox).
 #![deny(missing_docs)]
 pub mod security_audit;
 use async_trait::async_trait;
@@ -80,7 +80,7 @@ pub struct AuditEvent {
     pub actor_id: String,
     /// Actor type (system_user | org_staff | customer | machine | api_client | support_actor).
     pub actor_type: String,
-    /// Organization the resource belongs to (resolved from env_id — context only).
+    /// Organization the resource belongs to (resolved from env_id - context only).
     pub org_id: Uuid,
     /// Environment the resource belongs to (System Env ID for platform
     /// operations).
@@ -259,7 +259,7 @@ impl AuditEventBuilder {
 #[async_trait]
 pub trait AuditEmitter: Send + Sync {
     /// Emit an audit event. Implementations should not block the request
-    /// path — write to the outbox and return.
+    /// path - write to the outbox and return.
     async fn emit(&self, event: AuditEvent) -> Result<(), AuditError>;
 }
 
@@ -286,9 +286,9 @@ impl AuditEmitter for NoopAuditEmitter {
 // (M2M, `sentin8:sys:audit:write`). The service keeps a local spill journal
 // (`{service}.audit_journal`, DDL via `audit_journal_sql`); `journal_insert`
 // writes it in the domain transaction and `push_journal_to_sys` drains it to
-// Sys in the background. A Sys outage never drops audit — the journal retries.
+// Sys in the background. A Sys outage never drops audit - the journal retries.
 
-/// `INSERT INTO audit_journal` — the local spill journal in the service's own
+/// `INSERT INTO audit_journal` - the local spill journal in the service's own
 /// schema. Call on the SAME connection/transaction as the domain change where
 /// possible.
 pub async fn journal_insert<'e, E>(executor: E, ev: &AuditEvent) -> Result<(), sqlx::Error>
@@ -353,10 +353,10 @@ CREATE POLICY audit_journal_dml ON {schema}.audit_journal
     )
 }
 
-/// Push pending journal rows to Sys `POST /v1/audit` (M2M). One-shot helper —
+/// Push pending journal rows to Sys `POST /v1/audit` (M2M). One-shot helper -
 /// call from the service's background task; failures leave rows unpushed for
 /// the next pass. Returns the number of rows accepted. The `http` client is
-/// supplied by the caller (pooled per-process — see `spawn_journal_pusher`).
+/// supplied by the caller (pooled per-process - see `spawn_journal_pusher`).
 pub async fn push_journal_to_sys(
     pool: &sqlx::PgPool,
     sys_url: &str,
@@ -429,13 +429,13 @@ pub async fn push_journal_to_sys(
 /// every `POLL_INTERVAL_SECS`, DCR-register (or load)
 /// the service's M2M workload for `sentin8:sys:audit:write`, push pending
 /// `{service}.audit_journal` rows to Sys `POST /v1/audit`, mark them pushed
-/// on 2xx. A Sys outage only delays the push — rows persist and retry.
+/// on 2xx. A Sys outage only delays the push - rows persist and retry.
 /// The `service_name` identifies the workload (e.g. `sentin8:db` →
 /// `sentin8:db-audit`); the scope grant must be declared in the service's
 /// `M2M_GRANTS` registration and provisioned by `vertical enroll`.
-/// Spawned by the shell (boot step 8c) for every shell-booted service —
+/// Spawned by the shell (boot step 8c) for every shell-booted service -
 /// a Sys outage never drops audit. The HTTP client is built ONCE per
-/// process (pooled connection to Sys — a per-pass client pays a fresh
+/// process (pooled connection to Sys - a per-pass client pays a fresh
 /// PQ TLS handshake on every push with pending rows).
 pub fn spawn_journal_pusher(
     pool: sqlx::PgPool,
@@ -448,7 +448,7 @@ pub fn spawn_journal_pusher(
     let leaf = service_type.rsplit(':').next().unwrap_or(service_type);
     let workload = format!("{leaf}-audit");
     tokio::spawn(async move {
-        // auth DESIGN §4.3f: the certificate is the identity —
+        // auth DESIGN §4.3f: the certificate is the identity -
         // ensure it once (mint from Acme on a first boot; retries cover an
         // Acme that is still coming up), then build the cert-presenting
         // transport. No token is fetched or attached; Sys's TLS layer
@@ -484,7 +484,7 @@ pub fn spawn_journal_pusher(
                     tracing::debug!(pushed = n, workload = %workload, "audit journal pushed to sys")
                 }
                 Err(e) => {
-                    tracing::warn!(error = %e, workload = %workload, "audit journal push failed — rows stay queued");
+                    tracing::warn!(error = %e, workload = %workload, "audit journal push failed - rows stay queued");
                     // Back off briefly so a Sys outage does not spin.
                     tokio::time::sleep(std::time::Duration::from_secs(RETRY_BACKOFF_SECS)).await;
                 }

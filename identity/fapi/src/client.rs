@@ -3,9 +3,9 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! The FAPI client — discovery-driven OAuth/OIDC client.
+//! The FAPI client - discovery-driven OAuth/OIDC client.
 //!
-//! Implements all of Epic 1.3b (stories 1.3b.1–1.3b.14).
+//! Implements all of Epic 1.3b (stories 1.3b.1-1.3b.14).
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -275,7 +275,7 @@ impl Client {
             .await?;
         // Surface the authorization server's error body (RFC 6749 §5.2
         // `{"error": ..., "error_description": ...}`) instead of a bare
-        // "decode failed" — without it a 401/400 is undebuggable.
+        // "decode failed" - without it a 401/400 is undebuggable.
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();

@@ -57,32 +57,32 @@ graph TD
 
 ## 4. Key Traits and Data Structures
 
-- **`Registration`** — the full declaration. Static slices for compile-time
+- **`Registration`** - the full declaration. Static slices for compile-time
   constants; `sql_migrations` is owned (services build them at runtime);
   the `openapi` function serializes the utoipa spec lazily.
-- **`PgRole` + `CrossSchemaGrant`** — PostgreSQL 18 OAuth scope→role
+- **`PgRole` + `CrossSchemaGrant`** - PostgreSQL 18 OAuth scope→role
   mappings and explicitly declared cross-schema SELECT grants. Enrollment
-  applies exactly what is declared — never blanket grants. `bypass_rls` is
+  applies exactly what is declared - never blanket grants. `bypass_rls` is
   rejected when `true`: no role on the cluster may bypass RLS.  Grant **convergence semantics**: a declared grant may reference a table
   owned by a service that enrolls LATER in the registry (registry order is
-  not dependency order — e.g. bff declares reads on `sys.environments`,
+  not dependency order - e.g. bff declares reads on `sys.environments`,
   sys owns the table and enrolls after bff). Enroll therefore applies
   cross-schema grants in a **post-loop pass** after every self-described
-  SQL migration has been applied — grants are idempotent re-grants, so
+  SQL migration has been applied - grants are idempotent re-grants, so
   re-enroll converges on a fresh AND a drifted database alike. An inline
   per-service application would silently skip on a fresh boot
-  (`undefined_table` — the grant-drift incident class).- **`PolicySetDecl`** — a default Shield policy set (`enforced` by default;
+  (`undefined_table` - the grant-drift incident class).- **`PolicySetDecl`** - a default Shield policy set (`enforced` by default;
   `shadow` only for tenant authoring/rollback), validated by the CLI at
   enroll time.
-- **`RelationDecl`** — a ReBAC relation tuple seeded into `policy_relations`.
-- **`EventTriggerDecl`** — declarative event→work binding
+- **`RelationDecl`** - a ReBAC relation tuple seeded into `policy_relations`.
+- **`EventTriggerDecl`** - declarative event→work binding
   (`func` / `flow` / `cron` / `direct`), so triggers are data, not code.
-- **`M2mGrant`** — DCR workload scope grants (the service's own identity,
+- **`M2mGrant`** - DCR workload scope grants (the service's own identity,
   the `-policy` Shield-reload consumer, the stat emitter), upserted into
   `auth.m2m_scope_grants` so the fail-closed DCR gate admits registration.
-- **`AdminUi` / `AdminUiPage`** — RFW admin-UI declarations consumed by the
+- **`AdminUi` / `AdminUiPage`** - RFW admin-UI declarations consumed by the
   Dash renderer (Material Icons code points, POST-alias data endpoints).
-- **`AdminScope`** — untagged enum preserving both output shapes: platform
+- **`AdminScope`** - untagged enum preserving both output shapes: platform
   tuple pairs and vertical typed objects.
 
 ## 5. Rationale, Trade-offs, and Alternatives
@@ -90,7 +90,7 @@ graph TD
 - **Self-description over registry hand-editing.** Every service already
   knows its own domains/scopes/policies; asking the CLI to hardcode them
   would couple the platform to each service's lifecycle. The trade-off is
-  that each service ships a registration module — a small, typed,
+  that each service ships a registration module - a small, typed,
   versioned cost.
 - **Static slices (`&'static [...]`) over builder API.** Registration data
   is compile-time constant per service; static slices make the contract
@@ -117,7 +117,7 @@ graph TD
   - `Registration.service_type` is the canonical colon identity; `subdomain`
     defaults to the service_type minus a `sentin8-` prefix when unset.
   - Empty policy/relation slices omit their JSON keys entirely (not `[]`)
-    — absent means "none declared".
+    - absent means "none declared".
   - `PgRole.bypass_rls` must be `false`; enrollment rejects `true`.
   - Cross-schema grants are SELECT-only by vocabulary.
 - **Versioning.** `SqlMigration.version` ordering is honored by enrollment;
@@ -130,7 +130,7 @@ graph TD
 ## 7. Unresolved Questions / Future Designs
 
 - A JSON Schema for the registration output is a non-goal: it duplicates the
-  typed structs — a `validate()` const-eval is the lighter seam.
+  typed structs - a `validate()` const-eval is the lighter seam.
 - Per-section schema-version fields stay out: whole-object evolution is the
   greenfield contract (no consumers lag a version).
 - `event_triggers` validation (target-shape checks per `kind`) can move into

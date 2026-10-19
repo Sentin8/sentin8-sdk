@@ -7,18 +7,18 @@
 //!
 //! Every adopting service wires the same three pieces:
 //!
-//! 1. **Boot**: `PolicyEngine::new("<service>")` + `engine.load(&pool)` —
+//! 1. **Boot**: `PolicyEngine::new("<service>")` + `engine.load(&pool)` -
 //!    an error means invalid policy text → the service refuses to start.
 //! 2. **Hot-reload**: `spawn_hot_reload(pool, bus_client, engine)` consumes
 //!    the `policy` stream as a direct consumer via SSE push (one
-//!    long-lived stream per process, never a periodic HTTP poll) —
+//!    long-lived stream per process, never a periodic HTTP poll) -
 //!    policy-set text, relation tuples, attribute events, and identity-
 //!    invalidation triggers all dispatch here.
 //! 3. **Handlers**: `require_auth` (verify + tenant) then
-//!    `require_policy(engine, ctx, action)` — step 5 is THE decision.
+//!    `require_policy(engine, ctx, action)` - step 5 is THE decision.
 //!
 //! The axum-facing glue is small: services build the `RequestCtx` from their
-//! verified token (each service's `auth.rs` knows its claims type — the
+//! verified token (each service's `auth.rs` knows its claims type - the
 //! engine consumes the resolved values, never re-verifying tokens).
 
 use std::collections::HashSet;
@@ -33,7 +33,7 @@ use crate::{Decision, EvalOutcome, EvalTarget, PolicyEngine, RequestCtx, RoleRes
 // ── Consolidated service bridge (replaces 13 per-service shims) ─────────
 
 /// Build the boot engine for a service (colon service_type). Empty until
-/// `load` runs — an unparsable set fails `load`, and the caller refuses to
+/// `load` runs - an unparsable set fails `load`, and the caller refuses to
 /// start (fail-closed at boot).
 pub fn engine_for(service: impl Into<String>) -> Arc<PolicyEngine> {
     Arc::new(PolicyEngine::new(service))
@@ -41,11 +41,11 @@ pub fn engine_for(service: impl Into<String>) -> Arc<PolicyEngine> {
 
 /// Build the cert-presenting Bus client used by the hot-reload consumer
 /// (auth DESIGN §4.3f): the `{service}-policy` certificate is
-/// the workload identity — minted from Acme on a first boot (retrying
+/// the workload identity - minted from Acme on a first boot (retrying
 /// while Acme comes up), presented in the TLS handshake on every call.
 /// No DCR, no token. Every service calls this with its own colon
-/// service_type — one implementation instead of 13 identical shims.
-/// Resolve the policy hot-reload bus client — retrying until the workload
+/// service_type - one implementation instead of 13 identical shims.
+/// Resolve the policy hot-reload bus client - retrying until the workload
 /// certificate can be minted (fresh-boot: Acme comes up after the caller
 /// spawns the fleet). Kept public for non-`boot_full` callers that want
 /// the same guaranteed-client semantics.
@@ -71,7 +71,7 @@ pub async fn policy_bus_client(service: &str) -> sentin8_bus_client::BusClient {
 
 /// The full policy boot: boot load (refuse-to-start on
 /// invalid text) + shared step-5 deps + hot-reload direct consumer + stat
-/// emitter. The SHELL runs this for every shell service in boot step 8 —
+/// emitter. The SHELL runs this for every shell service in boot step 8 -
 /// services consume `core.admin.policy` and never call this. Only binaries
 /// that do NOT boot on the shell (captain, web, acme) call it once in their
 /// own boot. A load failure aborts boot (fail-closed).
@@ -87,8 +87,8 @@ pub async fn boot_full(
         .map_err(|e| anyhow::anyhow!("policy engine boot load failed: {e}"))?;
     init_shared_deps(issuer, pool.clone());
     // BOOTDEAD-1: on a fresh tree the supervisor (captain) reaches this
-    // boot step BEFORE any service — including Acme, the certificate
-    // minting authority — is spawned (it spawns them itself, after this
+    // boot step BEFORE any service - including Acme, the certificate
+    // minting authority - is spawned (it spawns them itself, after this
     // step). Waiting for the bus client HERE would deadlock the boot:
     // the supervisor never gets to spawn the very services whose
     // certificates it is waiting for. The hot-reload consumer therefore
@@ -96,8 +96,8 @@ pub async fn boot_full(
     // certificate lands), and the engine serves from the boot-loaded
     // policy sets meanwhile.
     spawn_hot_reload(pool.clone(), issuer, service, Arc::clone(engine));
-    // Deny/would-deny decision telemetry — failure degrades to log-only.
-    // Transport is MemBus `stat.telemetry` Pub/Sub (SDD §2.3) — no pool,
+    // Deny/would-deny decision telemetry - failure degrades to log-only.
+    // Transport is MemBus `stat.telemetry` Pub/Sub (SDD §2.3) - no pool,
     // no DCR workload; stat resolves the slug server-side at ingest.
     crate::stat_emit::init_stat_emitter_for_service(service).await;
     Ok(())
@@ -113,7 +113,7 @@ pub fn shared_role_resolver(auth_issuer: &str) -> Arc<RoleResolver> {
         .clone()
 }
 
-/// Build the evaluation context from verified token fields (steps 1–4 ran).
+/// Build the evaluation context from verified token fields (steps 1-4 ran).
 /// `scope_claim` is the space-separated resolved scope; org_id is nil for
 /// services whose tokens do not carry org context (policy rules key on env).
 pub fn request_ctx(
@@ -137,7 +137,7 @@ pub fn request_ctx(
 
 /// The step-5 evaluation with LIVE role resolution: resolves the caller's role
 /// names from Sentin8:Auth (the endpoint re-verifies the raw Bearer token
-/// server-side — the resolver never trusts caller-supplied role lists),
+/// server-side - the resolver never trusts caller-supplied role lists),
 /// builds the context, then evaluates. A role change takes effect on the
 /// next request. Resolution failure → empty roles → role-gated rules deny
 /// (fail-closed); scope-based rules are unaffected.
@@ -167,10 +167,10 @@ pub async fn check_policy_with_roles(
 /// bus, whose local context type carries the same three fields). Converts
 /// an enforced deny into HTTP 403; logs shadow would-deny. This is the
 /// single implementation the per-service shims re-export as
-/// `require_policy` — handlers keep calling `crate::policy::require_policy`.
+/// `require_policy` - handlers keep calling `crate::policy::require_policy`.
 ///
 /// Step 5 is the ONLY access gate: this is the FULL live
-/// evaluation — live effective scopes + roles, the env's relation
+/// evaluation - live effective scopes + roles, the env's relation
 /// slice, and principal attributes. `headers` must be the
 /// request's HeaderMap so the raw Bearer drives live identity resolution;
 /// on resolution failure the live sets are empty and scope/role-gated rules
@@ -217,7 +217,7 @@ pub fn init_shared_deps(auth_issuer: &str, pool: sqlx::PgPool) {
     let _ = SHARED_DEPS.set(deps);
 }
 
-/// Access the shared deps (None before init — tests).
+/// Access the shared deps (None before init - tests).
 pub fn shared_deps() -> Option<&'static PolicyDeps> {
     SHARED_DEPS.get()
 }
@@ -227,7 +227,7 @@ fn shared_pool() -> Option<sqlx::PgPool> {
 }
 
 /// Extract the raw Bearer token from request headers (passed through to
-/// Auth's userinfo endpoint for live-role resolution — the endpoint
+/// Auth's userinfo endpoint for live-role resolution - the endpoint
 /// re-verifies it server-side).
 pub fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
     headers
@@ -243,7 +243,7 @@ pub fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
 /// relation slice, and the caller's principal attributes.
 /// Every substrate failure degrades independently (fail-closed per surface:
 /// no roles = role rules deny; no edges = hierarchy rules deny; no attrs =
-/// attr rules deny) — non-dependent rules still decide.
+/// attr rules deny) - non-dependent rules still decide.
 pub async fn evaluate_full(
     engine: &PolicyEngine,
     subject_id: &str,
@@ -255,9 +255,9 @@ pub async fn evaluate_full(
 ) -> Result<EvalOutcome, (StatusCode, String)> {
     let mut ctx = request_ctx(subject_id, env_id, token_tp, scope_claim);
     if let Some(deps) = SHARED_DEPS.get() {
-        // Live identity: roles AND the live effective scope set —
+        // Live identity: roles AND the live effective scope set -
         // ONE userinfo call resolves both. On failure both stay empty
-        // (scope/role-gated rules deny — fail-closed); the verified
+        // (scope/role-gated rules deny - fail-closed); the verified
         // JWT scope snapshot remains available only as `token_attrs.scopes`
         // (see below), which no platform policy references.
         if let Some(token) = bearer_token(headers) {
@@ -286,7 +286,7 @@ pub async fn evaluate_full(
                 Err(e) => tracing::warn!(error = %e, env_id = %env_id,
                     "relation slice load failed; evaluating without hierarchy edges"),
             }
-            // Principal attributes — injected as restricted exprs.
+            // Principal attributes - injected as restricted exprs.
             match crate::substrate::load_principal_attrs(&pool, env_id, subject_id).await {
                 Ok(attrs) => {
                     for a in attrs {
@@ -302,7 +302,7 @@ pub async fn evaluate_full(
         }
     }
     // The verified-but-stale JWT scope snapshot rides on the context as
-    // `token_scopes` — the engine injects it as `principal.token_attrs.scopes`
+    // `token_scopes` - the engine injects it as `principal.token_attrs.scopes`
     // (a separate attribute; the LIVE set in `ctx.scopes` is always
     // `principal.scopes`). No platform policy may reference `token_attrs`
     // (the stale JWT snapshot).
@@ -324,10 +324,10 @@ pub async fn check_policy(
     // the cache holds NO set for this env (freshly-created env, hot-reload
     // event still in the outbox→Bus→SSE pipeline), retry the load once
     // synchronously before failing closed. Read-your-writes for provisioning
-    // — the set rows are already committed; a failed reload keeps the empty
+    // - the set rows are already committed; a failed reload keeps the empty
     // cache → deny (fail-closed preserved). Single-flight via the engine's
     // reload lock. The re-evaluated outcome falls through to the SAME
-    // deny conversion below — returning `Ok(deny-outcome)` here would let
+    // deny conversion below - returning `Ok(deny-outcome)` here would let
     // a no-coverage env (unknown env, mid-provision env) bypass step 5
     // entirely (deny treated as allow by every handler).
     if outcome.enforce_deny_reason_is_no_coverage() && !engine.has_sets_for_env(ctx.env_id) {
@@ -339,7 +339,7 @@ pub async fn check_policy(
                 // this env (event consumed before the seed code deployed,
                 // relay lag, or a skipped enable). Copy the service's
                 // SYSTEM-env `origin='platform'` template sets into this
-                // env — the same statement the ledger/fdx env-init
+                // env - the same statement the ledger/fdx env-init
                 // consumers run. Idempotent (`ON CONFLICT DO NOTHING`);
                 // requires the substrate's SELECT/INSERT grant on
                 // `sys.policy_sets` for this service's role.
@@ -349,7 +349,7 @@ pub async fn check_policy(
                 let sys_env = uuid::Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0002);
                 // Same-transaction context (rule 2): the substrate's
                 // INSERT policy is `WITH CHECK (sentin8_context_initialized())`
-                // and the context is transaction-local — the copy runs
+                // and the context is transaction-local - the copy runs
                 // inside ONE explicit transaction with the context set on
                 // the SAME connection.
                 let seeded = async {
@@ -384,22 +384,22 @@ pub async fn check_policy(
                             env_id = %ctx.env_id,
                             service = %engine.service(),
                             sets = n,
-                            "policy: sync reload on empty coverage — env sets loaded"
+                            "policy: sync reload on empty coverage - env sets loaded"
                         ),
                         Err(e) => tracing::warn!(
                             error = %e,
                             env_id = %ctx.env_id,
-                            "policy: sync reload on empty coverage FAILED — denying (fail-closed)"
+                            "policy: sync reload on empty coverage FAILED - denying (fail-closed)"
                         ),
                     },
                     Err(e) => tracing::warn!(
                         error = %e,
                         env_id = %ctx.env_id,
-                        "policy: template seed on empty coverage FAILED — denying (fail-closed)"
+                        "policy: template seed on empty coverage FAILED - denying (fail-closed)"
                     ),
                 }
             }
-            // Re-evaluate INLINE (no recursive async call — Box::pin would be
+            // Re-evaluate INLINE (no recursive async call - Box::pin would be
             // needed otherwise): cache now holds the env's sets, or still empty
             // → the same fail-closed deny as before. The final outcome is
             // enforced by the shared tail below (Deny → Err 403).
@@ -443,7 +443,7 @@ pub async fn check_policy(
         Decision::Deny { reason } => {
             // Enforced-deny visibility (the produce 500
             // storm was invisible because the ENFORCED deny path logged
-            // nothing — only shadow would-deny got a warn). The reason text
+            // nothing - only shadow would-deny got a warn). The reason text
             // here is the matched set + verdict (`set 'scope-mirror' (deny)`)
             // or the fail-closed no-coverage text.
             tracing::warn!(
@@ -488,9 +488,9 @@ pub async fn check_policy(
 /// feed without depending on the optional Stat pipeline. Fire-and-forget on
 /// a fresh pooled connection: set the caller's env context FIRST, then
 /// INSERT on the same connection (sqlx 0.8 does not `DISCARD ALL` on
-/// release — session-local GUCs persist across acquires, so the
+/// release - session-local GUCs persist across acquires, so the
 /// context-on-connection pattern is the established safe shape). Failure is
-/// logged and never propagated — audit must not be able to fail a request.
+/// logged and never propagated - audit must not be able to fail a request.
 #[allow(clippy::too_many_arguments)]
 fn emit_decision_audit(
     pool: Option<&sqlx::PgPool>,
@@ -503,7 +503,7 @@ fn emit_decision_audit(
     set_name: &str,
 ) {
     let Some(pool) = pool else {
-        return; // no shared pool (tests / bus-style callers) — log-only
+        return; // no shared pool (tests / bus-style callers) - log-only
     };
     let pool = pool.clone();
     let subject = ctx.subject_id.clone();
@@ -546,7 +546,7 @@ fn emit_decision_audit(
 }
 
 /// Fire-and-forget Stat emission for identity-resolution failures
-/// (observability only — never a bypass signal). Silently
+/// (observability only - never a bypass signal). Silently
 /// no-ops when the Stat emitter is not initialized for this process.
 fn emit_stat_identity_failure(service: &str, ctx: &RequestCtx) {
     crate::stat_emit::emit_decision(
@@ -598,7 +598,7 @@ pub fn dry_run_mirror(policies: &str, set_name: &str, service: &str) -> Result<(
             rest.find('"').map(|e| rest[..e].to_string())
         });
         // An unconstrained action (`permit(principal, action, resource)`)
-        // mirrors a role/scope grant to every action — evaluate one
+        // mirrors a role/scope grant to every action - evaluate one
         // representative action per permit to prove the referenced
         // principal attribute is satisfiable.
         let representative = action
@@ -608,7 +608,7 @@ pub fn dry_run_mirror(policies: &str, set_name: &str, service: &str) -> Result<(
     }
     if checks.is_empty() {
         return Err(format!(
-            "set '{set_name}': no permit statements found — an empty enforced set denies everything"
+            "set '{set_name}': no permit statements found - an empty enforced set denies everything"
         ));
     }
 
@@ -632,7 +632,7 @@ pub fn dry_run_mirror(policies: &str, set_name: &str, service: &str) -> Result<(
         .load_from_rows(vec![record])
         .map_err(|e| e.to_string())?;
 
-    // One synthetic principal per permit — holds exactly what the permit
+    // One synthetic principal per permit - holds exactly what the permit
     // references (scope and/or role). The set must ALLOW its own action.
     for (action, scope, role) in &checks {
         let mut scopes: HashSet<String> = HashSet::new();
@@ -644,7 +644,7 @@ pub fn dry_run_mirror(policies: &str, set_name: &str, service: &str) -> Result<(
             roles.insert(r.clone());
         }
         if scopes.is_empty() && roles.is_empty() {
-            // Unconditional permit (no `when` clause): nothing to verify —
+            // Unconditional permit (no `when` clause): nothing to verify -
             // Shield evaluates the head directly.
             scopes.insert(format!("{service}:dry-run-unconditional"));
         }
@@ -656,7 +656,7 @@ pub fn dry_run_mirror(policies: &str, set_name: &str, service: &str) -> Result<(
             scopes.clone(),
         )
         .with_roles(roles);
-        // The set's own permit is the only rule — but the synthetic ctx must
+        // The set's own permit is the only rule - but the synthetic ctx must
         // carry `principal.scopes` as the LIVE set (same injection the real
         // path uses): RequestCtx.scopes IS the live set on the evaluate path.
         let outcome = engine.evaluate(&ctx, &EvalTarget::new(action.clone()));
@@ -671,7 +671,7 @@ pub fn dry_run_mirror(policies: &str, set_name: &str, service: &str) -> Result<(
 }
 
 /// Extract the matched rule-set name from a decision reason of the form
-/// `set 'name' (deny)` (produced by `PolicyEngine::evaluate`). Best-effort —
+/// `set 'name' (deny)` (produced by `PolicyEngine::evaluate`). Best-effort -
 /// falls back to `unknown` for free-form reasons.
 fn reason_set_name(reason: &str) -> String {
     let start = reason.find("set '").map(|i| i + 5);
@@ -773,7 +773,7 @@ async fn run_sse_epoch(
                 | "sentin8:sys:policy:attrs:updated" => {
                     match serde_json::from_value::<PolicyUpdatedEnvelope>(msg.payload.clone()) {
                         // service "*" = fleet-wide signal (e.g. sys seeded a
-                        // new env's per-env sets — every service reloads).
+                        // new env's per-env sets - every service reloads).
                         Ok(env) if env.service == service || env.service == "*" => {
                             needs_reload = true
                         }
@@ -784,7 +784,7 @@ async fn run_sse_epoch(
                         }
                     }
                 }
-                // Identity-cache invalidation — fresh tenant
+                // Identity-cache invalidation - fresh tenant
                 // access must be visible on the next request, not after the
                 // 30s TTL (role changes must be visible immediately after
                 // org creation). Whole-env sweep; the resolver is per-process
@@ -822,7 +822,7 @@ async fn run_sse_epoch(
 /// authoritative; this task applies `sentin8:sys:policy:*` change events and
 /// identity invalidation triggers.
 ///
-/// Transport is `BusClient::sse_consume` — one long-lived
+/// Transport is `BusClient::sse_consume` - one long-lived
 /// push stream per process. The HTTP batch `POST /v1/consume` endpoint must
 /// NOT be polled periodically: 21 service processes × a 5s poll was
 /// a fixed idle request budget on Sentin8:Bus.
@@ -836,7 +836,7 @@ pub fn spawn_hot_reload(
     let service = service.to_string();
     tokio::spawn(async move {
         tracing::info!(service, "policy hot-reload consumer starting (SSE)");
-        // BOOTDEAD-1: the client resolution retries INSIDE the loop — a
+        // BOOTDEAD-1: the client resolution retries INSIDE the loop - a
         // fresh-boot supervisor spawns Acme only after its own boot, so
         // the certificate may not be mintable yet; the consumer keeps
         // resolving (quietly) until it lands. The engine serves from the

@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! RFW response types — the response envelope for admin UI endpoints.
+//! RFW response types - the response envelope for admin UI endpoints.
 
 use crate::page::AdminUiPage;
 use serde::{Deserialize, Serialize};

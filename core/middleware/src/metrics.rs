@@ -45,7 +45,7 @@ impl Default for MetricsConfig {
     }
 }
 
-/// Aggregated request metrics — the in-memory counters that the middleware
+/// Aggregated request metrics - the in-memory counters that the middleware
 /// updates and the `/metrics` handler exports.
 #[derive(Debug, Default)]
 pub struct RequestMetrics {
@@ -108,7 +108,7 @@ impl RequestMetrics {
     }
 }
 
-/// Shared metrics state — cloneable (wraps `Arc`).
+/// Shared metrics state - cloneable (wraps `Arc`).
 #[derive(Debug, Clone)]
 pub struct SharedMetrics {
     inner: Arc<RequestMetrics>,

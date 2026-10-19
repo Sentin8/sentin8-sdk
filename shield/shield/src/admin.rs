@@ -5,8 +5,8 @@
 
 //! Shared policy-admin API (design/sentin8-shield-technical-design.md ).
 //!
-//! Every adopting service exposes the SAME uniform surface — policy sets,
-//! relation tuples, principal attributes, and the relations dry-run check —
+//! Every adopting service exposes the SAME uniform surface - policy sets,
+//! relation tuples, principal attributes, and the relations dry-run check -
 //! implemented once here. A service mounts it by putting a
 //! [`SharedAdminState`] in its `AppState` and routing these handlers.
 //!
@@ -47,7 +47,7 @@ pub struct SharedAdminState {
 
 /// Access trait: every service's `AppState` implements this so the shared
 /// handlers can extract its admin surface (generic over each service's own
-/// state type — no per-service handler copies).
+/// state type - no per-service handler copies).
 pub trait HasPolicyAdmin {
     fn policy_admin(&self) -> &SharedAdminState;
 }
@@ -66,7 +66,7 @@ impl SharedAdminState {
     /// test fixtures that exercise domain flows, not the policy surface.
     pub fn test(service: impl Into<String>, pool: sqlx::PgPool) -> Self {
         // Test fixtures bypass the shell boot (which installs the PQ crypto
-        // provider) — building an AuthClient constructs a reqwest client,
+        // provider) - building an AuthClient constructs a reqwest client,
         // which panics "No provider set" without it. Install Once-guarded.
         {
             use std::sync::Once;
@@ -86,7 +86,7 @@ impl SharedAdminState {
     /// The per-service policy-admin scope for this surface: `{first-two-segments}:policy:read` or `…:write`
     /// (e.g. service `sentin8:post` → `sentin8:post:policy:read`, service
     /// `bank8:ledger` → `bank8:ledger:policy:write`). Every scope starts
-    /// with its vertical — the crate name is NOT a service identity, so a
+    /// with its vertical - the crate name is NOT a service identity, so a
     /// bare `sentin8:policy:*` literal would violate the uniform naming
     /// rule. Falls back to the whole service string when it has fewer than
     /// two segments (never happens for enrolled identities, which are
@@ -113,7 +113,7 @@ fn scope_prefix(service: &str) -> String {
     }
 }
 
-/// Query carrying `target_env_id` (REQUIRED — the caller's RLS context).
+/// Query carrying `target_env_id` (REQUIRED - the caller's RLS context).
 #[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct TargetEnv {
     #[serde(default)]
@@ -127,7 +127,7 @@ fn resolve_env(q: &TargetEnv) -> Result<Uuid, (StatusCode, String)> {
         .ok_or_else(|| {
             (
                 StatusCode::BAD_REQUEST,
-                "missing target_env_id — auth is env-scoped".into(),
+                "missing target_env_id - auth is env-scoped".into(),
             )
         })
 }
@@ -183,7 +183,7 @@ async fn admin_gate(
     Ok((a, env_id, conn))
 }
 
-/// Read gate for this service's policy-admin surface — the scope is derived
+/// Read gate for this service's policy-admin surface - the scope is derived
 /// from the service identity, not a crate-name literal.
 fn read_scope(s: &SharedAdminState) -> String {
     s.policy_read_scope()
@@ -215,7 +215,7 @@ async fn set_ctx(
 async fn emit_event(
     pool: &sqlx::PgPool,
     env_id: Uuid,
-    // The envelope record's natural arity — allow keeps the single
+    // The envelope record's natural arity - allow keeps the single
     // flat call shape instead of threading a params struct through.
     #[allow(clippy::too_many_arguments)] service: &str,
     name: &str,
@@ -253,7 +253,7 @@ async fn audit(pool: &sqlx::PgPool, env_id: Uuid, service: &str, event: serde_js
 
 // ── Policy-set endpoints ─────────────────────────────────────────
 
-/// `GET /v1/admin/policy-sets` — list this service's policy sets.
+/// `GET /v1/admin/policy-sets` - list this service's policy sets.
 pub async fn list_policy_sets<T>(
     State(st): State<T>,
     headers: HeaderMap,
@@ -280,7 +280,7 @@ where
         .iter()
         .map(|r| {
             serde_json::json!({
-              // id = the set name — the RFW row actions substitute {id}
+              // id = the set name - the RFW row actions substitute {id}
               // from this field; without it every Delete/Enforce
               // click POSTed `policy-sets//delete` (empty id → 404).
               "id": r.get::<String, _>("policy_set_name"),
@@ -298,7 +298,7 @@ where
     Ok(Json(sets))
 }
 
-/// `GET /v1/admin/policy-sets/{name}` — fetch one set.
+/// `GET /v1/admin/policy-sets/{name}` - fetch one set.
 pub async fn get_policy_set<T>(
     State(st): State<T>,
     headers: HeaderMap,
@@ -356,7 +356,7 @@ pub struct PutPolicySetBody {
     pub mode: Option<String>,
 }
 
-/// `PUT /v1/admin/policy-sets/{name}` — create/update with write-time
+/// `PUT /v1/admin/policy-sets/{name}` - create/update with write-time
 /// validation. Platform rows are enroll-managed (409); tenant rows
 /// (or new rows) are validated then stored, starting in `shadow`.
 pub async fn put_policy_set<T>(
@@ -371,7 +371,7 @@ where
 {
     let s = st.policy_admin();
     let (a, env_id, mut conn) = admin_gate(s, &headers, &q, &write_scope(s)).await?;
-    // Size caps before any parse work — a multi-MB submit must
+    // Size caps before any parse work - a multi-MB submit must
     // fail fast with 413, not with a truncated Shield parse error.
     let schema = normalize_schema(body.schema.as_deref());
     check_text_caps(&body.policies, schema)?;
@@ -389,7 +389,7 @@ where
             "mode must be 'shadow' or 'enforced'".into(),
         ));
     }
-    // Platform rows are enroll-managed — refuse to overwrite.
+    // Platform rows are enroll-managed - refuse to overwrite.
     let existing: Option<(String,)> = sqlx::query_as(
     "SELECT origin FROM policy_sets WHERE service = $1 AND env_id = $2 AND policy_set_name = $3",
   )
@@ -403,7 +403,7 @@ where
         if origin == "platform" {
             return Err((
                 StatusCode::CONFLICT,
-                "policy set is platform-managed (registration section) — edit via enroll".into(),
+                "policy set is platform-managed (registration section) - edit via enroll".into(),
             ));
         }
     }
@@ -464,7 +464,7 @@ where
     ))
 }
 
-/// `DELETE /v1/admin/policy-sets/{name}` — tenant sets only.
+/// `DELETE /v1/admin/policy-sets/{name}` - tenant sets only.
 pub async fn delete_policy_set<T>(
     State(st): State<T>,
     headers: HeaderMap,
@@ -538,7 +538,7 @@ pub struct TestPolicySetBody {
     pub action: Option<String>,
 }
 
-/// `POST /v1/admin/policy-sets/{name}/test` — dry-run candidate policy text
+/// `POST /v1/admin/policy-sets/{name}/test` - dry-run candidate policy text
 /// against a sample context; returns decision WITHOUT storing.
 pub async fn test_policy_set<T>(
     State(st): State<T>,
@@ -609,7 +609,7 @@ pub struct PolicyModeBody {
 }
 
 /// Shared mode-flip: tenant rows flip freely; platform rows flip MODE only
-/// (shadow→enforced promotion is the ops lever — allowed; origin stays).
+/// (shadow→enforced promotion is the ops lever - allowed; origin stays).
 async fn flip_policy_mode(
     s: &SharedAdminState,
     headers: &HeaderMap,
@@ -694,7 +694,7 @@ async fn flip_policy_mode(
 
 /// Policy text / schema size caps: a multi-MB textarea submit
 /// must fail fast instead of bloating a Shield parse error (or hanging the
-/// engine compile) — 413 before any validation runs.
+/// engine compile) - 413 before any validation runs.
 pub const MAX_POLICY_TEXT_BYTES: usize = 64 * 1024;
 pub const MAX_SCHEMA_TEXT_BYTES: usize = 64 * 1024;
 
@@ -702,7 +702,7 @@ pub const MAX_SCHEMA_TEXT_BYTES: usize = 64 * 1024;
 /// whitespace-only string means "no schema". The RFW form renderer submits
 /// `""` for untouched optional textareas (`onSaved: v ?? ""`), which would
 /// otherwise be schema-VALIDATED (and fail to parse) instead of being
-/// treated as absent — the create form 422'd every submit that left the
+/// treated as absent - the create form 422'd every submit that left the
 /// schema field blank .
 pub(crate) fn normalize_schema(schema: Option<&str>) -> Option<&str> {
     schema.filter(|s| !s.trim().is_empty())
@@ -734,7 +734,7 @@ fn check_text_caps(policies: &str, schema: Option<&str>) -> Result<(), (StatusCo
     Ok(())
 }
 
-/// `POST /v1/admin/policy-sets` — create a tenant policy set (name in body).
+/// `POST /v1/admin/policy-sets` - create a tenant policy set (name in body).
 /// The RFW create form is POST-only and cannot PUT to a path with
 /// the name; the shared `put_policy_set` core runs with `origin='tenant'`
 /// validation, then the renderer is redirected to the editor page.
@@ -780,7 +780,7 @@ where
         enabled: None,
         mode: body.mode,
     });
-    // Reuse the shared PUT core (validation, tenant-origin, event, audit) —
+    // Reuse the shared PUT core (validation, tenant-origin, event, audit) -
     // a create is just a PUT to the not-yet-existing name.
     let (status, Json(payload)) = put_policy_set(
         State(st2),
@@ -805,7 +805,7 @@ where
     .into_response())
 }
 
-/// `POST /v1/admin/policy-sets/{name}/save` — PUT alias for the RFW
+/// `POST /v1/admin/policy-sets/{name}/save` - PUT alias for the RFW
 /// renderer. Identical body + validation to the canonical PUT.
 pub async fn save_policy_set<T>(
     State(st): State<T>,
@@ -822,7 +822,7 @@ where
 }
 
 /// Path-param row-action alias: `POST …/{name}/enforce|shadow|
-/// disable|delete` — the RFW row action submits an empty body, so the target
+/// disable|delete` - the RFW row action submits an empty body, so the target
 /// set and the operation come from the path. One route shape serves all four
 /// actions (axum's matchit router cannot register `{name}/delete` next to
 /// `{name}/{action}` without a conflict), so this dispatcher covers both
@@ -861,7 +861,7 @@ where
         .map(|Json(v)| Json(v).into_response())
 }
 
-/// `POST /v1/admin/policy-sets/{name}/delete`-style alias — kept as a named
+/// `POST /v1/admin/policy-sets/{name}/delete`-style alias - kept as a named
 /// handler for direct mounting where a dedicated route shape exists (the
 /// canonical router mounts the dispatcher above instead).
 pub async fn admin_delete_policy_set<T>(
@@ -876,9 +876,9 @@ where
     delete_policy_set(State(st), headers, Path(name), Query(q)).await
 }
 
-/// `POST /v1/admin/relations/{id}/delete` — row-action alias.
+/// `POST /v1/admin/relations/{id}/delete` - row-action alias.
 /// `id` is the colon-joined tuple the RFW list emits
-/// (`subject_type:subject_id:relation:object_type:object_id`) — the
+/// (`subject_type:subject_id:relation:object_type:object_id`) - the
 /// renderer substitutes only `{id}`, so the tuple rides one segment.
 pub async fn admin_delete_relation<T>(
     st: State<T>,
@@ -914,7 +914,7 @@ where
     delete_relation(st, headers, Query(dq)).await
 }
 
-/// `POST /v1/admin/attributes/{id}/delete` — row-action alias.
+/// `POST /v1/admin/attributes/{id}/delete` - row-action alias.
 /// `id` is `subject_id:attr_key` as emitted by the RFW list; splitn(2)
 /// keeps any colons inside the attribute key.
 pub async fn admin_delete_attribute<T>(
@@ -940,7 +940,7 @@ where
     delete_attribute(st, headers, Query(dq)).await
 }
 
-/// `GET /v1/admin/policy-decisions` — deny / would-deny feed for the UI
+/// `GET /v1/admin/policy-decisions` - deny / would-deny feed for the UI
 ///. Reads the shared audit trail (`sentin8.audit_events`) rows the
 /// runtime decision-audit writes (crate runtime `emit_decision_audit`):
 /// `event->>'action' IN ('policy.deny','policy.would_deny')`.
@@ -987,7 +987,7 @@ where
     Ok(Json(items))
 }
 
-/// `POST /v1/admin/policy-sets/enforce` — promote a set to enforced.
+/// `POST /v1/admin/policy-sets/enforce` - promote a set to enforced.
 pub async fn admin_enforce_policy_set<T>(
     State(st): State<T>,
     headers: HeaderMap,
@@ -1001,7 +1001,7 @@ where
     flip_policy_mode(s, &headers, &q, Some("enforced"), None, &body).await
 }
 
-/// `POST /v1/admin/policy-sets/shadow` — demote a set to shadow (rollback).
+/// `POST /v1/admin/policy-sets/shadow` - demote a set to shadow (rollback).
 pub async fn admin_shadow_policy_set<T>(
     State(st): State<T>,
     headers: HeaderMap,
@@ -1015,7 +1015,7 @@ where
     flip_policy_mode(s, &headers, &q, Some("shadow"), None, &body).await
 }
 
-/// `POST /v1/admin/policy-sets/disable` — disable a set.
+/// `POST /v1/admin/policy-sets/disable` - disable a set.
 pub async fn admin_disable_policy_set<T>(
     State(st): State<T>,
     headers: HeaderMap,
@@ -1031,7 +1031,7 @@ where
 
 // ── Relations endpoints ──────────────────────────────────────────
 
-/// `PUT /v1/admin/relations` body — one relation tuple.
+/// `PUT /v1/admin/relations` body - one relation tuple.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct PutRelationBody {
     pub subject_type: String,
@@ -1067,7 +1067,7 @@ fn emit_relations_event(
     });
 }
 
-/// `GET /v1/admin/relations` — list this service's relation tuples.
+/// `GET /v1/admin/relations` - list this service's relation tuples.
 pub async fn list_relations<T>(
     State(st): State<T>,
     headers: HeaderMap,
@@ -1106,7 +1106,7 @@ where
     Ok(Json(items))
 }
 
-/// `PUT /v1/admin/relations` — upsert one relation tuple (tenant origin).
+/// `PUT /v1/admin/relations` - upsert one relation tuple (tenant origin).
 pub async fn put_relation<T>(
     State(st): State<T>,
     headers: HeaderMap,
@@ -1164,7 +1164,7 @@ where
     ))
 }
 
-/// `DELETE /v1/admin/relations` query — identifies the tuple.
+/// `DELETE /v1/admin/relations` query - identifies the tuple.
 #[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct DeleteRelationQuery {
     pub subject_type: String,
@@ -1182,7 +1182,7 @@ fn target_env_of(target_env_id: &Option<String>) -> TargetEnv {
     }
 }
 
-/// `DELETE /v1/admin/relations` — remove one relation tuple.
+/// `DELETE /v1/admin/relations` - remove one relation tuple.
 pub async fn delete_relation<T>(
     State(st): State<T>,
     headers: HeaderMap,
@@ -1231,7 +1231,7 @@ where
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// `GET /v1/admin/relations/check` query — Zanzibar-style dry-run.
+/// `GET /v1/admin/relations/check` query - Zanzibar-style dry-run.
 #[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct RelationCheckQuery {
     pub subject_type: String,
@@ -1243,7 +1243,7 @@ pub struct RelationCheckQuery {
     pub target_env_id: Option<String>,
 }
 
-/// `GET /v1/admin/relations/check` — is `subject` connected to `object` by
+/// `GET /v1/admin/relations/check` - is `subject` connected to `object` by
 /// `relation` (directly or transitively)? Returns path info + decision.
 pub async fn check_relation<T>(
     State(st): State<T>,
@@ -1303,7 +1303,7 @@ where
 
 // ── Attributes endpoints ─────────────────────────────────────────
 
-/// `PUT /v1/admin/attributes` body — one principal attribute.
+/// `PUT /v1/admin/attributes` body - one principal attribute.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct PutAttributeBody {
     pub subject_id: String,
@@ -1311,7 +1311,7 @@ pub struct PutAttributeBody {
     pub attr_value: serde_json::Value,
 }
 
-/// `GET /v1/admin/attributes` query — list attributes for one subject (or
+/// `GET /v1/admin/attributes` query - list attributes for one subject (or
 /// all subjects in the env when omitted).
 #[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct ListAttributesQuery {
@@ -1341,7 +1341,7 @@ fn emit_attrs_event(s: &SharedAdminState, env_id: Uuid, subject_id: &str, attr_k
     });
 }
 
-/// `GET /v1/admin/attributes` — list principal attributes for one subject
+/// `GET /v1/admin/attributes` - list principal attributes for one subject
 /// (or all subjects when `subject_id` is omitted) in the target env.
 pub async fn list_attributes<T>(
     State(st): State<T>,
@@ -1393,9 +1393,9 @@ where
     Ok(Json(items))
 }
 
-/// `PUT /v1/admin/attributes` — upsert one principal attribute. Values must
+/// `PUT /v1/admin/attributes` - upsert one principal attribute. Values must
 /// be JSON scalars or arrays of scalars (Shield restricted expressions cannot
-/// represent nested objects — 422 otherwise).
+/// represent nested objects - 422 otherwise).
 pub async fn put_attribute<T>(
     State(st): State<T>,
     headers: HeaderMap,
@@ -1447,7 +1447,7 @@ where
     ))
 }
 
-/// `DELETE /v1/admin/attributes` query — identifies the attribute.
+/// `DELETE /v1/admin/attributes` query - identifies the attribute.
 #[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct DeleteAttributeQuery {
     pub subject_id: String,
@@ -1456,7 +1456,7 @@ pub struct DeleteAttributeQuery {
     pub target_env_id: Option<String>,
 }
 
-/// `DELETE /v1/admin/attributes` — remove one principal attribute.
+/// `DELETE /v1/admin/attributes` - remove one principal attribute.
 pub async fn delete_attribute<T>(
     State(st): State<T>,
     headers: HeaderMap,
@@ -1519,7 +1519,7 @@ mod scope_tests {
     }
 
     // PgPool::connect_lazy starts the pool's background reaper via
-    // tokio::spawn (sqlx-core inner.rs) — a sync #[test] has no Tokio
+    // tokio::spawn (sqlx-core inner.rs) - a sync #[test] has no Tokio
     // context and panics (backing-service-coupled
     // tests run under an async runtime).
     #[tokio::test]

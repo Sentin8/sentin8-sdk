@@ -22,7 +22,7 @@
 //! `Sentin8HttpClient::new` reads the correlation_id from the
 //! `tracing` active span (populated by the `correlation_id` /
 //! `request_logging` middleware) and the tenant fields from
-//! `TenantMarker` — both of which are set automatically — and
+//! `TenantMarker` - both of which are set automatically - and
 //! attaches them on every request.
 //!
 //! ## Usage
@@ -87,7 +87,7 @@ impl Sentin8HttpClient {
     }
 
     /// Construct a client for **long-lived / streaming responses** (SSE,
-    /// long-poll, chunked downloads) — identical to [`new`](Self::new) but
+    /// long-poll, chunked downloads) - identical to [`new`](Self::new) but
     /// without the total request `.timeout()`.
     ///
     /// reqwest's client-level `.timeout()` covers the *entire* response,
@@ -195,7 +195,7 @@ impl Sentin8HttpClient {
             b = b.header("x-sentin8-service", v.clone());
             // Also set the caller-service header so the receiving service's
             // log emission layer can populate `caller_service` on the
-            // LogEvent — this is what builds the service-interaction graph
+            // LogEvent - this is what builds the service-interaction graph
             // (edges) in Log.
             b = b.header("x-sentin8-caller-service", v);
         }
@@ -321,7 +321,7 @@ pub fn attach_context_to(
 mod tests {
     use super::*;
 
-    /// Install the Graviola PQ crypto provider once — reqwest panics with
+    /// Install the Graviola PQ crypto provider once - reqwest panics with
     /// "No provider set" when a client is built without one.
     fn install_provider() {
         use std::sync::Once;

@@ -31,12 +31,12 @@ graph TD
     C --> D[Base64 TEXT form for TEXT columns]
     C --> E[Raw bytes form for BYTEA columns]
     F["open(key, envelope)"] --> C
-    G[MasterKey — 32 bytes, zeroized on drop] --> B
+    G[MasterKey - 32 bytes, zeroized on drop] --> B
     G --> F
     H["derive_key(material)"] --> G
 ```
 
-Envelope format — Base64 (standard) of:
+Envelope format - Base64 (standard) of:
 
 ```text
 "v2:" || nonce (12 bytes) || ciphertext-with-tag
@@ -50,19 +50,19 @@ Envelope format — Base64 (standard) of:
 
 ## 4. Key Traits and Data Structures
 
-- **`MasterKey`** — exactly 32 bytes, wrapped in a zeroizing container.
+- **`MasterKey`** - exactly 32 bytes, wrapped in a zeroizing container.
   `from_bytes` (raw 32 bytes), `from_base64` (operator provisioning format;
   `None` for empty input so callers can apply fail-closed logic), and
   `derive_key` (SHA-256 for passphrase-style material).
-- **`seal` / `seal_raw`** — encrypt into the Base64 TEXT form / raw BYTEA
+- **`seal` / `seal_raw`** - encrypt into the Base64 TEXT form / raw BYTEA
   form respectively.
-- **`open` / `open_str`** — decrypt either form; the raw form is recognized
+- **`open` / `open_str`** - decrypt either form; the raw form is recognized
   by the literal `v2:` prefix and the TEXT form by Base64 decoding (a
   Base64 encoding of `v2:` always begins `djI6`, so the two forms are
   unambiguous).
-- **`is_envelope` / `is_envelope_str`** — prefix check used by callers to
+- **`is_envelope` / `is_envelope_str`** - prefix check used by callers to
   detect un-encrypted rows and encrypt them on first read.
-- **`CryptoError`** — key-length, base64, envelope-structure, and
+- **`CryptoError`** - key-length, base64, envelope-structure, and
   authentication failures.
 
 ## 5. Rationale, Trade-offs, and Alternatives
@@ -72,7 +72,7 @@ Envelope format — Base64 (standard) of:
   alternatives: ChaCha20-Poly1305 (equivalent security; no advantage here),
   HKDF+column-key-per-tenant (more key management than the platform's
   single-master-key provisioning supports today).
-- **Random 12-byte nonce per encryption** — the AES-GCM standard choice.
+- **Random 12-byte nonce per encryption** - the AES-GCM standard choice.
   A deterministic nonce (hash of plaintext) would leak equality and invite
   nonce-reuse bugs under concurrent writes; `OsRng` nonce costs 12 bytes.
 - **Prefix-tagged versioned envelope (`v2:`).** Versioned prefixes let the
@@ -99,7 +99,7 @@ Envelope format — Base64 (standard) of:
     Base64 by itself.
   - `NONCE_LEN` is 12 (GCM standard); changing it breaks every stored
     envelope.
-  - `MasterKey` is always exactly 32 bytes — enforced at construction.
+  - `MasterKey` is always exactly 32 bytes - enforced at construction.
 - **Fail-closed decryption.** Any structural or authentication failure
   returns an error; `open` never returns partial plaintext.
 - **No unwrap on encryption paths**; the only `expect` is on

@@ -3,12 +3,12 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! Router ↔ OpenAPI drift guard — the OAPEC enforcement helper.
+//! Router ↔ OpenAPI drift guard - the OAPEC enforcement helper.
 //!
 //! Every spec-owning service ships an integration test that builds its
 //! production router and asserts the compiled OpenAPI spec covers every
 //! route the router serves (and contains no path the router does not
-//! serve). See `design/sentin8-openapi-coverage-design.md` (OAPEC) —
+//! serve). See `design/sentin8-openapi-coverage-design.md` (OAPEC) -
 //! annotations decay without enforcement; this test is what keeps the
 //! site API reference pages (= `docs/openapi.json`, harvested) equal to
 //! the routers.
@@ -24,7 +24,7 @@
 //! excluded; route-level fallback endpoints (`Route(...)`) carry no method
 //! set and are skipped with a warning printed to the test output.
 //!
-//! When anything fails to parse, the helpers FAIL LOUDLY — an axum Debug
+//! When anything fails to parse, the helpers FAIL LOUDLY - an axum Debug
 //! format change must break the guard, never let it pass vacuously.
 //!
 //! # Usage
@@ -62,7 +62,7 @@ struct RoutingTable {
     /// `allow_header`).
     methods: BTreeMap<String, BTreeSet<String>>,
     /// RouteIds whose endpoint is a bare `Route(...)` (route_service /
-    /// fallback services) — no method set; skipped and reported.
+    /// fallback services) - no method set; skipped and reported.
     non_method_routes: BTreeSet<String>,
 }
 
@@ -178,11 +178,11 @@ impl RoutingTable {
 
 /// What a `): value` map entry resolves to.
 enum Classification {
-    /// `): "path",` — a registered route path (saw_paths).
+    /// `): "path",` - a registered route path (saw_paths).
     Path,
-    /// `): MethodRouter(` — a method-carrying endpoint (saw_method_router).
+    /// `): MethodRouter(` - a method-carrying endpoint (saw_method_router).
     MethodRouter,
-    /// `): Route(...)` — a route_service/fallback endpoint (no methods).
+    /// `): Route(...)` - a route_service/fallback endpoint (no methods).
     RouteEndpoint,
 }
 
@@ -212,13 +212,13 @@ fn classify_value(
 /// Extract the served `(method, path)` pairs from an axum router.
 ///
 /// axum wildcard placeholders (`{*name}`) are normalized to the OpenAPI
-/// path-parameter form (`{name}`) — the utoipa annotations use the same
+/// path-parameter form (`{name}`) - the utoipa annotations use the same
 /// `{name}` literal for catch-all segments, so both sides compare equal.
 ///
 /// # Panics
 ///
 /// Panics when the router's Debug output can no longer be parsed (an axum
-/// upgrade changed the format) — the guard fails loudly, never vacuously.
+/// upgrade changed the format) - the guard fails loudly, never vacuously.
 pub fn served_routes<S>(router: &axum::Router<S>) -> Vec<ServedRoute> {
     let debug = format!("{router:#?}");
     served_routes_from_debug(&debug)
@@ -227,7 +227,7 @@ pub fn served_routes<S>(router: &axum::Router<S>) -> Vec<ServedRoute> {
 fn served_routes_from_debug(debug: &str) -> Vec<ServedRoute> {
     let table = RoutingTable::parse(debug).unwrap_or_else(|| {
         panic!(
-            "drift guard: cannot parse the axum Router Debug output — an \
+            "drift guard: cannot parse the axum Router Debug output - an \
              axum upgrade changed the format; fix `parse` in \
              sentin8-shell's drift_guard.rs\n\n--- raw debug ---\n{debug}"
         )
@@ -235,7 +235,7 @@ fn served_routes_from_debug(debug: &str) -> Vec<ServedRoute> {
 
     for id in &table.non_method_routes {
         eprintln!(
-            "drift guard: skipping RouteId({id}) — a route-level service \
+            "drift guard: skipping RouteId({id}) - a route-level service \
              endpoint (route_service/fallback) carries no method set"
         );
     }
@@ -253,10 +253,10 @@ fn served_routes_from_debug(debug: &str) -> Vec<ServedRoute> {
             }
             None if table.non_method_routes.contains(id) => {}
             // A PathRouter path with neither a MethodRouter nor a known
-            // Route endpoint means the parser missed something — fail.
+            // Route endpoint means the parser missed something - fail.
             None => panic!(
                 "drift guard: path `{path}` (RouteId {id}) has no parsed \
-                 method set — the Debug parser missed its MethodRouter \
+                 method set - the Debug parser missed its MethodRouter \
                  block; fix `parse` in sentin8-shell's drift_guard.rs"
             ),
         }
@@ -275,7 +275,7 @@ fn normalize_axum_path(path: &str) -> String {
     }
 }
 
-/// (method, path) pairs from a utoipa-generated OpenAPI spec — the
+/// (method, path) pairs from a utoipa-generated OpenAPI spec - the
 /// per-service test passes `{Service}OpenApi::openapi()` here.
 pub fn spec_pairs(spec: &utoipa::openapi::OpenApi) -> Vec<(String, String)> {
     let mut out = Vec::new();
@@ -293,7 +293,7 @@ pub fn spec_pairs(spec: &utoipa::openapi::OpenApi) -> Vec<(String, String)> {
         for (method, op) in pairs {
             // `HEAD` is axum's implicit mirror of `GET` (drift_guard docs);
             // the guard never emits HEAD in served_routes, so a spec-level
-            // HEAD pair would always read as stale — skip it here too.
+            // HEAD pair would always read as stale - skip it here too.
             if method == "HEAD" {
                 continue;
             }
@@ -308,8 +308,8 @@ pub fn spec_pairs(spec: &utoipa::openapi::OpenApi) -> Vec<(String, String)> {
 
 /// The drift-guard assertion (OAPEC design §3).
 ///
-/// Asserts BOTH directions — every served route appears in the spec and
-/// every spec pair is served — panicking with a copy-pasteable list of
+/// Asserts BOTH directions - every served route appears in the spec and
+/// every spec pair is served - panicking with a copy-pasteable list of
 /// the missing/stale `(method, path)` pairs.
 ///
 /// `exempt_path_prefixes` skips catch-all SPA hosts and pass-through
@@ -375,7 +375,7 @@ pub fn assert_openapi_covers_router(
     }
     assert!(
         msg.is_empty(),
-        "router ↔ OpenAPI mismatch — annotate the missing handlers in the \
+        "router ↔ OpenAPI mismatch - annotate the missing handlers in the \
          service's `#[openapi(paths(...))]` list (or delete stale spec \
          pairs), then regenerate the `docs/openapi.json` dump.{}\n",
         msg
@@ -407,7 +407,7 @@ mod tests {
     #[tokio::test]
     async fn parse_fails_loudly_on_unrecognizable_input() {
         // An unrecognizable debug string fails the guard (never passes
-        // vacuously) — both when the sections are absent...
+        // vacuously) - both when the sections are absent...
         let result = std::panic::catch_unwind(|| {
             let _ = served_routes_from_debug("not a router debug: 42");
         });

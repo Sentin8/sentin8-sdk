@@ -6,7 +6,7 @@
 //! Flat RESP field envelope.
 //!
 //! One envelope shape for both delivery classes. Flat field-value
-//! pairs — RESP-native, no nested JSON, no `HashMap` allocation on
+//! pairs - RESP-native, no nested JSON, no `HashMap` allocation on
 //! parse. Fields, in wire order:
 //!
 //! ```text
@@ -14,14 +14,14 @@
 //! ts  <unix_micros>
 //! cid <correlation_id> propagated from the originating request when known
 //! by  <producer>       stamped by the library from the configured service
-//!                     name — informative, not authoritative
-//! sq  <seq>           per-(service, family) monotonic sequence — dedupe key
+//!                     name - informative, not authoritative
+//! sq  <seq>           per-(service, family) monotonic sequence - dedupe key
 //! p   <payload>        opaque bytes
 //! ```
 //!
 //! **No `publisher_id_token`, no `env_id` inside the message.** Tenant
 //! identity is a property of the *key* (`mbus:{env}:…`), never of the
-//! payload — a subscriber trusts the key because its ACL and connection
+//! payload - a subscriber trusts the key because its ACL and connection
 //! context guarantee the namespace, not because the message says so.
 
 /// Field names, in wire order.
@@ -41,23 +41,23 @@ pub const FIELD_PAYLOAD: &str = "p";
 /// decoded from fields or a frame.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Envelope {
-    /// Event type — the platform colon convention, e.g.
+    /// Event type - the platform colon convention, e.g.
     /// `hotel8:pms:reservation:created`.
     pub event_type: String,
     /// Producer timestamp, unix microseconds.
     pub ts_us: u64,
-    /// Correlation id — propagated from the originating request when
+    /// Correlation id - propagated from the originating request when
     /// known; empty when none.
     pub correlation_id: String,
-    /// Producer service name — stamped by the library.
+    /// Producer service name - stamped by the library.
     pub producer: String,
-    /// Per-(service, family) sequence number — dedupe/gap key.
+    /// Per-(service, family) sequence number - dedupe/gap key.
     pub sq: u64,
     /// Opaque payload bytes.
     pub payload: Vec<u8>,
 }
 
-/// One wire field — borrowed view over an encoded or decoded envelope.
+/// One wire field - borrowed view over an encoded or decoded envelope.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EnvelopeField<'a> {
     /// The field name (one of the `FIELD_*` constants).
@@ -81,7 +81,7 @@ impl Envelope {
         }
     }
 
-    /// Stamp the producer identity (`by` — the library does this from
+    /// Stamp the producer identity (`by` - the library does this from
     /// config; kept public for tests and atypical embedding).
     pub fn with_producer(mut self, producer: impl Into<String>) -> Self {
         self.producer = producer.into();
@@ -100,7 +100,7 @@ impl Envelope {
         self
     }
 
-    /// Iterate wire fields in order — used for XADD and frame encoding.
+    /// Iterate wire fields in order - used for XADD and frame encoding.
     /// Numeric fields (`ts`, `sq`) are rendered to short-lived owned
     /// strings; the caller consumes them within one publish.
     pub fn iter_fields(&self) -> Vec<(&'static str, FieldValue<'_>)> {
@@ -123,7 +123,7 @@ impl Envelope {
         ]
     }
 
-    /// Encode to a flat binary frame for the pub/sub class — the hot
+    /// Encode to a flat binary frame for the pub/sub class - the hot
     /// path skips serde entirely.
     ///
     /// Frame layout (little-endian u16/u32 length prefixes):
@@ -141,7 +141,7 @@ impl Envelope {
     }
 
     /// Decode a binary frame into an owned envelope. Allocates only for
-    /// the owned fields — no intermediate map.
+    /// the owned fields - no intermediate map.
     pub fn decode_frame(frame: &[u8]) -> Result<Self, String> {
         let mut env = Envelope {
             event_type: String::new(),
@@ -174,13 +174,13 @@ impl Envelope {
                         .ok_or_else(|| "bad sq".to_string())?
                 }
                 FIELD_PAYLOAD => env.payload = value.to_vec(),
-                _ => {} // unknown fields are skipped — forward compat
+                _ => {} // unknown fields are skipped - forward compat
             }
         }
         Ok(env)
     }
 
-    /// Field lookup by name over raw XADD field-value pairs — borrowed,
+    /// Field lookup by name over raw XADD field-value pairs - borrowed,
     /// no allocation.
     pub fn field<'a, V: AsRef<[u8]>>(fields: &'a [(String, V)], name: &str) -> Option<&'a [u8]> {
         fields
@@ -189,7 +189,7 @@ impl Envelope {
             .map(|(_, v)| v.as_ref())
     }
 
-    /// Decode from raw XADD stream fields — byte values, because the
+    /// Decode from raw XADD stream fields - byte values, because the
     /// `p` payload is opaque binary.
     pub fn from_stream_fields<V: AsRef<[u8]> + Clone>(
         fields: &[(String, V)],
@@ -228,7 +228,7 @@ impl Envelope {
     }
 }
 
-/// Borrowed field view over decoded frame bytes — an iterator over
+/// Borrowed field view over decoded frame bytes - an iterator over
 /// `(name, value)` slices with no per-message String allocation.
 pub fn frame_fields(frame: &[u8]) -> Result<Vec<EnvelopeField<'_>>, String> {
     let mut out = Vec::with_capacity(6);
@@ -300,7 +300,7 @@ fn now_micros() -> u64 {
         .unwrap_or(0)
 }
 
-/// A wire-field value — borrowed bytes for string/payload fields, a
+/// A wire-field value - borrowed bytes for string/payload fields, a
 /// short-lived owned rendering for numeric fields.
 #[derive(Debug, Clone)]
 pub enum FieldValue<'a> {
@@ -390,8 +390,8 @@ mod tests {
         let env = Envelope::new("a:b", vec![9, 9]).with_sq(5);
         let frame = env.encode_frame();
         // Every prefix either errors or decodes to a valid PARTIAL
-        // envelope (lenient field boundaries — forward compat). The
-        // invariants: never panic, never return a *wrong* sq — a
+        // envelope (lenient field boundaries - forward compat). The
+        // invariants: never panic, never return a *wrong* sq - a
         // truncated numeric field must not decode to a bogus value.
         for cut in 0..=frame.len() {
             if let Ok(partial) = Envelope::decode_frame(&frame[..cut]) {

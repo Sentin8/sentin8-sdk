@@ -5,7 +5,7 @@
 
 //! # sentin8-shield
 //!
-//! Declarative authorization for Sentin8 — an embedded Shield engine that
+//! Declarative authorization for Sentin8 - an embedded Shield engine that
 //! is the authoritative decision point of the platform's authorization
 //! pipeline (the step after authentication and tenant resolution).
 //!
@@ -34,7 +34,7 @@
 //! env-scoped `sentin8_policy_*` tables (RLS). Services load their own rows
 //! at boot (as their own PG role) and hot-reload on the `policy` stream
 //! events (`sentin8:sys:policy:updated`, `…:relations:updated`,
-//! `…:attrs:updated` — direct consumers). Policies are *data* — declared in
+//! `…:attrs:updated` - direct consumers). Policies are *data* - declared in
 //! `vertical-registry.json`, upserted by `vertical enroll`; zero
 //! compile-time vertical knowledge. Tenant-authored rows are
 //! env-administered.
@@ -134,7 +134,7 @@ pub struct PolicySetRecord {
     pub policy_set_name: String,
     #[serde(default)]
     pub description: String,
-    /// Shield policy text. One policy per statement — parsed one-by-one
+    /// Shield policy text. One policy per statement - parsed one-by-one
     /// (multi-statement strings are rejected by Shield's parser).
     pub policies: String,
     /// Optional Shield schema. Required for tenant-authored sets (strict mode).
@@ -148,8 +148,8 @@ pub struct PolicySetRecord {
 
 // ── Validation (write-time + boot-time) ─────────────────────────────────
 
-/// Validate the policy text of a record: every statement must parse, and —
-/// when a schema is present — the set must pass schema-linked validation
+/// Validate the policy text of a record: every statement must parse, and -
+/// when a schema is present - the set must pass schema-linked validation
 /// (invalid policies are rejected at write time, never stored).
 pub fn validate_record_text(
     set_name: &str,
@@ -200,7 +200,7 @@ fn parse_statements(
 
 /// Split policy text into statements: a statement starts at `permit(` or
 /// `forbid(` (ignoring an optional `@annotation` comment) and ends at the
-/// matching `;` — quotes and braces are respected so `contains("...;")` never
+/// matching `;` - quotes and braces are respected so `contains("...;")` never
 /// terminates a statement early.
 fn split_statements(text: &str) -> Vec<String> {
     let mut out = Vec::new();
@@ -253,8 +253,8 @@ fn split_statements(text: &str) -> Vec<String> {
 
 // ── Evaluation input ────────────────────────────────────────────────────
 
-/// Request context assembled from the verified token (steps 1–6 already ran).
-/// The engine never re-verifies tokens — it consumes what the caller resolved.
+/// Request context assembled from the verified token (steps 1-6 already ran).
+/// The engine never re-verifies tokens - it consumes what the caller resolved.
 #[derive(Debug, Clone)]
 pub struct RequestCtx {
     /// Token `sub`.
@@ -263,18 +263,18 @@ pub struct RequestCtx {
     pub org_id: Uuid,
     /// `user` | `m2m` | `delegated` | … (token type never bypasses policy).
     pub token_tp: String,
-    /// Resolved scope claim (coarse pre-filter + RLS feed — not the decision).
+    /// Resolved scope claim (coarse pre-filter + RLS feed - not the decision).
     /// When the caller passes a full live evaluation (`evaluate_full`), this
     /// holds the LIVE effective scope set (empty on resolution failure).
     pub scopes: HashSet<String>,
     /// The verified-but-STALE JWT scope snapshot. Injected
-    /// as `principal.token_attrs.scopes` — a separate attribute the live
+    /// as `principal.token_attrs.scopes` - a separate attribute the live
     /// scopes never downgrade to; no platform policy may reference it.
     pub token_scopes: HashSet<String>,
     /// LIVE-resolved role names (from Sentin8:Auth, not the JWT).
     /// The engine injects them as the `roles` set attribute.
     pub roles: HashSet<String>,
-    /// Env relation slice — feeds Shield entity-hierarchy edges.
+    /// Env relation slice - feeds Shield entity-hierarchy edges.
     pub relations: Vec<crate::substrate::RelationRecord>,
     /// Optional extra principal attributes (handler-supplied, e.g. `amr`).
     pub principal_attrs: BTreeMap<String, RestrictedExpression>,
@@ -308,7 +308,7 @@ impl RequestCtx {
         self
     }
 
-    /// Attach the env's relation slice — converted to Shield entity
+    /// Attach the env's relation slice - converted to Shield entity
     /// hierarchy `parents` edges at evaluation time (`in` operator).
     pub fn with_relations(mut self, records: Vec<crate::substrate::RelationRecord>) -> Self {
         self.relations = records;
@@ -402,7 +402,7 @@ pub struct PolicyEngine {
 
 impl PolicyEngine {
     /// Create an empty engine for `service` (colon service_type). Call `load`
-    /// at boot — an unparsable policy set makes `load` fail so the caller can
+    /// at boot - an unparsable policy set makes `load` fail so the caller can
     /// refuse to start (fail-closed at boot).
     pub fn new(service: impl Into<String>) -> Self {
         Self {
@@ -429,9 +429,9 @@ impl PolicyEngine {
     /// so the table's `sentin8_context_initialized()` RLS gate would hide
     /// every row from a NOBYPASSRLS service role (0 rows → fail-closed deny
     /// on everything). The function filters `service = $1 AND enabled`
-    /// server-side — a service can only ever load its own rows; the admin
+    /// server-side - a service can only ever load its own rows; the admin
     /// API keeps reading the table directly under the caller's request
-    /// context. ANY invalid set fails the whole load — services refuse to
+    /// context. ANY invalid set fails the whole load - services refuse to
     /// start on broken policy.
     pub async fn load(&self, pool: &sqlx::PgPool) -> Result<usize, PolicyError> {
         let rows: Vec<PolicySetRecord> = sqlx::query_as!(
@@ -456,7 +456,7 @@ impl PolicyEngine {
 
     /// Replace the cache with `rows` (used by tests and by the hot-reload
     /// handler which has already fetched the fresh rows). Fails on any invalid
-    /// row — the previous cache is retained (atomic swap, fail-closed).
+    /// row - the previous cache is retained (atomic swap, fail-closed).
     pub fn load_from_rows(&self, rows: Vec<PolicySetRecord>) -> Result<(), PolicyError> {
         let cache = compile_rows(self.service.as_str(), rows)?;
         self.cache.store(Arc::new(cache));
@@ -506,7 +506,7 @@ impl PolicyEngine {
     ///
     /// **Fail-closed on no coverage: if NO cached set exists
     /// for the request's env, the decision is DENY.** "No matching permit →
-    /// deny" applies equally to "no matching set" — an env whose sets failed
+    /// deny" applies equally to "no matching set" - an env whose sets failed
     /// to load (or were never seeded) must not silently fall open. Every
     /// platform service seeds its `scope-mirror` set at enroll (16 sets,
     /// enforced); the empty-cache case only arises on a broken deploy, which
@@ -561,7 +561,7 @@ impl PolicyEngine {
             tracing::warn!(
                 env_id = %ctx.env_id,
                 service = %self.service,
-                "policy.no_set_for_env — no policy set loaded for this env; denying (fail-closed)"
+                "policy.no_set_for_env - no policy set loaded for this env; denying (fail-closed)"
             );
             return EvalOutcome {
                 enforce_decision: Decision::Deny {
@@ -616,7 +616,7 @@ impl PolicyEngine {
             "env_id".into(),
             RestrictedExpression::new_string(ctx.env_id.to_string()),
         );
-        // LIVE roles: injected as a set attribute — policies test
+        // LIVE roles: injected as a set attribute - policies test
         // `"role" in principal.roles`. Empty set = role-less principal (deny
         // on role-gated rules, fail-closed).
         let role_list: Vec<RestrictedExpression> = ctx
@@ -641,14 +641,14 @@ impl PolicyEngine {
         attrs.insert(
             "token_attrs".into(),
             RestrictedExpression::new_record(token_attrs)
-                .expect("token_attrs record construction — static keys"),
+                .expect("token_attrs record construction - static keys"),
         );
         for (k, v) in &ctx.principal_attrs {
             attrs.entry(k.clone()).or_insert_with(|| v.clone());
         }
         // Relation hierarchy edges: every tuple whose subject_id
         // matches the caller contributes its object as a parent edge on the
-        // principal entity (matching by id — the record's subject_type is
+        // principal entity (matching by id - the record's subject_type is
         // authoring metadata; the principal entity here is always
         // `User::"<subject_id>"`). Entity types are canonicalized to
         // PascalCase: Shield type names are case-sensitive and policy
@@ -672,10 +672,10 @@ impl PolicyEngine {
         let parent_uids_fallback = parents.clone();
         let principal = Entity::new(principal.clone(), attrs.into_iter().collect(), parents)
             .unwrap_or_else(|e| {
-                // Attr eval failed — build a bare entity; the policy decision will
+                // Attr eval failed - build a bare entity; the policy decision will
                 // deny on missing attrs (fail-closed) rather than panic. Keep the
                 // hierarchy edges in the fallback (they are independent of
-                // attributes — dropping them would silently change decisions).
+                // attributes - dropping them would silently change decisions).
                 tracing::warn!(error = %e, "principal attr eval failed; using bare entity");
                 Entity::new_no_attrs(principal.clone(), parent_uids_fallback)
             });
@@ -689,10 +689,10 @@ impl PolicyEngine {
             Entity::new_no_attrs(resource.clone(), HashSet::new())
         });
         // Relation objects must exist as entities for `principal in
-        // Group::"x"` to evaluate — Shield hierarchy checks walk the graph,
+        // Group::"x"` to evaluate - Shield hierarchy checks walk the graph,
         // so referenced parents are materialized as bare entities (no
         // attrs). Deduped by UID; a build failure skips that edge (the
-        // hierarchy rule then denies — fail-closed).
+        // hierarchy rule then denies - fail-closed).
         let mut all_entities = vec![principal, resource_entity];
         let mut seen_parents: HashSet<EntityUid> = HashSet::new();
         for r in &ctx.relations {
@@ -727,7 +727,7 @@ impl PolicyEngine {
             .authorizer
             .is_authorized(&request, &compiled.shield, &entities);
         // Surface Shield's own eval errors (missing attrs, hierarchy issues)
-        // in the log — the deny path must be explainable in the audit trail.
+        // in the log - the deny path must be explainable in the audit trail.
         for err in response.diagnostics().errors() {
             tracing::debug!(policy_error = %err, "shield evaluation error (deny path)");
         }
@@ -753,7 +753,7 @@ impl EvalOutcome {
     }
 
     /// True when the enforced deny came from the fail-closed no-coverage
-    /// branch (`policy.no_set_for_env`) — the predicate for the
+    /// branch (`policy.no_set_for_env`) - the predicate for the
     /// sync-reload-on-empty retry (runtime `check_policy`). The no-coverage
     /// text rides `would_deny`; the enforce reason is the coarse "policy".
     pub fn enforce_deny_reason_is_no_coverage(&self) -> bool {
@@ -780,7 +780,7 @@ fn build_principal(ctx: &RequestCtx) -> EntityUid {
 }
 
 /// Canonicalize an author-supplied entity type to Shield's PascalCase
-/// convention: `group` → `Group`, `user_group` → `UserGroup`. Idempotent —
+/// convention: `group` → `Group`, `user_group` → `UserGroup`. Idempotent -
 /// already-capitalized names pass through unchanged.
 fn canonicalize_type(t: &str) -> String {
     let mut c = t.chars();
@@ -858,4 +858,4 @@ fn compile_set(record: &PolicySetRecord) -> Result<PolicySet, PolicyError> {
     )?;
     Ok(pset)
 }
-// ── (bridge types removed — the CLI/admin paths project columns directly) ──
+// ── (bridge types removed - the CLI/admin paths project columns directly) ──

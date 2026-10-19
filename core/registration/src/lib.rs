@@ -7,8 +7,8 @@
 //!
 //! Shared service self-registration structs and the `--print-registration`
 //! print helper. Every Sentin8 service (platform + verticals) exposes its
-//! registration data — service info, admin scopes, error codes, admin UI,
-//! SQL migrations, PostgreSQL OAuth role mappings, OpenAPI spec — via a
+//! registration data - service info, admin scopes, error codes, admin UI,
+//! SQL migrations, PostgreSQL OAuth role mappings, OpenAPI spec - via a
 //! `--print-registration` flag. This crate is the **single definition** of
 //! those structs and the section-matching logic; services only supply data.
 //!
@@ -49,7 +49,7 @@
 //! | `openapi`       | OpenAPI spec (from the `openapi()` closure)|
 //!
 //! The registration output feeds `sentin8-cli vertical init/enroll`, which
-//! provisions platform and vertical rows from it — the CLI holds no
+//! provisions platform and vertical rows from it - the CLI holds no
 //! per-service knowledge of its own.
 
 #![deny(missing_docs)]
@@ -74,7 +74,7 @@ pub struct AdminUiPage {
     pub icon: &'static str,
 }
 
-/// The service's admin UI definition — consumed by Sentin8:Dash to build the
+/// The service's admin UI definition - consumed by Sentin8:Dash to build the
 /// dynamic sidebar (RFW rendering host; `architecture-principles.md` §4.15).
 #[derive(Debug, Serialize)]
 pub struct AdminUi {
@@ -88,7 +88,7 @@ pub struct AdminUi {
     pub pages: &'static [AdminUiPage],
 }
 
-/// Minimal service identity — the `--section=service` output.
+/// Minimal service identity - the `--section=service` output.
 #[derive(Debug, Serialize)]
 pub struct ServiceInfo {
     /// Canonical colon service identity.
@@ -126,7 +126,7 @@ pub struct SqlMigration {
 ///
 /// Emitted by `--section=pg_roles`; `sentin8-cli vertical init/enroll`
 /// creates the PASSWORDLESS role and writes the `pgm` identity-map row
-/// binding the service's workload CN (`m2m-{service_type}`) to it — the
+/// binding the service's workload CN (`m2m-{service_type}`) to it - the
 /// TLS handshake's `cert` auth resolves the connection. Registration-
 /// driven: a future vertical's roles bind with zero platform knowledge
 /// of the vertical (§4.14 parity with the Valkey ACL provisioning).
@@ -145,13 +145,13 @@ pub struct PgRole {
     /// The vertical database this role's grants + scope-map row live in:
     /// `"sentin8"` for platform
     /// services, `"{vertical}"` for vertical services. Empty means the
-    /// platform default (`sentin8`) — kept for older registrations that
+    /// platform default (`sentin8`) - kept for older registrations that
     /// have not been regenerated.
     #[serde(default)]
     pub database: &'static str,
     /// Explicitly declared intra-database cross-schema reads this service
     /// needs (e.g. payments' holder-scope RLS reading `ledger.customers`).
-    /// Enrollment applies exactly these grants — never blanket schema-wide
+    /// Enrollment applies exactly these grants - never blanket schema-wide
     /// grants. Empty for services that own all their reads.
     #[serde(default)]
     pub cross_schema_grants: &'static [CrossSchemaGrant],
@@ -159,7 +159,7 @@ pub struct PgRole {
 
 /// One cross-schema read grant declared by a service's [`PgRole`].
 /// Applied by `sentin8-cli vertical init/enroll` inside the role's declared
-/// database. Grants are SELECT-only by design — cross-schema writes go
+/// database. Grants are SELECT-only by design - cross-schema writes go
 /// through the owning service's API or the bus, never direct table DML.
 #[derive(Debug, Serialize, Clone)]
 pub struct CrossSchemaGrant {
@@ -167,7 +167,7 @@ pub struct CrossSchemaGrant {
     pub schema: &'static str,
     /// Table the grant targets (e.g. `"customers"`).
     pub table: &'static str,
-    /// Privilege — `"SELECT"` only in the current vocabulary.
+    /// Privilege - `"SELECT"` only in the current vocabulary.
     pub privilege: &'static str,
 }
 
@@ -210,12 +210,12 @@ pub struct PolicySetDecl {
     /// Human-readable description.
     #[serde(default)]
     pub description: &'static str,
-    /// Shield policy text — one policy per statement.
+    /// Shield policy text - one policy per statement.
     pub policies: &'static str,
     /// Optional Shield schema (strict validation for tenant-visible sets).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<&'static str>,
-    /// Seed mode. Platform sets ship `enforced` — there are no shadow
+    /// Seed mode. Platform sets ship `enforced` - there are no shadow
     /// platform sets and no scope-check fallback. `shadow` is for
     /// tenant-authored authoring and the emergency one-UPDATE rollback
     /// lever only.
@@ -226,7 +226,7 @@ pub struct PolicySetDecl {
     pub default_enabled: bool,
 }
 
-#[allow(dead_code)] // serde default fn — used only when the field is omitted
+#[allow(dead_code)] // serde default fn - used only when the field is omitted
 fn default_mode() -> &'static str {
     "enforced"
 }
@@ -238,7 +238,7 @@ fn default_true() -> bool {
 
 /// One ReBAC relation tuple the service seeds at enrollment.
 /// Upserted into `policy_relations` (`origin='platform'`). Entity
-/// types are Shield type names — case-sensitive, PascalCase by convention
+/// types are Shield type names - case-sensitive, PascalCase by convention
 /// (`Group`, `Folder`); the engine canonicalizes lowercase authoring forms.
 #[derive(Debug, Serialize, Clone)]
 pub struct RelationDecl {
@@ -287,13 +287,13 @@ impl EventTriggerDecl {
 }
 
 /// A recurring internal schedule a service declares for Cron to own
-/// (SDD §2.4). The service makes no boot-time cron registration call —
+/// (SDD §2.4). The service makes no boot-time cron registration call -
 /// `sentin8-cli vertical enroll` reads the `schedules` registration
 /// section and upserts `cron.schedules` rows; cron's ticker fires the
 /// schedule against the service's own proxy-back endpoint.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScheduleDecl {
-    /// Stable schedule identifier — the cron `schedule_type` and the
+    /// Stable schedule identifier - the cron `schedule_type` and the
     /// enroll idempotency key (unique per (env, domain)).
     pub schedule_type: &'static str,
     /// Cron expression (5-field, cron's parser).
@@ -301,7 +301,7 @@ pub struct ScheduleDecl {
     /// IANA zone the expression's wall-clock fields match (`UTC` keeps
     /// the default behavior).
     pub timezone: &'static str,
-    /// The service's own endpoint cron proxy-calls on fire — a JSON
+    /// The service's own endpoint cron proxy-calls on fire - a JSON
     /// object literal as a string (`{"internalPath": "…"}`); the CLI
     /// resolves `baseUrl` from the platform domain at enroll time and
     /// parses this fragment into cron's `target_config`. A string (not
@@ -345,7 +345,7 @@ pub struct ServiceActionEntry {
 /// into `auth.m2m_scope_grants` so the fail-closed DCR gate admits the
 /// registration. Scope values must use the
 /// full vocabulary form (`sentin8:bus:consume`, never bare
-/// `bus:consume`) — the gate's superset check and the bus Shield
+/// `bus:consume`) - the gate's superset check and the bus Shield
 /// scope-mirror both require the prefixed spelling.
 #[derive(Debug, Serialize, Clone)]
 pub struct M2mGrant {
@@ -359,7 +359,7 @@ pub struct M2mGrant {
     pub scopes: &'static [&'static str],
 }
 
-/// The full registration object — the `--print-registration` (no section)
+/// The full registration object - the `--print-registration` (no section)
 /// output. Services construct this with their own data; the shared
 /// [`print_registration`] helper handles section dispatch + JSON emission.
 #[derive(Debug, Serialize)]
@@ -368,7 +368,7 @@ pub struct Registration {
     pub service_type: &'static str,
     /// Hostname label for the service (e.g. `sentin8-func` → `func`).
     /// Defaults to the service_type minus a leading `sentin8-` prefix when
-    /// not explicitly set — matching the platform registry.
+    /// not explicitly set - matching the platform registry.
     pub subdomain: &'static str,
     /// Liveness probe path.
     pub health_path: &'static str,
@@ -398,7 +398,7 @@ pub struct Registration {
     #[serde(skip_serializing_if = "slice_is_empty::<EventTriggerDecl>")]
     pub event_triggers: &'static [EventTriggerDecl],
     /// Recurring internal schedules owned by cron but declared by this
-    /// service (SDD §2.4) — provisioned at enroll, never registered
+    /// service (SDD §2.4) - provisioned at enroll, never registered
     /// via boot-time cross-service calls.
     #[serde(skip_serializing_if = "slice_is_empty::<ScheduleDecl>")]
     pub schedules: &'static [ScheduleDecl],
@@ -409,7 +409,7 @@ pub struct Registration {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_actions: Option<&'static [ServiceActionEntry]>,
     /// M2M DCR scope grants. `None` = no grants declared (the
-    /// service registers no M2M workloads — unusual; every shell service
+    /// service registers no M2M workloads - unusual; every shell service
     /// has at least the `-policy` pair).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub m2m_grants: Option<&'static [M2mGrant]>,

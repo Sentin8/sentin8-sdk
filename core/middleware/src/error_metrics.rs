@@ -89,7 +89,7 @@ pub fn init_tracing_with_metrics(service_name: &str, level: &str) -> Result<(), 
 // ── Tracing Layer ───────────────────────────────────────────────────────
 
 /// `tracing_subscriber` Layer that increments the global error/warning
-/// counters on every `ERROR`/`WARN` event. No allocation, no I/O — just
+/// counters on every `ERROR`/`WARN` event. No allocation, no I/O - just
 /// a relaxed atomic increment.
 pub struct ErrorMetricsLayer;
 
@@ -141,7 +141,7 @@ where
 /// ```
 ///
 /// Deltas are computed by tracking the previous cumulative count and
-/// subtracting. A daily reset is not needed here — captain resets the
+/// subtracting. A daily reset is not needed here - captain resets the
 /// accumulated counts at 00:00 UTC.
 pub fn spawn_publisher(valkey_url: String, service_name: &str) {
     use crate::valkey_client;
@@ -149,7 +149,7 @@ pub fn spawn_publisher(valkey_url: String, service_name: &str) {
     let interval = Duration::from_secs(10);
 
     tokio::spawn(async move {
-        // If Valkey URL is empty, just silently skip — the service still
+        // If Valkey URL is empty, just silently skip - the service still
         // runs, it just doesn't publish metrics.
         if valkey_url.is_empty() {
             tracing::debug!("error_metrics: VALKEY_URL empty, skipping publisher");
@@ -158,7 +158,7 @@ pub fn spawn_publisher(valkey_url: String, service_name: &str) {
 
         // Certificate identity via Valkey GLIDE (group DESIGN.md §3.1):
         // the publisher presents the calling service's own m2m pair.
-        // Best-effort by design — a connection failure disables metrics
+        // Best-effort by design - a connection failure disables metrics
         // only; glide-core owns reconnection, so a failed PUBLISH is
         // retried on the next tick against the healed connection.
         let client = match valkey_client(&valkey_url, &service_name).await {

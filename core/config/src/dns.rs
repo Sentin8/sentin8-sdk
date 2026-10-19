@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! DNS resolver profile — generic knobs for
+//! DNS resolver profile - generic knobs for
 //! services that need DNS with optional DNSSEC validation.
 //!
 //! This is **configuration surface only**: sentin8-config owns the
@@ -15,15 +15,15 @@
 //!
 //! ```text
 //! let profile = sentin8_config::dns::DnsResolverProfile::from_env();
-//! // profile.resolver_addrs — upstream resolvers (empty → system)
-//! // profile.validate_dnssec — require AD bit / validated chains
-//! // profile.timeout_ms, profile.attempts — query tuning
+//! // profile.resolver_addrs - upstream resolvers (empty → system)
+//! // profile.validate_dnssec - require AD bit / validated chains
+//! // profile.timeout_ms, profile.attempts - query tuning
 //! ```
 
 /// The DNS resolver profile (env-configurable, generic).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DnsResolverProfile {
-    /// Upstream resolver addresses (`ip:port`, port optional — 53
+    /// Upstream resolver addresses (`ip:port`, port optional - 53
     /// default). Empty → the system resolver (`/etc/resolv.conf`).
     pub resolver_addrs: Vec<String>,
     /// Require DNSSEC-validated answers (fail closed on bogus).
@@ -32,7 +32,7 @@ pub struct DnsResolverProfile {
     pub timeout_ms: u64,
     /// Attempts per query (retransmits to the next resolver).
     pub attempts: u32,
-    /// Enable the TLSA (DANE) record type in queries — harmless for
+    /// Enable the TLSA (DANE) record type in queries - harmless for
     /// non-mail users; kept so the profile is protocol-generic.
     pub enable_tlsa: bool,
 }
@@ -51,11 +51,11 @@ impl Default for DnsResolverProfile {
 
 impl DnsResolverProfile {
     /// Load from `SENTIN8_DNS_*` env vars:
-    /// - `SENTIN8_DNS_RESOLVERS` — comma-separated upstream addresses
-    /// - `SENTIN8_DNS_VALIDATE_DNSSEC` — `true`/`false`
-    /// - `SENTIN8_DNS_TIMEOUT_MS` — per-query timeout
-    /// - `SENTIN8_DNS_ATTEMPTS` — retransmit count
-    /// - `SENTIN8_DNS_ENABLE_TLSA` — TLSA record type enabled
+    /// - `SENTIN8_DNS_RESOLVERS` - comma-separated upstream addresses
+    /// - `SENTIN8_DNS_VALIDATE_DNSSEC` - `true`/`false`
+    /// - `SENTIN8_DNS_TIMEOUT_MS` - per-query timeout
+    /// - `SENTIN8_DNS_ATTEMPTS` - retransmit count
+    /// - `SENTIN8_DNS_ENABLE_TLSA` - TLSA record type enabled
     pub fn from_env() -> Self {
         let mut p = Self::default();
         if let Ok(v) = std::env::var("SENTIN8_DNS_RESOLVERS") {
@@ -85,7 +85,7 @@ impl DnsResolverProfile {
     }
 
     /// Upstream addresses with an explicit port (`:53` appended when
-    /// missing) — the shape a UDP/TCP resolver client wants.
+    /// missing) - the shape a UDP/TCP resolver client wants.
     pub fn resolver_socket_addrs(&self) -> Vec<String> {
         self.resolver_addrs
             .iter()

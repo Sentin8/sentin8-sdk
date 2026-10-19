@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! # sentin8-m2m — workload certificate identity management
+//! # sentin8-m2m - workload certificate identity management
 //!
 //! **The Acme-issued client certificate is the ONLY platform-workload
 //! identity (auth DESIGN §4.3f).** There is no M2M token, no
@@ -11,19 +11,19 @@
 //! workload presents its certificate (`CN=m2m-{workload}`) in the TLS
 //! handshake on every call, the receiving service's TLS layer CA-verifies
 //! it and injects the `X-Sentin8-Client-Cert-*` headers, and those
-//! headers — with the enroll-published `m2m:workloads` registry map
-//! (`sentin8-workload-registry`) — drive authorization.
+//! headers - with the enroll-published `m2m:workloads` registry map
+//! (`sentin8-workload-registry`) - drive authorization.
 //!
 //! This crate owns exactly one job: **ensure the workload's certificate
-//! exists** — load the persisted pair (`{workload}.crt`/`{workload}.key`
+//! exists** - load the persisted pair (`{workload}.crt`/`{workload}.key`
 //! under `SENTIN8_M2M_CREDENTIALS_DIR`, 0700/0600 fail-closed) or mint it
 //! from Acme (`POST /v1/client-cert`, the bootstrap-enrollment channel)
-//! on a first boot — and hand consumers the paths to build cert-presenting
+//! on a first boot - and hand consumers the paths to build cert-presenting
 //! transports (`sentin8_middleware::mtls::build_mtls_client`).
 //!
 //! A database reset invalidates NOTHING on this path: the certificate
 //! survives, the registry map is republished by `vertical enroll`, and
-//! the next call succeeds — no stale state exists anywhere (the defect
+//! the next call succeeds - no stale state exists anywhere (the defect
 //! class  deleted).
 
 #![deny(missing_docs)]
@@ -34,14 +34,14 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum M2mError {
     /// The certificate could not be ensured (Acme unreachable at first
-    /// boot, or the persisted pair is unreadable) — the caller logs and
+    /// boot, or the persisted pair is unreadable) - the caller logs and
     /// retries the boot step; the service starts and its reconnect loops
     /// cover a late identity.
     #[error("workload certificate error: {0}")]
     Cert(String),
 }
 
-/// A platform workload's certificate identity — the persisted file paths
+/// A platform workload's certificate identity - the persisted file paths
 /// consumers build cert-presenting transports from.
 #[derive(Debug, Clone)]
 pub struct WorkloadCertificate {
@@ -61,13 +61,13 @@ pub struct WorkloadCertificate {
 
 /// Ensure the workload's certificate identity exists, minting it from
 /// Acme on a first boot (this REPLACES the DCR
-/// `register_or_load_m2m_client` — there is no client registration; the
+/// `register_or_load_m2m_client` - there is no client registration; the
 /// certificate is the identity).
 ///
 /// Load path: the identity dir's `{workload}.crt`/`{workload}.key` pair
-/// (no network — restarts resolve offline). On a miss the certificate is
+/// (no network - restarts resolve offline). On a miss the certificate is
 /// self-issued from Acme's `POST /v1/client-cert` (the
-/// bootstrap-enrollment channel — captain injects the sealed secret into
+/// bootstrap-enrollment channel - captain injects the sealed secret into
 /// every child at spawn) and persisted under the same names.
 ///
 /// A database reset does not invalidate a persisted certificate: Acme's
@@ -77,7 +77,7 @@ pub struct WorkloadCertificate {
 ///
 /// # Errors
 /// Returns [`M2mError::Cert`] when the certificate cannot be minted
-/// (Acme unreachable at first birth) — the caller should log + retry this
+/// (Acme unreachable at first birth) - the caller should log + retry this
 /// boot step, not abort the process (services tolerate a late identity;
 /// reconnect loops cover it).
 pub async fn ensure_workload_certificate(
@@ -85,7 +85,7 @@ pub async fn ensure_workload_certificate(
     workload: &str,
     ca_cert_path: &str,
 ) -> Result<WorkloadCertificate, M2mError> {
-    // Fast path: the persisted pair (no network — restarts resolve offline).
+    // Fast path: the persisted pair (no network - restarts resolve offline).
     if let Some(pair) = load_cert_pair(workload, ca_cert_path) {
         return Ok(pair);
     }
@@ -111,7 +111,7 @@ pub async fn ensure_workload_certificate(
 /// minimal TLV walk the crate already uses for CN extraction, extended
 /// to the validity window); a certificate expiring within
 /// `CERT_RENEWAL_WINDOW_SECS` is treated as absent (warn + fall through to
-/// re-mint) and an expired one always re-mints — the day-366 fleet
+/// re-mint) and an expired one always re-mints - the day-366 fleet
 /// brick class (every service loading a dead pair and failing every
 /// handshake, with nothing to trigger re-mint) is impossible.
 fn load_cert_pair(workload: &str, ca_cert_path: &str) -> Option<WorkloadCertificate> {
@@ -122,9 +122,9 @@ fn load_cert_pair(workload: &str, ca_cert_path: &str) -> Option<WorkloadCertific
     let cert_pem = std::fs::read_to_string(&cert_path).ok()?;
     let key_pem = std::fs::read_to_string(&key_path).ok()?;
     if !cert_pem.contains("BEGIN CERTIFICATE") || !key_pem.contains("PRIVATE KEY") {
-        return None; // corrupt pair — mint fresh
+        return None; // corrupt pair - mint fresh
     }
-    // expiry hygiene — never load a dead (or nearly-dead)
+    // expiry hygiene - never load a dead (or nearly-dead)
     // identity. The receiving TLS layer would reject the handshake on
     // expiry anyway; the load path refusing early is what triggers the
     // re-mint.
@@ -134,7 +134,7 @@ fn load_cert_pair(workload: &str, ca_cert_path: &str) -> Option<WorkloadCertific
             if now >= not_after {
                 tracing::warn!(
                     workload,
-                    "M2M: persisted certificate EXPIRED — re-minting from Acme"
+                    "M2M: persisted certificate EXPIRED - re-minting from Acme"
                 );
                 return None;
             }
@@ -142,7 +142,7 @@ fn load_cert_pair(workload: &str, ca_cert_path: &str) -> Option<WorkloadCertific
                 tracing::warn!(
                     workload,
                     days_left = (not_after - now).num_days(),
-                    "M2M: persisted certificate expires within the renewal window — re-minting early"
+                    "M2M: persisted certificate expires within the renewal window - re-minting early"
                 );
                 return None;
             }
@@ -152,7 +152,7 @@ fn load_cert_pair(workload: &str, ca_cert_path: &str) -> Option<WorkloadCertific
             // never toward serving an unverifiable identity).
             tracing::warn!(
                 workload,
-                "M2M: persisted certificate validity unreadable — re-minting"
+                "M2M: persisted certificate validity unreadable - re-minting"
             );
             return None;
         }
@@ -172,12 +172,12 @@ fn load_cert_pair(workload: &str, ca_cert_path: &str) -> Option<WorkloadCertific
 /// 30-day default mint TTL, large enough that an Acme outage cannot
 /// strand the fleet (a failed mint retries on the next boot; the
 /// expiring pair keeps serving until one succeeds only if it is still
-/// within validity — this function's `None` forces the re-mint while
+/// within validity - this function's `None` forces the re-mint while
 /// the old pair could still hand over).
 const CERT_RENEWAL_WINDOW_SECS: i64 = 7 * 24 * 3600;
 
 /// Extract the leaf certificate's NotAfter from a PEM chain.
-/// Minimal DER walk (no x509-parser dependency — same discipline as the
+/// Minimal DER walk (no x509-parser dependency - same discipline as the
 /// CN extractor): decode the FIRST base64 PEM body, then locate the
 /// UTCTime/GeneralizedTime in the validity sequence. Returns `None` when
 /// the walk cannot find a parsable validity end.
@@ -211,12 +211,12 @@ fn cert_pem_not_after(cert_pem: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 }
 
 /// Walk the DER for the validity window's NotAfter (UTCTime `17` YYMMDDHHMMSSZ
-/// or GeneralizedTime `18` YYYYMMDDHHMMSSZ — the two forms RFC 5280
+/// or GeneralizedTime `18` YYYYMMDDHHMMSSZ - the two forms RFC 5280
 /// permits; Acme's local signing uses UTCTime).
 fn cert_der_not_after(der: &[u8]) -> Option<chrono::DateTime<chrono::Utc>> {
     // Scan for the validity SEQUENCE OID-free approach: find the first
     // time-formatted element pair. The validity sequence holds exactly
-    // two time values (NotBefore, NotAfter) — the SECOND one is ours.
+    // two time values (NotBefore, NotAfter) - the SECOND one is ours.
     let mut times: Vec<chrono::DateTime<chrono::Utc>> = Vec::new();
     let mut i = 0usize;
     while i + 2 < der.len() {
@@ -247,7 +247,7 @@ fn parse_asn1_time(generalized: bool, body: &[u8]) -> Option<chrono::DateTime<ch
     } else {
         // RFC 5280: UTCTime years 00-49 → 20xx, 50-99 → 19xx. The century
         // is a TWO-digit prefix (yy + 2000 / 1900 as a number), never a
-        // concatenated string — `format!("{century}{yy}")` would splice
+        // concatenated string - `format!("{century}{yy}")` would splice
         // "2000" + "27" into "200027".
         let yy: u32 = s.get(0..2)?.parse().ok()?;
         let year: u32 = if yy < 50 { 2000 + yy } else { 1900 + yy };
@@ -279,7 +279,7 @@ fn parse_asn1_time(generalized: bool, body: &[u8]) -> Option<chrono::DateTime<ch
 
 /// Acme base URL for a given auth issuer. Derives the platform domain form
 /// `https://acme.ops.sys.{domain}` (the platform services are the `ops`
-/// env of the `sys` org — uniform hierarchy, nothing hardcoded beyond the
+/// env of the `sys` org - uniform hierarchy, nothing hardcoded beyond the
 /// domain derivation in `sentin8-config`). When `SENTIN8_ACME_PORT` is
 /// present (captain sets it per-instance for acme itself), it is appended;
 /// otherwise the standard HTTPS port is assumed and ServiceDiscovery-based
@@ -301,13 +301,13 @@ fn acme_base_url(sentin8_auth_base_url: &str) -> String {
 /// (`POST /v1/client-cert`, body `{service_name}`). Returns the combined
 /// PEM (leaf chain + key) split into `(cert_pem, key_pem)`.
 ///
-/// The outbound channel trusts ONLY the Acme Root CA (`ca_cert_path`) —
+/// The outbound channel trusts ONLY the Acme Root CA (`ca_cert_path`) -
 /// fail-closed, no system roots (same discipline as every platform
 /// transport).
 ///
 /// First-boot enrollment channel: the captain-brokered bootstrap
 /// enrollment secret. A workload on its very first boot holds no cert and
-/// no token — without this claim acme would 401 the mint. Captain injects
+/// no token - without this claim acme would 401 the mint. Captain injects
 /// `SENTIN8_BOOTSTRAP_ENROLLMENT(+_TS)` into every child process;
 /// forwarding them as request headers lets acme verify the claim LOCALLY
 /// against its own injected copy. Present only when the env is actually
@@ -360,8 +360,8 @@ async fn issue_client_certificate(
 }
 
 /// Split a combined PEM (certificate chain blocks followed by the private
-/// key block) into `(cert_pem, key_pem)`. Both blocks are emitted whole —
-/// header line through `END` line — by toggling on the BEGIN/END markers
+/// key block) into `(cert_pem, key_pem)`. Both blocks are emitted whole -
+/// header line through `END` line - by toggling on the BEGIN/END markers
 /// (the splitter must collect the full PEM block: a partial collection
 /// makes every persisted cert/key a bare header and `Identity::from_pem`
 /// fail with a bare "builder error").
@@ -405,15 +405,15 @@ fn split_combined_pem(text: &str) -> Option<(String, String)> {
 }
 
 /// The CA bundle for outbound platform TLS. `SENTIN8_TLS_CA_PEM` (the
-/// PUBLIC Acme Root-CA cert path, propagated by captain) is REQUIRED —
+/// PUBLIC Acme Root-CA cert path, propagated by captain) is REQUIRED -
 /// there is no data-dir fallback. SECURITY: `SENTIN8_ACME_DATA_DIR` must
-/// never be consulted here (or anywhere outside the acme service) — that
+/// never be consulted here (or anywhere outside the acme service) - that
 /// directory holds the Root/Intermediate CA PRIVATE keys, and any path
 /// derived from it in a domain service's env would dangle the entire
 /// identity chain off a file the service has no business reading.
 ///
 /// # Panics
-/// Panics when no CA is configured — a missing trust anchor on the
+/// Panics when no CA is configured - a missing trust anchor on the
 /// identity channel is a defect (fail-closed, never guess a path).
 pub fn platform_ca_pem_path() -> String {
     for var in ["SENTIN8_TLS_CA_PEM", "SENTIN8_TLS_CLIENT_CA_PEM"] {
@@ -426,14 +426,14 @@ pub fn platform_ca_pem_path() -> String {
     // Fail-closed: no CA configured → the caller cannot trust any outbound
     // channel. Refuse loudly rather than guessing a path.
     panic!(
-        "m2m: no platform CA configured — set SENTIN8_TLS_CA_PEM (the public \
+        "m2m: no platform CA configured - set SENTIN8_TLS_CA_PEM (the public \
          Acme Root-CA cert path; captain/CLI set it by default). \
          SENTIN8_ACME_DATA_DIR is deliberately NOT consulted: it holds the \
          CA private keys."
     )
 }
 
-/// Public form of the platform CA resolution — callers that build their
+/// Public form of the platform CA resolution - callers that build their
 /// own cert-presenting transports (bus-client, BFF, CLI) pass the same CA
 /// bundle so every outbound platform channel trusts the same anchor.
 pub fn platform_ca_path() -> String {
@@ -444,7 +444,7 @@ pub fn platform_ca_path() -> String {
 /// var is set, instead of panicking.
 ///
 /// For REQUEST-PATH (or test-time) callers where a missing CA must degrade
-/// a best-effort side effect — never the identity channel itself, which
+/// a best-effort side effect - never the identity channel itself, which
 /// stays fail-closed via [`platform_ca_path`]. Mirrors the TLS resolver's
 /// pre-check: the resolver degrades to 421 without a CA; a request-path
 /// best-effort provisioner degrades to "closure not provisioned" + a
@@ -456,7 +456,7 @@ pub fn try_platform_ca_path() -> Option<String> {
 }
 
 /// The identity dir: where workload certificate pairs live. 0700 dir,
-/// 0600 files — the directory holds the workload PRIVATE KEYS, so the
+/// 0600 files - the directory holds the workload PRIVATE KEYS, so the
 /// read/write paths fail-closed on loose permissions.
 fn identity_dir() -> String {
     std::env::var("SENTIN8_M2M_CREDENTIALS_DIR").unwrap_or_else(|_| {
@@ -469,7 +469,7 @@ fn identity_dir() -> String {
 /// Persist issued certificate/key PEMs under the identity dir
 /// (`SENTIN8_M2M_CREDENTIALS_DIR`, 0600) and return their paths. One
 /// cert/key pair per WORKLOAD (`{workload}.crt`/`{workload}.key`,
-/// workload-explicit) — a process may hold several workload identities
+/// workload-explicit) - a process may hold several workload identities
 /// (auth alone holds `sentin8:auth`, `auth-post`, `auth-sys`,
 /// `sentin8:auth-policy`), so the filename MUST derive from the workload
 /// parameter, never a process-global ambient.
@@ -565,7 +565,7 @@ mod tests {
     #[test]
     fn cert_der_not_after_finds_second_validity_element() {
         // A real Acme-minted leaf's validity window (NotBefore 26-10-05,
-        // NotAfter 27-10-05 — UTCTime pair as verified against a live
+        // NotAfter 27-10-05 - UTCTime pair as verified against a live
         // minted certificate): the walk must return the SECOND element.
         // Minimal DER-ish blob with the two-element sequence shape.
         let mut der = vec![0x30u8, 0x1e]; // SEQUENCE wrapping the pair
@@ -580,7 +580,7 @@ mod tests {
 
     #[test]
     fn cert_pem_not_after_first_block_only() {
-        // The LEAF's NotAfter (first block) — a following intermediate's
+        // The LEAF's NotAfter (first block) - a following intermediate's
         // window must not be picked up.
         use base64::Engine as _;
         let mut der = vec![0x30u8, 0x1e];

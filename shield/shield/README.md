@@ -1,12 +1,12 @@
-# Design Doc: sentin8-policy (Shield — Embedded Declarative Authorization)
+# Design Doc: sentin8-policy (Shield - Embedded Declarative Authorization)
 
 ## 1. Summary
 
 `sentin8-policy` embeds the Shield declarative-policy engine in every
 Sentin8 service as the platform's **authoritative authorization decision
-point**. One engine decides all three models — RBAC (live-resolved role
+point**. One engine decides all three models - RBAC (live-resolved role
 membership), ABAC (attribute conditions), and ReBAC (relationship
-hierarchy) — against policy *data* loaded from the service's own env-scoped
+hierarchy) - against policy *data* loaded from the service's own env-scoped
 tables, with hot-reload over the event stream, fail-closed semantics, and
 µs-scale in-process evaluation.
 
@@ -24,86 +24,86 @@ tables, with hot-reload over the event stream, fail-closed semantics, and
   `vertical-registry.json` → `vertical enroll`; env admins author tenant
   sets at runtime. Zero compile-time vertical knowledge anywhere.
 - **Fail closed, always.** A missing set, a broken policy, an eval error,
-  or an unresolved role must deny — never fall open.
+  or an unresolved role must deny - never fall open.
 
 ## 3. Architecture & High-Level Design
 
 ```mermaid
 graph TD
     subgraph Service process
-        A[Handler — steps 1-4 done] --> B["runtime::check_policy (step 5)"]
+        A[Handler - steps 1-4 done] --> B["runtime::check_policy (step 5)"]
         B --> C[substrate: live identity]
-        C --> C1[RoleResolver — live roles, TTL cache]
+        C --> C1[RoleResolver - live roles, TTL cache]
         C --> C2[relations slice]
         C --> C3[principal attrs]
-        B --> D[PolicyEngine — ArcSwap cache of compiled sets]
+        B --> D[PolicyEngine - ArcSwap cache of compiled sets]
         D --> D1[Evaluate: enforced + shadow sets]
-        D1 -->|Allow| E[Proceed — step 6 RLS]
+        D1 -->|Allow| E[Proceed - step 6 RLS]
         D1 -->|Deny| F[Audit + 403 forbidden by policy]
-        G[SSE hot-reload — policy stream direct consumer] --> D
-        H[stat_emit — decision telemetry<br/>MemBus stat:telemetry] --> I[(Valkey)]
+        G[SSE hot-reload - policy stream direct consumer] --> D
+        H[stat_emit - decision telemetry<br/>MemBus stat:telemetry] --> I[(Valkey)]
     end
     subgraph Boot
-        J["sentin8_boot_policy_load(service) — SECURITY DEFINER"] --> D
+        J["sentin8_boot_policy_load(service) - SECURITY DEFINER"] --> D
     end
-    K[vertical enroll — policy_sets rows] --> J
+    K[vertical enroll - policy_sets rows] --> J
 ```
 
 Components:
 
-- **`PolicyEngine`** — the per-service engine: an `ArcSwap` cache
+- **`PolicyEngine`** - the per-service engine: an `ArcSwap` cache
   `(env_id, set_name) → CompiledSet`, loaded at boot via the
   `sentin8_boot_policy_load` SECURITY DEFINER function (boot precedes any
   tenant context, so the RLS gate would otherwise hide all rows from the
   NOBYPASSRLS service role; the function filters `service = $1 AND enabled`
   server-side so a service can only load its own rows), plus upsert/remove
   for hot-reload and an atomic swap-on-success contract.
-- **`runtime`** — the service-side integration: boot wiring
+- **`runtime`** - the service-side integration: boot wiring
   (load-or-refuse-to-start), the step-5 evaluation entry points (snapshot
   evaluation and full live evaluation), the SSE direct-consumer hot-reload
   task, the sync-reload-on-empty-coverage retry (single-flighted), decision
   audit emission, the enroll-time dry-run gate, and identity-cache
   invalidation handling.
-- **`substrate`** — the data plane: live role resolution (HTTP to
+- **`substrate`** - the data plane: live role resolution (HTTP to
   Sentin8:Auth with a 30 s TTL cache per (env, subject)), relation-tuple
   and principal-attribute loaders, and identity types.
-- **`admin`** — the shared policy-admin API (sets, relations, attributes
+- **`admin`** - the shared policy-admin API (sets, relations, attributes
   CRUD + RFW POST aliases for the Dash renderer), enforce/shadow
   promotion, and server-side simulation.
-- **`stat_emit`** — best-effort decision telemetry published to MemBus
+- **`stat_emit`** - best-effort decision telemetry published to MemBus
   (`stat:telemetry` Pub/Sub family, consumed by Sentin8:Stat); fire-and-forget,
   log-only on failure, no service-scoped client (SDD §2.3). Frames carry
   `client_type = "server"` per stat's ingest contract.
 
 ## 4. Key Traits and Data Structures
 
-- **`PolicyEngine`** — holds compiled sets behind `ArcSwap` (readers never
+- **`PolicyEngine`** - holds compiled sets behind `ArcSwap` (readers never
   block; swaps are atomic). Evaluation is pure, in-process, µs-scale, no
   I/O.
-- **`RequestCtx`** — the evaluation input assembled from the verified
+- **`RequestCtx`** - the evaluation input assembled from the verified
   token: subject, env/org, token type, effective scopes, the stale JWT
   scope snapshot (rides a separate `token_attrs` namespace so live scopes
   and the snapshot can never be confused), LIVE roles, the env relation
   slice, and handler-supplied principal attributes.
-- **`EvalTarget`** — action id + optional resource uid/attributes.
-- **`EvalOutcome`** — the enforce decision, the enforced-deny reason (audit
+- **`EvalTarget`** - action id + optional resource uid/attributes.
+- **`EvalOutcome`** - the enforce decision, the enforced-deny reason (audit
   input), and the shadow would-deny reason (telemetry input), plus the
   no-coverage predicate driving the sync-reload retry. Invariant: every
   path through the step-5 glue converts an enforced `Deny` into the 403
-  error — including the post-reload re-evaluation, whose outcome falls
+  error - including the post-reload re-evaluation, whose outcome falls
   through the same deny conversion as the boot-loaded path (a `Deny`
   outcome must never surface as `Ok`, or a no-coverage env bypasses
   authorization entirely).
-- **`PolicySetRecord`** — a `policy_sets` row: owner service, name,
+- **`PolicySetRecord`** - a `policy_sets` row: owner service, name,
   description, Shield policy text (one statement per line), optional
   schema, `origin` (platform/tenant), `mode` (shadow/enforced), version,
   enabled.
-- **`CompiledSet` / `CacheKey` / `Cache`** — the compiled-set cache types.
-- **`RoleResolver`** — live role lookup with TTL cache; entries older
+- **`CompiledSet` / `CacheKey` / `Cache`** - the compiled-set cache types.
+- **`RoleResolver`** - live role lookup with TTL cache; entries older
   than the TTL are pruned on insert so the per-`(env, subject)` cache is
   bounded; events (`sentin8:sys:identity:updated`, role/membership
   changes) sweep the cache so fresh access is visible immediately.
-- **`PolicyError`** — parse/schema/validation/db/record/not-found failures.
+- **`PolicyError`** - parse/schema/validation/db/record/not-found failures.
 
 ## 5. Rationale, Trade-offs, and Alternatives
 
@@ -111,7 +111,7 @@ Components:
   would add a network hop to every request and a new availability
   dependency on the hot path. Embedding makes evaluation µs-scale and
   keeps decisions available during partial outages; the trade-off is
-  per-service policy caches reconciled by events — accepted because
+  per-service policy caches reconciled by events - accepted because
   policies are low-churn data and the sync-reload retry covers the
   propagation window.
 - **ArcSwap over `RwLock`.** Readers (every request) take a cheap
@@ -137,7 +137,7 @@ Components:
 - **Stale-token snapshot as a separate attribute namespace.** Platform
   policies may reference live `scopes`/`roles`; `token_attrs.scopes` exists
   so policies *could* observe the JWT snapshot, but no platform policy does
-  — the namespace separation makes accidental downgrade of live scopes to
+  - the namespace separation makes accidental downgrade of live scopes to
   token scopes structurally impossible.
 - **Type canonicalization (PascalCase) for entity types.** Shield type
   names are case-sensitive while authoring uses conventional lowercase
@@ -149,7 +149,7 @@ Components:
   own rows) and keeps the admin API reading directly under request
   context. A blanket grant on the table was rejected (it would defeat RLS).
 - **`shadow`→`enforced` promotion as a single UPDATE.** The mode column is
-  the deployment lever — no separate rollout flag; shadow output
+  the deployment lever - no separate rollout flag; shadow output
   (`policy.would_deny` telemetry) is the promotion evidence.
 - **Rejected: JWT scope as the decision.** Scopes are pre-filters and RLS
   feed; making them the decision would freeze authorization at token-issue
@@ -165,13 +165,13 @@ Components:
   - M2M parity: token type never bypasses policy; `token_tp` is an
     attribute, not a bypass.
   - `load`/`load_from_rows` reject ANY invalid row and retain the previous
-    cache (atomic swap) — a service never runs a partial policy set.
+    cache (atomic swap) - a service never runs a partial policy set.
   - `upsert` of a disabled/invalid/not-ours set REMOVES the cached entry
     (no-match → deny), never leaves a stale set.
   - Boot load matches rows by the engine's own `service` value; a row from
     another service is an invalid record (error, not silently skipped).
   - The live scope set on a full evaluation is EMPTY on resolution
-    failure — scope-gated rules then deny (fail-closed), never fall open.
+    failure - scope-gated rules then deny (fail-closed), never fall open.
   - Relation objects referenced by hierarchy edges are materialized as
     bare entities; a malformed uid skips the edge, which can only deny.
   - Principal attr eval failure falls back to a bare entity WITH hierarchy
@@ -190,7 +190,7 @@ Components:
   statement per string.
 - **Write-time validation gate.** `validate_record_text` parses every
   statement and, with a schema present, runs strict schema-linked
-  validation — invalid policy text is never stored, at enroll or via the
+  validation - invalid policy text is never stored, at enroll or via the
   admin API (size caps of 64 KiB text/schema return 413 before parsing).
 - **Platform-row protection.** The admin API refuses to overwrite
   `origin='platform'` rows (409); enroll owns them. Tenant rows are
@@ -205,7 +205,7 @@ Components:
   feed already exists (`sentin8:sys:identity:updated`), so the TTL is the
   polling fallback.
 - Cross-service policy composition stays out: a set is validated against its
-  own service's schema — per-service scoping is the invariant.
+  own service's schema - per-service scoping is the invariant.
 - Policy simulation across a whole env is a non-goal until an admin workflow
   needs it.
 - Relation slices are capped per evaluation; the cap stays and is surfaced as

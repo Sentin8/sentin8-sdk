@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! `Sentin8Tls` builder — the main entry point for the `sentin8-tls` library.
+//! `Sentin8Tls` builder - the main entry point for the `sentin8-tls` library.
 //!
 //! Each backend service creates a `Sentin8Tls` instance, builds a TLS
 //! listener, and wires the `context_middleware` into its axum router.
@@ -60,10 +60,10 @@ impl Sentin8Tls {
     ///
     /// When `config.client_ca_pem_path` is set, the listener requests client
     /// certificates (optional mTLS). In `TlsMode::Off`, this
-    /// returns `Err` — the caller should use a plain `TcpListener` instead.
+    /// returns `Err` - the caller should use a plain `TcpListener` instead.
     pub async fn tls_listener(&self, addr: &str) -> Result<crate::TlsListener, String> {
         if self.config.tls_mode == TlsMode::Off {
-            return Err("sentin8-tls: tls_mode is 'off' — use a plain TCP listener".to_string());
+            return Err("sentin8-tls: tls_mode is 'off' - use a plain TCP listener".to_string());
         }
 
         if let Some(ca_path) = &self.config.client_ca_pem_path {
@@ -82,16 +82,16 @@ impl Sentin8Tls {
     }
 
     /// Create a **raw-TCP** listener with STARTTLS/implicit-TLS upgrade
-    /// support — for non-HTTP protocols (SMTP, IMAP, POP3, ManageSieve,
+    /// support - for non-HTTP protocols (SMTP, IMAP, POP3, ManageSieve,
     /// LMTP).
     ///
     /// The listener yields plain TCP streams; the caller negotiates the
     /// wire protocol and calls `upgrade_starttls` (or uses `accept_tls`
     /// for implicit-TLS ports like 993/995/465). No protocol knowledge
-    /// lives in sentin8-tls — see `tcp.rs`.
+    /// lives in sentin8-tls - see `tcp.rs`.
     pub async fn raw_tcp_listener(&self, addr: &str) -> Result<crate::RawTcpListener, String> {
         if self.config.tls_mode == TlsMode::Off {
-            return Err("sentin8-tls: tls_mode is 'off' — use a plain TCP listener".to_string());
+            return Err("sentin8-tls: tls_mode is 'off' - use a plain TCP listener".to_string());
         }
         crate::tcp::RawTcpListener::bind(addr, self.cert_resolver.clone()).await
     }
@@ -139,7 +139,7 @@ impl Sentin8Tls {
                     };
                     // The TLS handshake runs INSIDE the per-connection task:
                     // a stalled handshake delays one task, never the accept
-                    // loop (tls README §6 — bounded inbound connections).
+                    // loop (tls README §6 - bounded inbound connections).
                     let tls = listener.tls_acceptor().clone();
                     let app = app.clone();
                     tokio::spawn(async move {
@@ -148,7 +148,7 @@ impl Sentin8Tls {
                             Err(e) => {
                                 // TLS handshake failures (no cert for SNI,
                                 // plain-HTTP client on TLS port, etc.) are
-                                // expected during cert provisioning — log
+                                // expected during cert provisioning - log
                                 // at debug to avoid noise.
                                 tracing::debug!(error = %e, peer = %peer_addr, "sentin8-tls: handshake failed");
                                 return;
@@ -169,7 +169,7 @@ impl Sentin8Tls {
 
 /// Serve one established TLS stream on the axum app.
 ///
-/// Sets an HTTP/1 header read timeout (with a `TokioTimer` — hyper's
+/// Sets an HTTP/1 header read timeout (with a `TokioTimer` - hyper's
 /// timeout needs a timer): a connected-but-silent peer cannot hold its
 /// per-connection task and buffers forever (tls README §6). Every
 /// platform transport is request/response or SSE-with-frames, so reaping
@@ -182,7 +182,7 @@ async fn serve_tls_stream(
     // and the client presented one) and stash it as a request extension so
     // `context_middleware` can inject the `X-Sentin8-Client-Cert-*` headers
     // per request. The value rides as middleware state (never fails to
-    // extract — a State extractor is infallible, unlike `Extension`, which
+    // extract - a State extractor is infallible, unlike `Extension`, which
     // 500s on nested routers that predate the layer).
     let peer = tls_stream.peer_cert_der().map(PeerClientCert::new);
     let app = app.layer(axum::middleware::from_fn_with_state(
@@ -222,7 +222,7 @@ impl PeerClientCert {
 
 /// Middleware that inserts the per-connection peer certificate into request
 /// extensions. The value is carried as middleware **state**
-/// (captured once per accepted TLS connection) — a `State` extractor is
+/// (captured once per accepted TLS connection) - a `State` extractor is
 /// infallible, so this layer can never break nested routers/merged subrouters
 /// that don't know about it (an `Extension` extractor would 500 them with
 /// "Missing request extension").
@@ -254,7 +254,7 @@ pub struct Sentin8TlsBuilder {
 
 impl Sentin8TlsBuilder {
     /// Set the embedding service's identity (e.g. `bank8:ledger`,
-    /// `sentin8:auth`) — names the cert-bound `{dash}-tls` M2M workload
+    /// `sentin8:auth`) - names the cert-bound `{dash}-tls` M2M workload
     /// the database-free resolver uses for Sys `GET /v1/resolve/hostname`
     /// (TLS-RLS-4, design/sentin8-vertical-data-plane-contract.md §VDC.7).
     /// No database URL exists on the builder anymore: the library holds
@@ -287,7 +287,7 @@ impl Sentin8TlsBuilder {
     ///
     /// Used by bootstrap services (e.g. acme) that must serve TLS
     /// before any ACME cert fetch can happen. The cert is signed by the
-    /// acme's own CA and registered directly in the resolver —
+    /// acme's own CA and registered directly in the resolver -
     /// no ACME fetch is needed for this hostname.
     pub fn bootstrap_cert(
         mut self,
@@ -302,7 +302,7 @@ impl Sentin8TlsBuilder {
 
     /// Build the `Sentin8Tls` instance.
     ///
-    /// This seeds the mapping cache, starts the cert resolver (empty —
+    /// This seeds the mapping cache, starts the cert resolver (empty -
     /// certs are fetched on-the-fly from Acme when a TLS ClientHello
     /// arrives with an unknown SNI), and wires the database-free
     /// host-context resolver (TLS-RLS-4: cache → Sys owner API; the
@@ -313,15 +313,15 @@ impl Sentin8TlsBuilder {
         // 0. Install the Graviola CryptoProvider as the process-level
         // default. Graviola is a pure-Rust crypto library (no C compiler,
         // no cmake) that provides ML-KEM-768 for post-quantum key exchange.
-        // Default mode is exclusive PQ — only X25519MLKEM768, no classical
+        // Default mode is exclusive PQ - only X25519MLKEM768, no classical
         // fallback (see the crate README for the PQ mode table).
         let _ = crate::crypto::sentin8_pq_provider().install_default();
 
-        // 1. Mapping cache — starts empty; hostname → service resolution
+        // 1. Mapping cache - starts empty; hostname → service resolution
         //    rides the Sys owner API on cache miss (see context.rs).
         let cache = MappingCache::new();
 
-        // 2. Create the cert resolver (empty — certs fetched on-the-fly
+        // 2. Create the cert resolver (empty - certs fetched on-the-fly
         //    from Acme when a TLS ClientHello arrives with an unknown SNI).
         //    The discovery connection presents THIS process's workload
         //    identity over the Valkey TLS plane (group DESIGN.md §3.1):
@@ -345,7 +345,7 @@ impl Sentin8TlsBuilder {
         ));
 
         // 2b. Pre-load bootstrap certs (e.g. acme's self-issued cert).
-        //     These are registered directly in the resolver — no ACME fetch
+        //     These are registered directly in the resolver - no ACME fetch
         //     is needed for these hostnames.
         for (hostname, cert_pem, key_pem) in &self.bootstrap_certs {
             match cert_resolver.add_cert(hostname, cert_pem, key_pem) {
@@ -358,7 +358,7 @@ impl Sentin8TlsBuilder {
             }
         }
 
-        // 3. Build the host-context resolver — DATABASE-FREE (TLS-RLS-4):
+        // 3. Build the host-context resolver - DATABASE-FREE (TLS-RLS-4):
         //    cache miss → Sys `GET /v1/resolve/hostname` with this
         //    service's cert-bound `{dash}-tls` M2M workload.
         let host_context_resolver = HostContextResolver::new(cache.clone(), &self.service_identity);

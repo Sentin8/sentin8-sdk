@@ -15,7 +15,7 @@ use std::env;
 pub struct Sentin8TlsConfig {
     /// The embedding service's identity (e.g. `bank8:ledger`). Names the
     /// cert-bound `{dash}-tls` M2M workload the database-free resolver
-    /// uses for Sys `GET /v1/resolve/hostname` (TLS-RLS-4) — the library
+    /// uses for Sys `GET /v1/resolve/hostname` (TLS-RLS-4) - the library
     /// holds NO database connection.
     /// Reads from `SENTIN8_TLS_SERVICE_IDENTITY` if not set.
     pub service_identity: String,
@@ -38,7 +38,7 @@ pub struct Sentin8TlsConfig {
 /// How the listener terminates TLS.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TlsMode {
-    /// Plain HTTP — no TLS termination (local development only).
+    /// Plain HTTP - no TLS termination (local development only).
     Off,
     /// Use Sentin8:Acme for all domains (local + custom).
     Internal,
@@ -68,7 +68,7 @@ impl Default for Sentin8TlsConfig {
 impl Sentin8TlsConfig {
     /// Build configuration from environment variables.
     pub fn from_env() -> Self {
-        // TLS-RLS-4: NO database URL — the resolver is database-free (Sys
+        // TLS-RLS-4: NO database URL - the resolver is database-free (Sys
         // owner API on cache miss). The identity defaults to the env var;
         // services using the builder set it explicitly.
         let service_identity = env::var("SENTIN8_TLS_SERVICE_IDENTITY").unwrap_or_default();

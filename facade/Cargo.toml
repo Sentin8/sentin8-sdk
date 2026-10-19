@@ -10,7 +10,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Sentin8 Rust SDK — unified client library for all Sentin8 services (Sentin8:Auth, Bank8:Ledger, Bank8:Payments, Bank8:FDX, Sentin8:DB, Sentin8:Storage, Sentin8:Bus)."
+description = "Sentin8 Rust SDK - unified client library for all Sentin8 services (Sentin8:Auth, Bank8:Ledger, Bank8:Payments, Bank8:FDX, Sentin8:DB, Sentin8:Storage, Sentin8:Bus)."
 
 [dependencies]
 serde = { workspace = true }
@@ -18,11 +18,11 @@ serde = { workspace = true }
 # Re-export the existing FAPI client (discovery-driven OAuth).
 sentin8-fapiclient = { workspace = true }
 
-# Namespace-facade re-exports (architecture-principles §2.1) — every
+# Namespace-facade re-exports (architecture-principles §2.1) - every
 # shared-plane crate is reachable as `sentin8::{leaf}` /
 # `sentin8::{domain}::{kind}`. Service SDK crates are NOT re-exported:
 # they live in their owner repos behind `sentin8-{svc}-sdk` mini-facades
-# (SDD §2.2 — the facade never pins a service repo, SDD-6).
+# (SDD §2.2 - the facade never pins a service repo, SDD-6).
 sentin8-audit = { workspace = true }
 sentin8-auth-client = { workspace = true }
 sentin8-build-info = { workspace = true }

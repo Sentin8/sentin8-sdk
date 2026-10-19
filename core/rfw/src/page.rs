@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! RFW page definitions — the top-level structure returned by `GET /v1/admin/ui/{page}`.
+//! RFW page definitions - the top-level structure returned by `GET /v1/admin/ui/{page}`.
 
 use crate::widget::RemoteWidget;
 use serde::{Deserialize, Serialize};

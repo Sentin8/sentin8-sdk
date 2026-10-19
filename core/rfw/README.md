@@ -18,7 +18,7 @@ Policy Studio page constructors every adopting service reuses.
   service would require a Dash release. RFW definitions turn admin UI into
   runtime data.
 - **Backend-owned UX.** The service that owns the domain also owns its
-  admin experience — forms, tables, and actions evolve with the service,
+  admin experience - forms, tables, and actions evolve with the service,
   not with the host.
 - **One wire contract.** A typed, serde-tested widget vocabulary prevents
   every service from inventing its own page JSON that the renderer cannot
@@ -28,46 +28,46 @@ Policy Studio page constructors every adopting service reuses.
 
 ```mermaid
 graph TD
-    A["Service: GET /v1/admin/ui/{page}"] --> B[AdminUiPage — title + widgets + actions]
-    B --> C[Dash RFW renderer — inflate to Flutter]
+    A["Service: GET /v1/admin/ui/{page}"] --> B[AdminUiPage - title + widgets + actions]
+    B --> C[Dash RFW renderer - inflate to Flutter]
     C --> D[User interaction]
     D --> E[Form submit / row action]
     E -->|"POST /v1/admin/{resource}"| F[Service handler]
-    F --> G["AdminUiResponse — Page | Redirect | Error(field_errors)"]
+    F --> G["AdminUiResponse - Page | Redirect | Error(field_errors)"]
     G --> C
     H[DataTable / Chart data_endpoint] -->|GET rows/series| F
 ```
 
-- **Pages** — `AdminUiPage` (title, widget list, header actions) is the
+- **Pages** - `AdminUiPage` (title, widget list, header actions) is the
   top-level response of the UI endpoint.
-- **Widgets** — `RemoteWidget` is the tagged enum over the nine node kinds:
+- **Widgets** - `RemoteWidget` is the tagged enum over the nine node kinds:
   container, text, data table, form, button, card, chart, native host, row,
   column, spacer.
-- **Responses** — `AdminUiResponse` is the mutation envelope: render a page,
+- **Responses** - `AdminUiResponse` is the mutation envelope: render a page,
   redirect after success, or report errors with per-field validation
   messages.
-- **Policy pages** — `policy_page()` builders generate the four shared
+- **Policy pages** - `policy_page()` builders generate the four shared
   Policy Studio pages (list, editor, relations, attributes) from a colon
   service identity; the pages are definitions only, and all data flows
   through the shared policy-admin API the service already mounts.
 
 ## 4. Key Traits and Data Structures
 
-- **`RemoteWidget`** — the tree node enum (`serde(tag = "type")`); every
+- **`RemoteWidget`** - the tree node enum (`serde(tag = "type")`); every
   variant is a plain serializable struct, so the renderer maps 1:1 to
   Flutter widget constructors.
-- **`WidgetDataTable` / `WidgetDataTableColumn`** — server-side tables:
+- **`WidgetDataTable` / `WidgetDataTableColumn`** - server-side tables:
   columns (key, label, format), a data endpoint relative to
   `/v1/admin/`, optional row link and per-row action buttons supporting
   `{row.id}` substitution.
-- **`WidgetForm` / `WidgetFormField`** — forms with 16 field types,
+- **`WidgetForm` / `WidgetFormField`** - forms with 16 field types,
   validation constraints, conditional visibility (`visible_if`), and a
   submit endpoint relative to `/v1/admin/`.
-- **`WidgetNative`** — the escape hatch: the dash renders a built-in
+- **`WidgetNative`** - the escape hatch: the dash renders a built-in
   Flutter widget (`posting_console`, `payment_simulator`,
   `workflow_visualizer`, …) with service-provided props.
-- **`AdminPage`** — the builder used by services to assemble pages.
-- **`AdminUiResponse::Error`** — carries `field_errors` keyed by form-field
+- **`AdminPage`** - the builder used by services to assemble pages.
+- **`AdminUiResponse::Error`** - carries `field_errors` keyed by form-field
   name so the renderer highlights the exact inputs.
 
 ## 5. Rationale, Trade-offs, and Alternatives
@@ -77,7 +77,7 @@ graph TD
   surfaces (data tables with row actions, typed forms, formatters like
   `iban`/`currency`). A platform-owned vocabulary is larger but maps
   1:1 to the renderer; raw RFW would need custom template expressions
-  everywhere. The trade-off is renderer-side work per widget type — paid
+  everywhere. The trade-off is renderer-side work per widget type - paid
   once in Dash, reused by every service.
 - **Relative endpoints (`/accounts`) resolved under `/v1/admin/`.** Pages
   stay tenant- and service-agnostic; the renderer binds the absolute
@@ -98,7 +98,7 @@ graph TD
   separately. This keeps pages cacheable and lets tables refresh without
   re-rendering the page.
 - **Server-side policy simulation.** The Policy Studio "test" action posts
-  to the dry-run endpoint; the browser never evaluates policy — the
+  to the dry-run endpoint; the browser never evaluates policy - the
   fail-closed single decision point stays in Shield.
 - **Rejected: embedding business logic in page definitions.** Definitions
   are display + routing only; validation beyond declarative constraints
@@ -108,7 +108,7 @@ graph TD
 
 - **Invariants:**
   - Row-action endpoints substitute ONLY `{id}` from the row's `id`
-    field — row lists must therefore carry `id` = the canonical key
+    field - row lists must therefore carry `id` = the canonical key
     (policy-set name, colon-joined tuple key, etc.).
   - Static pages have no row context: any value the renderer would need
     per entity (e.g. a policy-set name in an editor) must be embedded in

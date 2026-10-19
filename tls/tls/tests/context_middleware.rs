@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! `context_middleware` trust-model tests — the header-strip
+//! `context_middleware` trust-model tests - the header-strip
 //! self-injection model and host-context resolution behavior.
 //!
 //! Pure in-process: `MappingCache` fixtures + `tower::ServiceExt::oneshot`
@@ -27,7 +27,7 @@ use tower::ServiceExt;
 // ─────────────────────────────────────────────────────────────────────────
 
 /// Build a `Mapping` for a platform service hostname
-/// (`{service}.ops.{org}` — env_id = SYSTEM_ENV_ID).
+/// (`{service}.ops.{org}` - env_id = SYSTEM_ENV_ID).
 fn platform_mapping(service: &str) -> Mapping {
     Mapping {
         id: uuid::Uuid::new_v4(),
@@ -60,7 +60,7 @@ fn app_mapping(app: &str, env: &str) -> Mapping {
 }
 
 /// Router with one echo route that returns the request's `X-Sentin8-*`
-/// headers as a JSON body — lets tests assert what the downstream handler
+/// headers as a JSON body - lets tests assert what the downstream handler
 /// actually received (post-strip, post-injection).
 fn echo_router(cache: MappingCache) -> Router {
     let state = ContextMiddlewareState {
@@ -133,7 +133,7 @@ async fn strips_client_sentin8_headers_and_injects_context() {
             Request::builder()
                 .uri("/v1/echo")
                 .header("host", "auth.ops.sys.sentin8.local")
-                // Attacker-supplied identity headers — must be stripped.
+                // Attacker-supplied identity headers - must be stripped.
                 .header("x-sentin8-env-id", "11111111-1111-1111-1111-111111111111")
                 .header("x-sentin8-service", "evil-service")
                 .header("x-sentin8-correlation-id", "attacker-correlation")
@@ -212,11 +212,11 @@ async fn missing_host_returns_400() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
-/// Health endpoints bypass host resolution (captain probes hit IP:port) —
+/// Health endpoints bypass host resolution (captain probes hit IP:port) -
 /// request passes through with only the correlation ID injected.
 #[tokio::test]
 async fn health_endpoint_bypasses_host_resolution() {
-    let cache = MappingCache::new(); // empty cache — would 421 if not bypassed
+    let cache = MappingCache::new(); // empty cache - would 421 if not bypassed
     let state = ContextMiddlewareState {
         resolver: HostContextResolver::new(cache, "sentin8:test-svc"),
     };
@@ -243,7 +243,7 @@ async fn health_endpoint_bypasses_host_resolution() {
     assert!(uuid::Uuid::parse_str(&corr).is_ok());
 }
 
-/// Client-supplied client-cert headers on a plain request are stripped —
+/// Client-supplied client-cert headers on a plain request are stripped -
 /// they are only legitimate when the TLS accept loop injected them as
 /// request extensions.
 #[tokio::test]
@@ -283,7 +283,7 @@ async fn peer_cert_extension_injects_cert_headers() {
     use base64::Engine as _;
     use sha2::Digest as _;
 
-    // A minimal DER blob with two CN OIDs (issuer first, then subject) —
+    // A minimal DER blob with two CN OIDs (issuer first, then subject) -
     // exercises `extract_cn`'s positional logic.
     let der: Vec<u8> = [
         0x30, 0x82, 0x01, 0x00, // SEQUENCE
@@ -344,7 +344,7 @@ async fn peer_cert_extension_injects_cert_headers() {
             .find(|(k, _)| k == name)
             .map(|(_, v)| v.clone())
     };
-    // Thumbprint = base64url-no-pad(SHA-256(DER)) — the RFC 8705 x5t#S256.
+    // Thumbprint = base64url-no-pad(SHA-256(DER)) - the RFC 8705 x5t#S256.
     let expected_thumb =
         base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(sha2::Sha256::digest(&der));
     assert_eq!(

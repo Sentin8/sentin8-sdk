@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! RFW widget types — the declarative widget tree that services return.
+//! RFW widget types - the declarative widget tree that services return.
 //!
 //! The Sentin8:Dash Flutter RFW runtime inflates these into native Flutter
 //! widgets. Every widget type is a plain serializable struct; the renderer
@@ -33,7 +33,7 @@ pub enum RemoteWidget {
     Card(WidgetCard),
     /// A simple chart (bar or line).
     Chart(WidgetChart),
-    /// A native widget host — the dash renders a built-in Flutter widget.
+    /// A native widget host - the dash renders a built-in Flutter widget.
     Native(WidgetNative),
     /// A row of child widgets laid out horizontally.
     Row(WidgetRow),
@@ -144,7 +144,7 @@ pub struct WidgetDataTable {
     /// Message shown when there are no rows.
     #[serde(default)]
     pub empty_message: Option<String>,
-    /// Optional row click action — navigates to this route with `{row.id}` substitution.
+    /// Optional row click action - navigates to this route with `{row.id}` substitution.
     #[serde(default)]
     pub row_link: Option<String>,
     /// Per-row action buttons. Each button's route/endpoint supports `{row.id}` substitution.
@@ -408,7 +408,7 @@ pub enum ChartType {
 
 // ── Native widget host ──
 
-/// A native widget host — the dash renders a built-in Flutter widget.
+/// A native widget host - the dash renders a built-in Flutter widget.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetNative {
     /// The native widget name the dash recognizes.

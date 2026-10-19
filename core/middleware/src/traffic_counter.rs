@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! Traffic counter middleware — lets every service count its own inbound
+//! Traffic counter middleware - lets every service count its own inbound
 //! API requests and publish them to the same Valkey channel proxy uses.
 //!
 //! Each service wraps its axum router with [`traffic_counter_layer`] and
@@ -14,7 +14,7 @@
 //! metric name `proxy.traffic.external→{service}.count`.
 //!
 //! The counter also carries the in-flight request gauge
-//! ([`RequestCounter::active_connections`]) — the drain signal captain
+//! ([`RequestCounter::active_connections`]) - the drain signal captain
 //! polls via the service's `/v1/health` payload during rolling upgrades
 //! (proxy README §7 / captain README §7).
 //!
@@ -26,7 +26,7 @@
 //!
 //! Stat's embedded worker aggregates these into 24-hour rollups on
 //! `stat:rollups:day`, and captain's monitor subscriber overwrites the
-//! `api_calls` field on each service instance — so the `CALLS` column in
+//! `api_calls` field on each service instance - so the `CALLS` column in
 //! `make status` reflects actual per-request counts from every service,
 //! including traffic that bypasses proxy (e.g. acme cert fetches).
 
@@ -41,13 +41,13 @@ use parking_lot::Mutex;
 /// Thread-safe inbound request counter (excludes health checks).
 ///
 /// Also carries the in-flight connection gauge ([`Self::active_connections`])
-/// — the drain signal captain polls via the health payload during
+/// - the drain signal captain polls via the health payload during
 /// rolling upgrades (captain README §7).
 #[derive(Clone)]
 pub struct RequestCounter {
     inner: Arc<Mutex<u64>>,
     /// In-flight requests: incremented on request entry, decremented on
-    /// response completion by [`InFlightGuard`]. Relaxed ordering — the
+    /// response completion by [`InFlightGuard`]. Relaxed ordering - the
     /// gauge is a drain hint, never a synchronization point.
     in_flight: Arc<AtomicUsize>,
 }
@@ -67,7 +67,7 @@ impl RequestCounter {
         *count += 1;
     }
 
-    /// Enter one in-flight request — returns a guard that decrements the
+    /// Enter one in-flight request - returns a guard that decrements the
     /// gauge on drop, so panics and early returns cannot leak the count.
     pub fn enter(&self) -> InFlightGuard {
         self.in_flight.fetch_add(1, Ordering::Relaxed);
@@ -76,14 +76,14 @@ impl RequestCounter {
         }
     }
 
-    /// Current in-flight request count — the value reported as
+    /// Current in-flight request count - the value reported as
     /// `active_connections` in the standard health payload (shell README §5).
     /// Relaxed load: a drain hint, never a fence.
     pub fn active_connections(&self) -> u64 {
         self.in_flight.load(Ordering::Relaxed) as u64
     }
 
-    /// Shared handle to the in-flight gauge — the shell registers this Arc
+    /// Shared handle to the in-flight gauge - the shell registers this Arc
     /// process-wide ([`set_process_gauge`]) so custom health handlers can
     /// report the drain signal (shell README §5 / captain README §7).
     pub fn in_flight_arc(&self) -> Arc<AtomicUsize> {
@@ -103,7 +103,7 @@ impl RequestCounter {
     }
 }
 
-/// RAII guard for one in-flight request — the drop half of
+/// RAII guard for one in-flight request - the drop half of
 /// [`RequestCounter::enter`]. Dropping it decrements the in-flight gauge.
 pub struct InFlightGuard {
     counter: RequestCounter,
@@ -129,7 +129,7 @@ pub async fn traffic_counter_layer(
     req: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    // Skip health-check endpoints — they're captain's monitor probes, not
+    // Skip health-check endpoints - they're captain's monitor probes, not
     // real API calls, and must never hold the drain gauge open.
     if req.uri().path() == "/v1/health" {
         return next.run(req).await;
@@ -146,7 +146,7 @@ pub async fn traffic_counter_layer(
 /// Process-wide in-flight gauge, registered by the shell at boot (step 9,
 /// shell README §5). Services that mount their own `/v1/health` payload
 /// (`with_own_health` / `with_prebuilt_router`) cannot reach the counter
-/// through their service-defined state — the process-global slot makes the
+/// through their service-defined state - the process-global slot makes the
 /// drain signal reachable from any handler in the process (captain README §7).
 static PROCESS_GAUGE: OnceLock<Arc<AtomicUsize>> = OnceLock::new();
 
@@ -154,12 +154,12 @@ static PROCESS_GAUGE: OnceLock<Arc<AtomicUsize>> = OnceLock::new();
 ///
 /// Called once by the shell at boot when it built a traffic counter;
 /// later calls are no-ops (first registration wins for the process
-/// lifetime — a restarted process simply re-registers at boot).
+/// lifetime - a restarted process simply re-registers at boot).
 pub fn set_process_gauge(c: Arc<AtomicUsize>) {
     let _ = PROCESS_GAUGE.set(c);
 }
 
-/// Current in-flight request count from the process-wide gauge — the value
+/// Current in-flight request count from the process-wide gauge - the value
 /// a custom health payload reports as `active_connections` (shell README §5).
 ///
 /// `None` before the shell registered a counter (metrics-disabled shells):
@@ -184,7 +184,7 @@ pub fn spawn_flush_loop(counter: RequestCounter, valkey_url: String, flush_inter
     let service_name = crate::structured_logging::current_service_name()
         .unwrap_or("unknown")
         .to_string();
-    // Use the full service identity (e.g. "sentin8:auth") — this matches
+    // Use the full service identity (e.g. "sentin8:auth") - this matches
     // the captain catalog keys which are the full `sentin8-*` names.
     let service_type = service_name;
 
@@ -195,7 +195,7 @@ pub fn spawn_flush_loop(counter: RequestCounter, valkey_url: String, flush_inter
     let interval = Duration::from_secs(flush_interval_s.max(1));
     tokio::spawn(async move {
         // Certificate identity via Valkey GLIDE (group DESIGN.md §3.1):
-        // the flush loop presents the calling service's own m2m pair —
+        // the flush loop presents the calling service's own m2m pair -
         // the CN maps to its enroll-provisioned ACL user. A degraded
         // (best-effort) consumer: a failure only disables this metrics
         // flush, never the service; glide-core heals the connection.

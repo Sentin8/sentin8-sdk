@@ -27,10 +27,10 @@ graph TD
     A["Service handler"]
     A --> B["Sentin8Error.new(code, message)"]
     B --> C[.with_correlation_id / .with_detail]
-    C --> D[IntoResponse — axum integration]
+    C --> D[IntoResponse - axum integration]
     D --> E["(status, JSON error body)"]
-    F[ErrorCode] --> G[as_str — stable wire code]
-    F --> H[status_code — canonical HTTP status]
+    F[ErrorCode] --> G[as_str - stable wire code]
+    F --> H[status_code - canonical HTTP status]
 ```
 
 The response body shape (canonical problem-details for the platform):
@@ -44,12 +44,12 @@ The response body shape (canonical problem-details for the platform):
 }
 ```
 
-`correlation_id` and `details` are omitted when empty — the minimal body is
+`correlation_id` and `details` are omitted when empty - the minimal body is
 always `{ error, message }`.
 
 ## 4. Key Traits and Data Structures
 
-- **`ErrorCode`** — the closed registry of stable codes, grouped
+- **`ErrorCode`** - the closed registry of stable codes, grouped
   cross-cutting (`invalid_request`, `unauthorized`, `forbidden`,
   `not_found`, `conflict`, `rate_limited`, `upstream_error`,
   `tenant_resolution_failed`, `tenant_mismatch`, `feature_disabled`,
@@ -57,14 +57,14 @@ always `{ error, message }`.
   `sentin8_bff_*`, `sentin8_db_*`, `sentin8_storage_*`, `sentin8_bus_*`,
   `sentin8_sys_*`, `sentin8_app_*`, `sentin8_func_*`, `sentin8_cron_*`,
   `sentin8_flow_*`, `sentin8_stat_*`). Serialization uses snake_case.
-- **`Sentin8Error`** — the carrier: `code` + human `message` + optional
+- **`Sentin8Error`** - the carrier: `code` + human `message` + optional
   `correlation_id` + structured `details` map. Implements
   `std::error::Error` (via thiserror) and axum `IntoResponse`.
-- **`ErrorResponse`** — the serialized body shown above.
-- **Convenience constructors** — `invalid_request`, `unauthorized`,
+- **`ErrorResponse`** - the serialized body shown above.
+- **Convenience constructors** - `invalid_request`, `unauthorized`,
   `forbidden`, `not_found`, `conflict`, `internal` for the cross-cutting
   codes; full constructors via `Sentin8Error::new`.
-- **`From<anyhow::Error>`** — converts unstructured internal failures into
+- **`From<anyhow::Error>`** - converts unstructured internal failures into
   `internal` errors so `?` propagation from anyhow-heavy code paths keeps
   the response contract.
 
@@ -80,7 +80,7 @@ always `{ error, message }`.
   to codes; this crate owns the code→HTTP-status table. Mapping status at
   the construction site would fragment the contract and invite drifted
   status choices for the same code.
-- **`BTreeMap` for details** — deterministic serialization order so the
+- **`BTreeMap` for details** - deterministic serialization order so the
   same error produces byte-identical responses (stable logs, cacheable
   fixtures in tests).
 - **Carrying correlation as an option, not a required field.** Errors
@@ -105,7 +105,7 @@ always `{ error, message }`.
   `501`.
 - **`IntoResponse` never panics.** Body construction is infallible
   (string + JSON serialization of owned data).
-- **The `details` map is for non-sensitive context only** — identifiers,
+- **The `details` map is for non-sensitive context only** - identifiers,
   resource kinds, counts. Secrets, tokens, and credentials never belong in
   error details (they are logged and returned to clients).
 

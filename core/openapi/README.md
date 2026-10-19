@@ -24,15 +24,15 @@ graph TD
     A["#[utoipa::path] annotations"] --> B["#[derive(OpenApi)] struct"]
     B --> C["StatOpenApi::openapi()"]
     C --> D["openapi_route(openapi)"]
-    D --> E["GET /openapi.json — JSON spec"]
+    D --> E["GET /openapi.json - JSON spec"]
 ```
 
 ## 4. Key Traits and Data Structures
 
-- **`OpenApi`** — re-export of utoipa's derive macro; services declare a
+- **`OpenApi`** - re-export of utoipa's derive macro; services declare a
   unit struct annotated with paths, schemas, tags, and security
   requirements.
-- **`openapi_route(openapi)`** — mounts `GET /openapi.json` on an axum
+- **`openapi_route(openapi)`** - mounts `GET /openapi.json` on an axum
   router, serving a build-time-generated spec.
 
 ## 5. Rationale, Trade-offs, and Alternatives
@@ -42,7 +42,7 @@ graph TD
   platform's security schemes uniformly) happen in one place; services stay
   on the same generator version.
 - **Compile-time generation over runtime reflection.** utoipa generates
-  the spec during compilation — no startup cost, no drift. The trade-off
+  the spec during compilation - no startup cost, no drift. The trade-off
   is that every handler change recompiles the service, which is already
   the norm.
 - **One route per service (`/openapi.json`).** Uniform path across the
@@ -51,7 +51,7 @@ graph TD
 ## 6. Internal Implementation & Invariants (Private Design)
 
 - **Invariants:**
-  - The route serves the exact `OpenApi` value passed in — no mutation or
+  - The route serves the exact `OpenApi` value passed in - no mutation or
     filtering.
   - The route path is always `/openapi.json`.
 - **No runtime state.** The spec is a constant; the route closure moves it

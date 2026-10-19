@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! Input validation — same charset rules as the control-plane bus's
+//! Input validation - same charset rules as the control-plane bus's
 //! `stream_family` validator: `family`/`group` are untrusted input
 //! interpolated into Valkey keys, so they are validated before any key
 //! is built.

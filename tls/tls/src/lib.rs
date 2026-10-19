@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright Hamid Jahanzad <Hamid@Jahanzad.com>
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
-//! # sentin8-tls — Per-Service TLS Termination + Host-Context Resolution
+//! # sentin8-tls - Per-Service TLS Termination + Host-Context Resolution
 //!
 //! Platform library for per-service TLS termination. Each backend service
 //! links `sentin8-tls`, terminates TLS in-process using Acme certificates
@@ -24,7 +24,7 @@
 //! ## Hostname resolution is DATABASE-FREE (TLS-RLS-4)
 //!
 //! The `HostContextResolver` holds no SQL pool. A cache miss resolves via
-//! Sentin8:Sys's owner API — `GET /v1/resolve/hostname` — presented with
+//! Sentin8:Sys's owner API - `GET /v1/resolve/hostname` - presented with
 //! the embedding service's cert-bound `{dash}-tls` M2M workload (scope
 //! `sentin8:sys:instances:read`), identical for platform and vertical
 //! services: a vertical embedding this library gains ZERO

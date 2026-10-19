@@ -125,7 +125,7 @@ impl DiscoveryDocument {
     }
 }
 
-/// MTLS endpoint aliases — alternative endpoints used when mTLS is required.
+/// MTLS endpoint aliases - alternative endpoints used when mTLS is required.
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct MtlsEndpointAliases {
     #[serde(default, skip_serializing_if = "Option::is_none")]

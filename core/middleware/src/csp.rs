@@ -14,18 +14,18 @@ use axum::http::{HeaderName, HeaderValue};
 
 /// The default Sentin8 Content-Security-Policy string.
 ///
-/// - `default-src 'self'` — everything loads from the same origin by default.
-/// - `script-src 'self'` — no inline scripts, no `eval`.
-/// - `style-src 'self' 'unsafe-inline'` — Flutter Web needs inline styles.
-/// - `img-src 'self' data: https:` — allow data URIs and any https image
+/// - `default-src 'self'` - everything loads from the same origin by default.
+/// - `script-src 'self'` - no inline scripts, no `eval`.
+/// - `style-src 'self' 'unsafe-inline'` - Flutter Web needs inline styles.
+/// - `img-src 'self' data: https:` - allow data URIs and any https image
 ///   (for user-uploaded logos served from Storage).
-/// - `font-src 'self' data:` — Flutter fonts may be inlined.
-/// - `connect-src 'self'` — only same-origin XHR/fetch (TLS routes cross-service).
-/// - `frame-ancestors 'none'` — no framing (clickjacking).
-/// - `base-uri 'self'` — no `<base>` hijack.
-/// - `form-action 'self'` — forms only post to same origin.
-/// - `object-src 'none'` — no Flash/Java plugins.
-/// - `upgrade-insecure-requests` — force HTTPS.
+/// - `font-src 'self' data:` - Flutter fonts may be inlined.
+/// - `connect-src 'self'` - only same-origin XHR/fetch (TLS routes cross-service).
+/// - `frame-ancestors 'none'` - no framing (clickjacking).
+/// - `base-uri 'self'` - no `<base>` hijack.
+/// - `form-action 'self'` - forms only post to same origin.
+/// - `object-src 'none'` - no Flash/Java plugins.
+/// - `upgrade-insecure-requests` - force HTTPS.
 pub fn default_csp_policy() -> String {
     "default-src 'self'; \
      script-src 'self'; \

@@ -11,7 +11,7 @@
 //!
 //! Authentication is CERTIFICATE-PRESENTING (, auth DESIGN
 //! §4.3f): the transport presents the workload's Acme-issued client
-//! certificate in the TLS handshake on every call — no M2M token is
+//! certificate in the TLS handshake on every call - no M2M token is
 //! fetched, cached, or attached. `for_workload` ensures the certificate
 //! (minting it from Acme on a first boot) and builds the client; services
 //! start listening without waiting for anything.
@@ -32,9 +32,9 @@ pub enum BusError {
     /// missing certificate identity).
     #[error("Bus HTTP error: {0}")]
     Http(String),
-    /// The server REJECTED the request permanently — an HTTP 4xx from a
+    /// The server REJECTED the request permanently - an HTTP 4xx from a
     /// call whose response body is carried in `body`. A retry can never
-    /// succeed (the rejection is a property of the request — e.g. Bus's
+    /// succeed (the rejection is a property of the request - e.g. Bus's
     /// event-ownership or env-match gate); callers use this to stop
     /// retrying immediately instead of burning a retry budget
     /// (outbox relay design: permanent 4xx must not hot-loop).
@@ -51,7 +51,7 @@ pub enum BusError {
 }
 
 #[derive(Clone)]
-/// HTTP client for the Bus event-bus service — **certificate-presenting**
+/// HTTP client for the Bus event-bus service - **certificate-presenting**
 /// (auth DESIGN §4.3f): every call presents the workload's
 /// Acme-issued client certificate in the TLS handshake; Bus's TLS layer
 /// CA-verifies it and injects the identity headers that drive
@@ -70,14 +70,14 @@ impl BusClient {
     /// Build a certificate-presenting BusClient (, auth DESIGN
     /// §4.3f). The transport presents `cert_path`/`key_path` (the
     /// workload's Acme-issued identity) on every call and trusts only
-    /// `ca_cert_path` — Bus's TLS layer CA-verifies the presented
+    /// `ca_cert_path` - Bus's TLS layer CA-verifies the presented
     /// certificate and injects the `X-Sentin8-Client-Cert-*` headers that
     /// drive its authorization (scopes from the registry map, the VDC-2
     /// vertical gate). No token is fetched, cached, or attached.
     ///
     /// # Errors
     /// [`BusError::Http`] when the mTLS transport cannot be built from the
-    /// identity paths (missing files / unreadable key) — a missing
+    /// identity paths (missing files / unreadable key) - a missing
     /// certificate identity is a provisioning state, surfaced loud.
     pub fn with_workload_identity(
         base_url: impl Into<String>,
@@ -100,7 +100,7 @@ impl BusClient {
     }
 
     /// Build a cert-presenting BusClient, minting the workload certificate
-    /// from Acme when it does not exist yet — the boot convenience
+    /// from Acme when it does not exist yet - the boot convenience
     /// constructor that replaces the old `build_with_dcr` (no DCR, no
     /// background retry: the identity is the certificate).
     ///
@@ -109,7 +109,7 @@ impl BusClient {
     ///
     /// # Errors
     /// [`BusError::Http`] when the certificate cannot be ensured (Acme
-    /// unreachable at first birth — the caller logs and retries the boot
+    /// unreachable at first birth - the caller logs and retries the boot
     /// step) or the transport cannot be built.
     pub async fn for_workload(
         bus_url: &str,
@@ -146,11 +146,11 @@ impl BusClient {
     }
 
     /// Open an SSE consumer stream to Bus. Returns a `reqwest::Response`
-    /// whose body is an `text/event-stream` — the caller reads SSE events
+    /// whose body is an `text/event-stream` - the caller reads SSE events
     /// from `resp.bytes_stream()`. Each `data:` line is a JSON
     /// `ConsumeMessage`.
     ///
-    /// ACKs are sent via `POST /v1/ack` (separate HTTP call — SSE is
+    /// ACKs are sent via `POST /v1/ack` (separate HTTP call - SSE is
     /// one-way, server → client only).
     pub async fn sse_consume(
         &self,
@@ -179,12 +179,12 @@ impl BusClient {
         format!("{}{}", self.base_url, path)
     }
 
-    /// Publish an event — `POST /v1/produce`.
+    /// Publish an event - `POST /v1/produce`.
     ///
     /// # Errors
     /// Returns [`BusError`] on transport failure, non-success status, or
     /// response decoding failure. A 4xx status is [`BusError::Permanent`]
-    /// — the request itself was rejected (ownership/env gates) and no
+    /// - the request itself was rejected (ownership/env gates) and no
     /// retry can succeed.
     pub async fn produce(&self, req: &ProduceRequest) -> Result<ProduceResponse, BusError> {
         let resp = self
@@ -202,7 +202,7 @@ impl BusClient {
             .map_err(|e| BusError::Decode(e.to_string()))
     }
 
-    /// Publish N events in one call — `POST /v1/produce/batch` (BUS-3,
+    /// Publish N events in one call - `POST /v1/produce/batch` (BUS-3,
     /// bus DESIGN §4.3). Per-row results mirror the batch response: a
     /// failed row carries `error` and no `message_id`; successful rows
     /// carry both `message_id` and `stream`.
@@ -210,7 +210,7 @@ impl BusClient {
     /// # Errors
     /// Returns [`BusError`] on transport failure, non-success status, or
     /// response decoding failure. A 4xx status is [`BusError::Permanent`]
-    /// — no retry can succeed.
+    /// - no retry can succeed.
     pub async fn produce_batch(
         &self,
         events: &[ProduceRequest],
@@ -232,7 +232,7 @@ impl BusClient {
             .map_err(|e| BusError::Decode(e.to_string()))
     }
 
-    /// Consume a batch — `POST /v1/consume` (XREADGROUP semantics).
+    /// Consume a batch - `POST /v1/consume` (XREADGROUP semantics).
     ///
     /// # Errors
     /// Returns [`BusError`] on transport failure, non-success status, or
@@ -253,7 +253,7 @@ impl BusClient {
             .map_err(|e| BusError::Decode(e.to_string()))
     }
 
-    /// Acknowledge a consumed message — `POST /v1/ack`.
+    /// Acknowledge a consumed message - `POST /v1/ack`.
     ///
     /// # Errors
     /// Returns [`BusError`] on transport failure or non-success status.
@@ -281,7 +281,7 @@ impl BusClient {
         Ok(())
     }
 
-    /// `POST /v1/nack` — nack a message (Bus retries up to max_retries, then
+    /// `POST /v1/nack` - nack a message (Bus retries up to max_retries, then
     /// moves to the DLQ).
     pub async fn nack(
         &self,
@@ -309,7 +309,7 @@ impl BusClient {
         Ok(())
     }
 
-    /// `POST /v1/schedule` — schedule a delayed message.
+    /// `POST /v1/schedule` - schedule a delayed message.
     pub async fn schedule(
         &self,
         stream_family: &str,
@@ -338,7 +338,7 @@ impl BusClient {
             .map_err(|e| BusError::Decode(e.to_string()))
     }
 
-    /// `GET /v1/scheduled` — list due delayed messages.
+    /// `GET /v1/scheduled` - list due delayed messages.
     pub async fn list_scheduled(&self) -> Result<serde_json::Value, BusError> {
         let resp = self
             .http
@@ -354,7 +354,7 @@ impl BusClient {
             .map_err(|e| BusError::Decode(e.to_string()))
     }
 
-    /// `GET /v1/streams/{streamFamily}/lag` — consumer group lag.
+    /// `GET /v1/streams/{streamFamily}/lag` - consumer group lag.
     pub async fn stream_lag(&self, stream_family: &str) -> Result<serde_json::Value, BusError> {
         let resp = self
             .http
@@ -370,7 +370,7 @@ impl BusClient {
             .map_err(|e| BusError::Decode(e.to_string()))
     }
 
-    /// `GET /v1/dlq` — list DLQ entries.
+    /// `GET /v1/dlq` - list DLQ entries.
     pub async fn list_dlq(&self) -> Result<serde_json::Value, BusError> {
         let resp = self
             .http
@@ -386,7 +386,7 @@ impl BusClient {
             .map_err(|e| BusError::Decode(e.to_string()))
     }
 
-    /// `POST /v1/dlq/replay` — replay a DLQ message.
+    /// `POST /v1/dlq/replay` - replay a DLQ message.
     pub async fn replay_dlq(&self, message_id: &str) -> Result<(), BusError> {
         let body = serde_json::json!({"message_id": message_id});
         let resp = self
@@ -402,7 +402,7 @@ impl BusClient {
         Ok(())
     }
 
-    /// `GET /v1/streams` — list streams for the tenant.
+    /// `GET /v1/streams` - list streams for the tenant.
     pub async fn list_streams(&self) -> Result<serde_json::Value, BusError> {
         let resp = self
             .http
@@ -418,7 +418,7 @@ impl BusClient {
             .map_err(|e| BusError::Decode(e.to_string()))
     }
 
-    /// `GET /v1/metrics` — observability metrics.
+    /// `GET /v1/metrics` - observability metrics.
     pub async fn metrics(&self) -> Result<String, BusError> {
         let resp = self
             .http
@@ -448,7 +448,7 @@ impl BusClient {
 
     /// VDC-2 consumer-side defense-in-depth: assert a consumed message's
     /// recorded `publisher_vertical` matches the event_type's owning
-    /// vertical (its first colon segment) — design/
+    /// vertical (its first colon segment) - design/
     /// sentin8-vertical-data-plane-contract.md §VDC.4.
     ///
     /// Bus's produce-side event-ownership gate (`enforce_event_ownership`)
@@ -457,7 +457,7 @@ impl BusClient {
     /// event. This helper is the consumer-side belt to that suspenders for
     /// reaction-triggering consumers (env-init, cache invalidation): it
     /// verifies the `publisher_vertical` Bus recorded from the verified
-    /// producer token — e.g. `sentin8:sys:service:updated` must carry
+    /// producer token - e.g. `sentin8:sys:service:updated` must carry
     /// `publisher_vertical == "sentin8"` before a consumer seeds tenant
     /// state from it.
     ///
@@ -465,14 +465,14 @@ impl BusClient {
     ///
     /// Returns a human-readable mismatch string when the recorded vertical
     /// is absent (a message from a pre-VDC relay) or differs from the
-    /// event_type's prefix — the caller MUST treat the message as untrusted
+    /// event_type's prefix - the caller MUST treat the message as untrusted
     /// and skip the reaction (do not ACK; redelivery/DLQ machinery handles
     /// the retry).
     pub fn require_publisher(msg: &sentin8_bus_contracts::Message) -> Result<(), String> {
         let prefix = msg.event_type.split(':').next().unwrap_or("");
         if prefix.is_empty() {
             return Err(format!(
-                "event_type '{}' is malformed — no vertical prefix (VDC-2)",
+                "event_type '{}' is malformed - no vertical prefix (VDC-2)",
                 msg.event_type
             ));
         }
@@ -483,7 +483,7 @@ impl BusClient {
         Err(format!(
             "publisher provenance mismatch: event_type '{}' belongs to vertical \
              '{prefix}' but the message records publisher_vertical '{recorded}' \
-             (VDC-2 — treating message as untrusted)",
+             (VDC-2 - treating message as untrusted)",
             msg.event_type
         ))
     }
@@ -491,13 +491,13 @@ impl BusClient {
     /// Verify a publisher ID Token. Checks issuer, signature
     /// (via JWKS), expiry, and token type. Returns the extracted claims
     /// (`sub`, `scope`, `env_id`). Returns `Err(Expired)`
-    /// if the token has expired — the caller should fall back to its own
+    /// if the token has expired - the caller should fall back to its own
     /// M2M token. Uses the auth client's `verify_token` for JWKS caching.
     pub async fn verify_publisher_token(
         &self,
         token: &str,
     ) -> Result<PublisherClaims, PublisherTokenError> {
-        // Use the auth client to verify — it handles JWKS fetching and caching.
+        // Use the auth client to verify - it handles JWKS fetching and caching.
         // We construct a temporary auth client if one isn't available.
         // In practice, the subscriber service already has an auth client.
         // For simplicity, we use the sentin8_auth_client SDK directly.
@@ -516,7 +516,7 @@ impl BusClient {
             return Err(PublisherTokenError::Expired);
         }
 
-        // Check token type — must be access, m2m, or delegated.
+        // Check token type - must be access, m2m, or delegated.
         match claims.token_tp.as_str() {
             "access" | "m2m" | "delegated" => {}
             other => return Err(PublisherTokenError::UnsupportedTokenType(other.to_string())),
@@ -547,7 +547,7 @@ impl BusClient {
             ..Default::default()
         });
 
-        // the subscriber has no token — the RFC 8693 exchange
+        // the subscriber has no token - the RFC 8693 exchange
         // is a token-plane flow kept for delegated-user scenarios; the
         // caller passes the publisher token directly and the exchange
         // endpoint authenticates it. The old subscriber-token fetch is
@@ -560,7 +560,7 @@ impl BusClient {
             .exchange_token(
                 publisher_token,
                 target_audience,
-                "", // env_id — derived from the publisher token
+                "", // env_id - derived from the publisher token
                 requested_scope,
             )
             .await
@@ -595,7 +595,7 @@ pub struct PublisherClaims {
 /// Errors from publisher token verification.
 #[derive(Debug, thiserror::Error)]
 pub enum PublisherTokenError {
-    /// The publisher token has expired — fall back to the subscriber's own
+    /// The publisher token has expired - fall back to the subscriber's own
     /// M2M token.
     #[error("publisher token has expired")]
     Expired,
@@ -619,7 +619,7 @@ pub struct DelegatedToken {
     pub expires_in: u64,
     /// Granted scope.
     pub scope: String,
-    /// The `act.sub` claim from the delegated token — the original
+    /// The `act.sub` claim from the delegated token - the original
     /// publisher's subject. Used for audit trail.
     pub act_sub: String,
 }
@@ -640,18 +640,18 @@ pub enum ExchangeError {
 
 // ── Client construction ───────────────────────────────────────────────
 //
-// auth DESIGN §4.3f: the certificate is the identity — the
+// auth DESIGN §4.3f: the certificate is the identity - the
 // DCR-backed builder (`build_with_dcr` + background retry + token-source
 // activation) is deleted. Call `BusClient::for_workload` (mint-if-missing,
 // cert-presenting) or `BusClient::with_workload_identity` (paths in hand).
 
 /// Classify a non-success produce response into the relay's two failure
-/// classes (outbox relay design): a 4xx is a PERMANENT rejection — Bus
+/// classes (outbox relay design): a 4xx is a PERMANENT rejection - Bus
 /// refused the request itself (event-ownership gate, env-match gate,
-/// validation) and no retry can succeed — while any other non-success
+/// validation) and no retry can succeed - while any other non-success
 /// stays retryable. The response body is retained so the caller's single
 /// warning line carries the actual rejection message instead of a bare
-/// status. 429 (rate limit) and 408 (request timeout) are TRANSIENT —
+/// status. 429 (rate limit) and 408 (request timeout) are TRANSIENT -
 /// Bus-side throttling is exactly the condition the retry budget exists
 /// for; parking rows at zero retries on a boot-window rate limit is the
 /// D4 defect class (RS §3), so they route to the retryable branch.
@@ -671,7 +671,7 @@ async fn classify_produce_status(status: reqwest::StatusCode, resp: reqwest::Res
 mod tests {
     use super::*;
 
-    /// Install the Graviola PQ crypto provider once — reqwest panics with
+    /// Install the Graviola PQ crypto provider once - reqwest panics with
     /// "No provider set" when a client is built without one.
     fn install_provider() {
         use std::sync::Once;

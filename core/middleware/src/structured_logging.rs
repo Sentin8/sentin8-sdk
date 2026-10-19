@@ -8,13 +8,13 @@
 //! JSON structured logging for all Sentin8 services. Every log line is a single
 //! JSON object containing, at minimum:
 //!
-//! - `timestamp` — RFC 3339 UTC
-//! - `level`     — `error` / `warn` / `info` / `debug` / `trace`
-//! - `service`   — service name (e.g. `ledger`, `payments`, `tls`)
-//! - `message`   — the human-readable message
-//! - `target`    — the module path of the emitting code
-//! - `correlation_id` — the request's `X-Sentin8-Correlation-Id` (if any)
-//! - `tenant`    — `{ org_id, env_id, app_id, hostname, service }` when present
+//! - `timestamp` - RFC 3339 UTC
+//! - `level`     - `error` / `warn` / `info` / `debug` / `trace`
+//! - `service`   - service name (e.g. `ledger`, `payments`, `tls`)
+//! - `message`   - the human-readable message
+//! - `target`    - the module path of the emitting code
+//! - `correlation_id` - the request's `X-Sentin8-Correlation-Id` (if any)
+//! - `tenant`    - `{ org_id, env_id, app_id, hostname, service }` when present
 //!
 //! ## Why a custom layer?
 //!
@@ -66,7 +66,7 @@ pub(crate) static SERVICE_NAME: OnceCell<String> = OnceCell::new();
 /// older lines without parsing surprises.
 pub const LOG_SCHEMA_VERSION: &str = "sentin8.log/v1";
 
-/// A structured log entry — the shape of every JSON line written to stdout.
+/// A structured log entry - the shape of every JSON line written to stdout.
 ///
 /// This struct is primarily for documentation and testing; the actual log
 /// lines are emitted by [`Sentin8JsonLayer`], not by serialising this struct
@@ -437,7 +437,7 @@ pub fn set_service_name(name: &str) {
     let _ = SERVICE_NAME.set(name.to_string());
 }
 
-/// Initialise structured logging for tests — uses the pretty
+/// Initialise structured logging for tests - uses the pretty
 /// `tracing-subscriber` test writer so log output is captured by the test
 /// framework.
 #[cfg(test)]

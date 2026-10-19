@@ -24,7 +24,7 @@ use crate::error::FapiError;
 
 /// Generate a fresh ES256 (P-256) keypair for DPoP proofs.
 ///
-/// Returns the PKCS#8 PEM of the private key — hand it to
+/// Returns the PKCS#8 PEM of the private key - hand it to
 /// [`ClientOptionsBuilder::dpop_key`] (alg `"ES256"`). Sentin8:Auth verifies
 /// DPoP proofs against the embedded `jwk` header (self-contained), so no key
 /// registration is needed. BFF/proxy callers generate one keypair at startup
@@ -73,7 +73,7 @@ pub fn pkce_s256_challenge(verifier: &str) -> String {
 /// Claims for a DPoP proof JWT (RFC 9449 §4.2).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DpopClaims {
-    /// JWT type — always `"dpop+jwt"`.
+    /// JWT type - always `"dpop+jwt"`.
     pub htm: String,
     /// HTTP target URI (path + query).
     pub htu: String,
@@ -81,7 +81,7 @@ pub struct DpopClaims {
     pub iat: i64,
     /// JWT ID (unique per proof).
     pub jti: String,
-    /// Access token hash (ath) — SHA-256 of the access token, base64url no-pad.
+    /// Access token hash (ath) - SHA-256 of the access token, base64url no-pad.
     /// Required on protected-resource requests, optional on token endpoint.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ath: Option<String>,
@@ -127,12 +127,12 @@ pub fn dpop_proof(
     key_pem: &str,
     alg: Algorithm,
 ) -> Result<String, FapiError> {
-    // RFC 9449: the proof header embeds the client's public JWK — the AS
+    // RFC 9449: the proof header embeds the client's public JWK - the AS
     // verifies the signature against it (self-contained proof). ES256 with
     // a P-256 key is the supported shape; derive the JWK from the PEM.
     if alg != Algorithm::ES256 {
         return Err(FapiError::Config(format!(
-            "DPoP proof generation supports ES256 only (got {alg:?}) — generate_dpop_key_pem produces P-256 keys"
+            "DPoP proof generation supports ES256 only (got {alg:?}) - generate_dpop_key_pem produces P-256 keys"
         )));
     }
     let jwk = ec_public_jwk_from_pem(key_pem)?;
@@ -148,7 +148,7 @@ pub fn dpop_proof(
     });
     let seq = DPOP_NONCE.fetch_add(1, Ordering::Relaxed);
     // RFC 9449 §4.2: jti MUST be unique. The counter alone restarts at 0 on
-    // process restart and collides with the AS replay cache (TTL window) —
+    // process restart and collides with the AS replay cache (TTL window) -
     // mix in timestamp + fresh random bytes so restarts cannot reuse a jti.
     let mut rand_bytes = [0u8; 8];
     rand::thread_rng().fill_bytes(&mut rand_bytes);
@@ -221,9 +221,9 @@ pub struct JarClaims {
     pub state: String,
     pub code_challenge: String,
     pub code_challenge_method: String,
-    /// Issuer of the request object — the client ID.
+    /// Issuer of the request object - the client ID.
     pub iss: String,
-    /// Audience — the authorization server issuer.
+    /// Audience - the authorization server issuer.
     pub aud: String,
     /// Expiry (seconds from now).
     pub exp: i64,
@@ -303,7 +303,7 @@ pub struct JarmClaims {
     /// Error description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_description: Option<String>,
-    /// Issuer — must match the discovery `issuer`.
+    /// Issuer - must match the discovery `issuer`.
     pub iss: String,
     /// Expiry.
     pub exp: i64,
@@ -322,7 +322,7 @@ pub async fn validate_jarm(
     _doc: &DiscoveryDocument,
     jwks: &crate::jwks::JwksCache,
 ) -> Result<JarmClaims, FapiError> {
-    // Parse the JWT header via sentin8_jwt — jsonwebtoken::decode_header
+    // Parse the JWT header via sentin8_jwt - jsonwebtoken::decode_header
     // fails on non-standard algorithms like MLDSA65.
     let header = sentin8_jwt::decode_header(jwt)
         .map_err(|e| FapiError::Jarm(format!("invalid header: {e}")))?;
@@ -334,7 +334,7 @@ pub async fn validate_jarm(
     let key = jwks.find_key(kid).await?;
 
     if alg == "MLDSA65" || key.kty == "MLWE" {
-        // ML-DSA-65 verification (manual — jsonwebtoken doesn't support ML-DSA).
+        // ML-DSA-65 verification (manual - jsonwebtoken doesn't support ML-DSA).
         let x = key
             .x
             .as_ref()

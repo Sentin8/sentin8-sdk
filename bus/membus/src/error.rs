@@ -7,7 +7,7 @@
 
 use thiserror::Error;
 
-/// Every library failure. Errors bubble to the caller immediately —
+/// Every library failure. Errors bubble to the caller immediately -
 /// MemBus never queues and never retries.
 #[derive(Debug, Error)]
 pub enum MemBusError {
@@ -27,7 +27,7 @@ pub enum MemBusError {
     /// The consumer group name failed validation.
     #[error("invalid consumer group: {0}")]
     InvalidGroup(String),
-    /// The env id is not a UUID — tenant binding rejects it outright.
+    /// The env id is not a UUID - tenant binding rejects it outright.
     #[error("invalid env id (must be a UUID): {0}")]
     InvalidEnv(String),
 }

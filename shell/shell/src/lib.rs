@@ -5,13 +5,13 @@
 
 //! # sentin8-shell
 //!
-//! Shared service shell — the canonical boot sequence for every Rust
+//! Shared service shell - the canonical boot sequence for every Rust
 //! service on the platform (sentin8 platform services + all verticals).
 //!
 //! Owns the normative startup order:
 //!
 //! 1. `--print-registration` / `--section=` flag check **before any
-//!    initialization** (self-registration contract — no DB, no network,
+//!    initialization** (self-registration contract - no DB, no network,
 //!    no PQ provider install on this path)
 //! 2. Graviola PQ crypto provider install (before any rustls/reqwest
 //!    HTTPS call)
@@ -20,7 +20,7 @@
 //! 5. [`ShellConfig`] from env (captain-injected `<SERVICE>_PORT` etc.)
 //! 6. Capped DB pool via `sentin8_config::pg_pool::connect`
 //! 7. PostgreSQL 18+ enforcement (hard fail)
-//! 8. Service state build (the `with_state` closure — engine shards, domain
+//! 8. Service state build (the `with_state` closure - engine shards, domain
 //!    caches, a DCR Bus client may be built there from the core)
 //! 9. Router: shell `/v1/health` (unless [`with_own_health`]) + the
 //!    `with_router` extension + `with_state` + OpenAPI merge (via
@@ -28,7 +28,7 @@
 //!    host context, TLS context, request logging, traffic counter, CORS)
 //! 10. In-process PQ-TLS termination via `sentin8_tls::Sentin8Tls`
 //!
-//! Steps 1–7 and 10 are NOT overridable — they are the platform's security
+//! Steps 1-7 and 10 are NOT overridable - they are the platform's security
 //! and lifecycle contract. Services extend via
 //! [`Sentin8Shell::with_router`], and [`Sentin8Shell::with_openapi`].
 //!
@@ -41,10 +41,10 @@
 //! [`Sentin8Shell::with_state`] is generic over what the state closure
 //! returns, so there is one path:
 //!
-//! - **Arc state** — the closure returns `Arc<S>`; handlers extract
+//! - **Arc state** - the closure returns `Arc<S>`; handlers extract
 //!   `State<Arc<S>>`.
 //!   the shell mounts its own `/v1/health` (unless overridden).
-//! - **Value state** — the closure returns the service's existing `Clone`
+//! - **Value state** - the closure returns the service's existing `Clone`
 //!   state struct directly; handlers keep extracting `State<AppState>`
 //!   (the bank8/hotel8/sentin8 platform convention). **No handler
 //!   changes.** The service mounts its own `/v1/health` (custom payload,
@@ -54,7 +54,7 @@
 //! [`verify_token`], [`require_any_scope`], [`err_db`]) so every service's
 //! handlers follow the same authorization pipeline entry.
 //!
-//! ## Example (Arc state — services built on the shell)
+//! ## Example (Arc state - services built on the shell)
 //!
 //! ```text
 //! #[tokio::main]
@@ -69,7 +69,7 @@
 //! }
 //! ```
 //!
-//! ## Example (value state — the platform convention)
+//! ## Example (value state - the platform convention)
 //!
 //! The state struct and every `State<AppState>` handler stay exactly as
 //! they are; only `main.rs` changes:
@@ -96,7 +96,7 @@
 //!
 //! where `server::routes` adds the service's routes (including its own
 //! `/v1/health`) onto the passed-in router and returns it still generic
-//! over the state — the shell binds the state and merges the OpenAPI spec.
+//! over the state - the shell binds the state and merges the OpenAPI spec.
 
 use std::sync::Arc;
 
@@ -107,27 +107,27 @@ use std::sync::Arc;
 /// Per-service shell configuration from env (captain-injected vars).
 ///
 /// Field resolution order is normative:
-/// - `port`: `{SERVICE_ENV}_PORT` — hard fail if missing/invalid
+/// - `port`: `{SERVICE_ENV}_PORT` - hard fail if missing/invalid
 /// - `database_url`: `{SERVICE_ENV}_DATABASE_URL` → `DATABASE_URL` →
 ///   `sentin8_config::Sentin8Config::default_database_url()`
 /// - `sentin8_auth_issuer`: `SENTIN8_AUTH_ISSUER` → derived platform domain
 /// - `sentin8_bus_url`: `SENTIN8_BUS_URL` → derived platform domain
 /// - `sentin8_auth_client`: shared cached client (discovery + JWKS behind an
-///   `Arc`, 5-minute TTL) — construct once, clone is cheap
+///   `Arc`, 5-minute TTL) - construct once, clone is cheap
 #[derive(Debug, Clone)]
 pub struct ShellConfig {
     /// Service identity (e.g. `sentin8:db`, `bank8:ledger`)
-    /// — the colon identity form.
+    /// - the colon identity form.
     pub service_type: &'static str,
     pub port: u16,
     pub database_url: String,
     pub sentin8_auth_issuer: String,
     pub sentin8_bus_url: String,
-    /// Shared Auth client — constructed once so the discovery and JWKS
+    /// Shared Auth client - constructed once so the discovery and JWKS
     /// caches are reused across every request. Cloning is cheap (the caches
     /// live behind an `Arc`).
     pub sentin8_auth_client: sentin8_auth_client::Client,
-    /// Valkey URL (from `VALKEY_URL`) — used by the metrics publisher and
+    /// Valkey URL (from `VALKEY_URL`) - used by the metrics publisher and
     /// request-counter flush loop. Empty string means "no publisher"
     /// (dev-only runs stay clean).
     pub valkey_url: String,
@@ -145,10 +145,10 @@ impl ShellConfig {
             .parse()
             .unwrap_or_else(|_| panic!("{service_env}_PORT must be a valid u16"));
         // DSN resolution (DSNDERIVE-1, group DESIGN.md §3.2): an explicit
-        // {SERVICE}_DATABASE_URL env var OVERRIDES (custom topologies —
-        // replicas, non-local hosts — keep the env-var channel; captain's
+        // {SERVICE}_DATABASE_URL env var OVERRIDES (custom topologies -
+        // replicas, non-local hosts - keep the env-var channel; captain's
         // catalog-declared `database_env_vars` propagation feeds it).
-        // Otherwise the DSN DERIVES from the service identity — role +
+        // Otherwise the DSN DERIVES from the service identity - role +
         // database are pure structure under certificate identity (no
         // secret component exists; the pg_pool factory resolves the
         // certificate pair from the role). The DATABASE_URL/platform
@@ -159,7 +159,7 @@ impl ShellConfig {
         };
         // VDC §VDC.3 (design/sentin8-vertical-data-plane-contract.md): the
         // main pool must point at the database the service identity owns.
-        // A DSN naming any other database is the wrong-database accident —
+        // A DSN naming any other database is the wrong-database accident -
         // the service would silently read/write another vertical's (or the
         // platform's) tables under a mismatched search_path. Fail fast at
         // boot; never fall back.
@@ -168,7 +168,7 @@ impl ShellConfig {
             Some(actual) if actual == expected_db => {}
             actual => panic!(
                 "{service_env}_DATABASE_URL points at database '{actual:?}' but the \
-                 service '{service_type}' owns database '{expected_db}' (VDC §VDC.3) — \
+                 service '{service_type}' owns database '{expected_db}' (VDC §VDC.3) - \
                  refusing to start against the wrong database"
             ),
         }
@@ -178,7 +178,7 @@ impl ShellConfig {
             std::env::var("SENTIN8_BUS_URL").unwrap_or_else(|_| cfg.sentin8_bus_url());
         // Valkey URL resolution (VALKEYDERIVE-1, group DESIGN.md §3.1): an
         // explicit VALKEY_URL env var OVERRIDES (custom topologies); else
-        // the URL DERIVES from the plane's coordinates — pure structure
+        // the URL DERIVES from the plane's coordinates - pure structure
         // under certificate identity (the client certificate authenticates;
         // the ACL namespaces authorize). The `/0` suffix is inert.
         let valkey_url = match std::env::var("VALKEY_URL") {
@@ -214,7 +214,7 @@ impl ShellConfig {
 pub struct ServiceCore {
     pub config: Arc<ShellConfig>,
     pub pool: sqlx::PgPool,
-    /// Shared Sentin8:Policy admin surface — constructed by
+    /// Shared Sentin8:Policy admin surface - constructed by
     /// the shell boot; derived from this core's config + pool.
     pub admin: sentin8_shield::admin::SharedAdminState,
 }
@@ -237,7 +237,7 @@ impl sentin8_shield::admin::HasPolicyAdmin for AppState {
 // hotel8 convention, whose `AppState` is NOT `ServiceCore`) copy that Arc
 // into their own state; Arc-state services read it directly. This module is
 // only the step-5 gate glue. The old `engine`/`boot` per-service accessors
-// are GONE — a service booting a second engine would
+// are GONE - a service booting a second engine would
 // duplicate the DCR `{service}-policy` registration and the hot-reload
 // consumer and risk a cache split between the request path and the admin
 // API.
@@ -251,16 +251,16 @@ pub mod policy {
     //! Step-5 gate glue for services that boot on the shell but keep their
     //! own state (value-state convention). The shell's boot step 8 already
     //! booted the engine (load + shared deps + hot-reload + stat emitter)
-    //! and exposed it as `ServiceCore::admin.policy` — services copy that
+    //! and exposed it as `ServiceCore::admin.policy` - services copy that
     //! Arc into their own state; this module is only the request-path gate.
 
     #[allow(unused_imports)]
-    use std::sync::Arc; // WIP glue — used when value-state services wire the admin router
+    use std::sync::Arc; // WIP glue - used when value-state services wire the admin router
 
     /// Step 5 gate for a verified AuthContext: the FULL live evaluation
     /// (live effective scopes + roles + relation slice + principal attrs).
     /// An enforced deny converts to HTTP 403. Handlers call `verify_token`
-    /// (steps 1–4) then this — the decision is Shield's.
+    /// (steps 1-4) then this - the decision is Shield's.
     pub async fn require(
         engine: &sentin8_shield::PolicyEngine,
         a: &sentin8_auth_client::AuthContext,
@@ -289,7 +289,7 @@ impl sentin8_shield::admin::HasPolicyAdmin for ValuePolicyAdmin {
 
 /// Mount the shared policy-admin routes onto a router whose state
 /// is the service's own `Arc<SharedAdminState>`. The service's state keeps
-/// that Arc (constructed at boot from `ServiceCore::admin` — the engine
+/// that Arc (constructed at boot from `ServiceCore::admin` - the engine
 /// inside is the SAME instance `policy::require` evaluates), so admin writes
 /// and request-time evaluation always agree.
 ///
@@ -299,7 +299,7 @@ impl sentin8_shield::admin::HasPolicyAdmin for ValuePolicyAdmin {
 /// router.merge(sentin8_shell::value_policy_admin_router(admin))
 /// ```
 /// (state-binding order: `Router::with_state` happens after `with_router`
-/// runs, so the merged router must already be bound — the Arc parameter is
+/// runs, so the merged router must already be bound - the Arc parameter is
 /// the bind.)
 pub fn value_policy_admin_router(
     admin: std::sync::Arc<sentin8_shield::admin::SharedAdminState>,
@@ -357,7 +357,7 @@ pub fn value_policy_admin_router(
 
 /// Set the RLS tenant context on a connection.
 ///
-/// MUST be awaited on the same connection the data query uses —
+/// MUST be awaited on the same connection the data query uses -
 /// `sentin8_set_tenant_context` uses `set_config(..., true)` which is
 /// transaction-local.
 pub async fn set_tenant_context(conn: &mut sqlx::PgConnection, env_id: uuid::Uuid) {
@@ -380,8 +380,8 @@ pub async fn verify_token(
     sentin8_auth_client::verify_bearer_token(&config.sentin8_auth_client, headers).await
 }
 
-/// Steps 1–4 only: verify the Bearer token (identity + tenant resolution).
-/// NO scope check — step 5 (`sentin8_shield::runtime::require_policy`) is the
+/// Steps 1-4 only: verify the Bearer token (identity + tenant resolution).
+/// NO scope check - step 5 (`sentin8_shield::runtime::require_policy`) is the
 /// authorization decision (any post-verify JWT scope
 /// gate is a review-blocking defect). Handlers authenticate with this, then
 /// gate via `crate::policy::require_policy` / `shell::policy::require`.
@@ -398,7 +398,7 @@ pub async fn require_any_scope(
     Ok(a)
 }
 
-/// Standard DB error mapping for handlers — never leaks SQL internals.
+/// Standard DB error mapping for handlers - never leaks SQL internals.
 pub fn err_db<E>(_e: E) -> (axum::http::StatusCode, String) {
     (
         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -415,11 +415,11 @@ pub fn err_db<E>(_e: E) -> (axum::http::StatusCode, String) {
 /// [`Sentin8Shell::with_own_health`] (custom payload, OpenAPI annotations).
 ///
 /// The handler captures the service type at boot and reads no state, so it
-/// is generic over the router's state `S` — it mounts on Arc-state and
+/// is generic over the router's state `S` - it mounts on Arc-state and
 /// value-state services alike.
 ///
 /// When the shell built a traffic-counter gauge for this service, the
-/// payload also carries `active_connections` — the in-flight request count
+/// payload also carries `active_connections` - the in-flight request count
 /// captain drains against during rolling upgrades (proxy README §7 /
 /// captain README §7). Without a gauge the field is omitted and the
 /// payload stays the plain four-key liveness shape.
@@ -431,12 +431,12 @@ where
     S: Clone + Send + Sync + 'static,
 {
     move || async move {
-        // BUILDID-1: `version` is the binary's full identity — the crate
+        // BUILDID-1: `version` is the binary's full identity - the crate
         // version joined with the git short hash stamped at build time.
         // The identity comes from the build-info stamp, NOT from this
         // shell crate's own CARGO_PKG_VERSION (the shell is a shared
         // library; the CONSUMING binary's crate version is unknowable
-        // from inside it — the old env!("CARGO_PKG_VERSION") here always
+        // from inside it - the old env!("CARGO_PKG_VERSION") here always
         // reported the shell's own 0.1.0). The `build` field keeps the
         // raw build hash for captain's VERSION column collapse rule.
         let identity = sentin8_build_info::id();
@@ -445,11 +445,11 @@ where
             "service": service_type,
             "version": identity,
             // CAPTAIN-10: the build hash rides the health payload so captain's
-            // monitor captures BOTH fields at once — a spawn-seeded stale
+            // monitor captures BOTH fields at once - a spawn-seeded stale
             // build_hash (previously captain's own, since the payload carried
             // no `build` key) made `make status` show `{version}.{build_hash}`
             // as a duplicated version (`0.1.0.0.1.0`) until the first probe.
-            // BUILDID-1: `build` carries the raw hash WITHOUT the .d marker —
+            // BUILDID-1: `build` carries the raw hash WITHOUT the .d marker -
             // the profile is a display concern, and keeping the field a pure
             // hash preserves captain's `build_hash == version` collapse rule.
             "build": sentin8_build_info::build_hash(),
@@ -483,13 +483,13 @@ type RouterFn<S> = Box<dyn FnOnce(axum::Router<S>, S) -> axum::Router<S> + Send>
 
 /// The service shell builder. Owns the normative boot sequence.
 ///
-/// `S` is the **axum state type** the router is generic over — either
+/// `S` is the **axum state type** the router is generic over - either
 /// `Arc<Inner>` (Arc-state services) or the service's own `Clone` state
 /// struct (the platform convention; handlers unchanged). See the
 /// crate docs for both examples.
 ///
 /// Construct with [`Sentin8Shell::new`], configure with the `with_*`
-/// methods, and hand to [`serve`] — the builder cannot be run directly.
+/// methods, and hand to [`serve`] - the builder cannot be run directly.
 pub struct Sentin8Shell<S = Arc<ServiceCore>> {
     service_type: &'static str,
     service_env: &'static str,
@@ -533,20 +533,20 @@ impl Sentin8Shell<Arc<ServiceCore>> {
 impl<S> Sentin8Shell<S> {
     /// Set the `--print-registration` handler (the service's
     /// `registration::print`). Required for every service that carries
-    /// registration data — `serve` rejects the flag if this is `None`.
+    /// registration data - `serve` rejects the flag if this is `None`.
     pub fn with_registration(mut self, print: fn(Option<String>) -> anyhow::Result<()>) -> Self {
         self.registration = Some(print);
         self
     }
 
-    /// Disable the tracing/metrics/Valkey-publisher init (rare — e.g. a
+    /// Disable the tracing/metrics/Valkey-publisher init (rare - e.g. a
     /// test binary). Default is ON.
     pub fn without_metrics(mut self) -> Self {
         self.metrics = false;
         self
     }
 
-    /// Suppress the shell's `/v1/health` — for value-state services whose
+    /// Suppress the shell's `/v1/health` - for value-state services whose
     /// health handler has a custom payload or OpenAPI annotations. The
     /// service mounts its own inside [`with_router`](Sentin8Shell::with_router).
     pub fn with_own_health(mut self) -> Self {
@@ -554,7 +554,7 @@ impl<S> Sentin8Shell<S> {
         self
     }
 
-    /// Suppress the shell's standard middleware stack — for services whose
+    /// Suppress the shell's standard middleware stack - for services whose
     /// `with_router` builder already applies the full layer stack (services
     /// builders kept for integration tests, e.g. Sentin8:Auth's
     /// `build_router`). The service keeps full control of layering then.
@@ -563,7 +563,7 @@ impl<S> Sentin8Shell<S> {
         self
     }
 
-    /// Merge an OpenAPI spec (`GET /openapi.json`) after state binding —
+    /// Merge an OpenAPI spec (`GET /openapi.json`) after state binding -
     /// the spec route is intentionally NOT covered by the middleware stack,
     /// matching the shell's normative order exactly.
     pub fn with_openapi(mut self, spec: utoipa::openapi::OpenApi) -> Self {
@@ -576,14 +576,14 @@ impl<S> Sentin8Shell<S> {
     /// Provide the service state. Generic over what the
     /// closure returns, so both platform conventions are first-class:
     ///
-    /// - **Arc state** — the closure returns `Arc<NewS>`; handlers extract
+    /// - **Arc state** - the closure returns `Arc<NewS>`; handlers extract
     ///   `State<Arc<NewS>>`.
-    /// - **Value state** — the closure returns the service's existing
+    /// - **Value state** - the closure returns the service's existing
     ///   `Clone` state struct directly (the platform
     ///   convention): `State<AppState>` handlers stay untouched. Pair with
     ///   [`with_own_health`](Sentin8Shell::with_own_health).
     ///
-    /// The closure receives the shell's [`ServiceCore`] — `core.pool` is
+    /// The closure receives the shell's [`ServiceCore`] - `core.pool` is
     /// already created and PG18-checked; use `core.config` for the shared
     /// Auth client and platform URLs. A service needing a DCR-registered
     /// M2M Bus client builds it inside the closure via
@@ -635,12 +635,12 @@ where
     /// Hand the shell a **prebuilt stateless router** instead of a
     /// `with_router` extension. For services whose router builder
     /// already binds the state and merges the OpenAPI spec (e.g.
-    /// Sentin8:Auth's test-facing `build_router`) — the shell applies only
+    /// Sentin8:Auth's test-facing `build_router`) - the shell applies only
     /// the middleware stack and serves it. The state closure still runs for
     /// its side effects (workers); its returned state is what the prebuilt
     /// router already closed over.
     ///
-    /// The shell skips its health mount and OpenAPI merge in this mode —
+    /// The shell skips its health mount and OpenAPI merge in this mode -
     /// the prebuilt router owns both.
     pub fn with_prebuilt_router<F>(mut self, f: F) -> Self
     where
@@ -693,21 +693,21 @@ where
     let _ = dotenvy::dotenv();
 
     // 3b. Workshop certificate identity (group DESIGN.md §3.1, §3.2): the
-    // workload pair is a HARD prerequisite for BOTH data planes — Valkey
+    // workload pair is a HARD prerequisite for BOTH data planes - Valkey
     // (CN→ACL user) and PostgreSQL (CN→pgm ident row, the DB pool connect
     // at step 6 resolves the pair). The mint is NON-FATAL-then-HARD: the
     // first attempt + a bounded inline retry absorb acme not being up
     // (captain's tier gate starts acme ahead of the fleet; every boot
-    // where the pair persists — every boot after the first — completes
+    // where the pair persists - every boot after the first - completes
     // immediately). If acme stays unreachable beyond the gate, a
     // background loop keeps healing the pair so later retries/restarts
-    // land — but step 6 refuses to serve with a missing pair (fail
+    // land - but step 6 refuses to serve with a missing pair (fail
     // closed; the factory's error names the mint paths).
     {
         let issuer = sentin8_config::Sentin8Config::from_env().sentin8_auth_issuer();
         let service_type = shell.service_type.to_string();
         if let Some(ca_path) = sentin8_m2m::try_platform_ca_path() {
-            // Inline: 3 attempts, 2s apart — covers acme listening but slow
+            // Inline: 3 attempts, 2s apart - covers acme listening but slow
             // (fresh boot). The tier gate (acme Active BEFORE any service
             // spawns) makes the common case a single successful load.
             let mut landed =
@@ -727,7 +727,7 @@ where
             if !landed {
                 tracing::warn!(
                     service = service_type,
-                    "shell: workload identity not yet mintable (acme not up?) — \
+                    "shell: workload identity not yet mintable (acme not up?) - \
                      background retry continues; step 6 (DB pool) will fail \
                      closed until the pair lands"
                 );
@@ -745,7 +745,7 @@ where
                             Ok(_) => {
                                 tracing::info!(
                                     service = bg_service,
-                                    "shell: workload identity minted — the next \
+                                    "shell: workload identity minted - the next \
                                      boot/DB retry connects over certificate identity"
                                 );
                                 break;
@@ -758,7 +758,7 @@ where
         } else {
             tracing::warn!(
                 service = shell.service_type,
-                "shell: no platform CA configured — workload identity mint skipped (set SENTIN8_TLS_CA_PEM)"
+                "shell: no platform CA configured - workload identity mint skipped (set SENTIN8_TLS_CA_PEM)"
             );
         }
     }
@@ -772,7 +772,7 @@ where
         sentin8_middleware::error_metrics::spawn_publisher(
             // VALKEYDERIVE-1 (group DESIGN.md §3.1): override → else the
             // plane-derived URL (the metrics publisher tolerates the
-            // empty string as "no publisher" — the derived URL is always
+            // empty string as "no publisher" - the derived URL is always
             // a valid best-effort target in dev and deployment alike).
             std::env::var("VALKEY_URL")
                 .ok()
@@ -786,7 +786,7 @@ where
     let config = Arc::new(ShellConfig::from_env(shell.service_type, shell.service_env));
     tracing::info!(
         service = shell.service_type,
-        // BUILDID-1: the identity is the binary's {version}+{hash}[.d] —
+        // BUILDID-1: the identity is the binary's {version}+{hash}[.d] -
         // not this shell crate's own crate version (meaningless to the
         // operator; the shell is a shared library).
         version = %sentin8_build_info::id(),
@@ -806,11 +806,11 @@ where
     // ── Sentin8:Policy boot wiring (shell-owned:
     // boot load + hot-reload are engine-instance owned) ───────────────────
     // The shell is the ONLY policy boot: load the service's policy sets
-    // (unparsable text REFUSES TO START — fail-closed at boot)
+    // (unparsable text REFUSES TO START - fail-closed at boot)
     // init the shared step-5 deps, spawn the hot-reload direct consumer, and
     // init stat emission. Failure of the stat emitter degrades to log-only;
     // load failure aborts boot. The engine is exposed to the service via
-    // `ServiceCore::admin.policy` — services CONSUME it, they never boot a
+    // `ServiceCore::admin.policy` - services CONSUME it, they never boot a
     // second engine (duplicate engine/DCR/consumer would risk a cache split
     // between the request path and the admin API).
     let policy_engine = sentin8_shield::runtime::engine_for(config.service_type);
@@ -839,10 +839,10 @@ where
     // 8b. DBX producer relay: every shell-booted
     // service that publishes events drains its LOCAL `{service}.outbox` and
     // pushes rows to Bus `POST /v1/produce` (the service's
-    // CERTIFICATE is the identity — `{service_type}` workload, minted from
+    // CERTIFICATE is the identity - `{service_type}` workload, minted from
     // Acme on first boot; Bus's TLS layer authenticates the handshake).
     // Fail-open: a Bus outage or certificate-mint failure only disables the
-    // relay task — rows persist in the local outbox and the 5s safety poll
+    // relay task - rows persist in the local outbox and the 5s safety poll
     // retries; the service itself serves traffic.
     {
         let relay_pool = pool.clone();
@@ -860,7 +860,7 @@ where
                 {
                     Ok(client) => break client,
                     Err(e) => {
-                        // First birth: Acme may still be coming up — the
+                        // First birth: Acme may still be coming up - the
                         // mint retries until the identity exists (rows stay
                         // queued either way; this is the boot path, not a
                         // request handler).
@@ -884,7 +884,7 @@ where
     // every shell-booted service pushes its LOCAL `{service}.audit_journal`
     // rows to Sys `POST /v1/audit` (M2M, sentin8:sys:audit:write). Fail-open
     // exactly like the outbox relay: a Sys outage or DCR failure only
-    // delays the push — rows persist in the journal and the 5s pass
+    // delays the push - rows persist in the journal and the 5s pass
     // retries; the service itself serves traffic. The `<leaf>-audit` M2M
     // workload grant must be declared in the service's `M2M_GRANTS`.
     {
@@ -909,7 +909,7 @@ where
         );
     }
     // The health route shares the traffic counter's in-flight gauge so the
-    // payload exposes `active_connections` (proxy README §7) — captain polls it to
+    // payload exposes `active_connections` (proxy README §7) - captain polls it to
     // drain upgrades. `metrics: false` shells have no counter → the field
     // is omitted (the plain liveness shape stays backward compatible).
     let health_gauge = if shell.metrics {
@@ -920,7 +920,7 @@ where
     // Process-wide gauge registration (shell README §5): services that mount
     // their own health payload (`with_own_health` / `with_prebuilt_router`)
     // append the same in-flight gauge to their custom bodies via
-    // `traffic_counter::process_active_connections()` — one drain signal for
+    // `traffic_counter::process_active_connections()` - one drain signal for
     // captain across the fleet (captain README §7). A metrics-disabled shell
     // registers nothing → custom bodies omit the field, same as the
     // shell-mounted route.
@@ -929,11 +929,11 @@ where
     }
 
     // VDC-7/TLS-RLS-4 (design/sentin8-vertical-data-plane-contract.md
-    // §VDC.7): the TLS library is DATABASE-FREE — hostname resolution on
+    // §VDC.7): the TLS library is DATABASE-FREE - hostname resolution on
     // cache miss rides Sys's owner API (`GET /v1/resolve/hostname`) with
     // this service's cert-bound `{dash}-tls` M2M workload. No SQL pool, no
     // DSN, and no platform-table grants ride this path for ANY service
-    // (platform or vertical — a vertical embedding the library gains zero
+    // (platform or vertical - a vertical embedding the library gains zero
     // platform-database access).
     let tls = sentin8_tls::Sentin8Tls::builder()
         .service_identity(config.service_type)
@@ -942,7 +942,7 @@ where
 
     let app: axum::Router = if let Some(pb) = shell.prebuilt_router_fn {
         // Prebuilt-router mode: the service's builder already bound the
-        // state, mounted its health and merged its OpenAPI spec — the shell
+        // state, mounted its health and merged its OpenAPI spec - the shell
         // applies only the standard middleware stack (unless suppressed).
         let router = pb(state);
         if shell.own_layers {
@@ -993,7 +993,7 @@ where
         };
         if shell.own_layers {
             // The service's router builder applies its own middleware stack
-            // (own builders exercised by integration tests) — the shell skips
+            // (own builders exercised by integration tests) - the shell skips
             // its standard layers.
             with_openapi
         } else {
@@ -1056,7 +1056,7 @@ mod tests {
 
     #[test]
     fn health_handler_payload() {
-        // The health factory captures the service type — shape test without
+        // The health factory captures the service type - shape test without
         // spinning the router (keeps the crate dep-light). The payload carries
         // BOTH `version` and `build` (CAPTAIN-10) so captain's monitor
         // captures the full `{version}.{build}` display pair in one probe.
@@ -1075,7 +1075,7 @@ mod tests {
 
     #[test]
     fn health_payload_with_gauge_carries_active_connections() {
-        // With a gauge the payload gains `active_connections` —
+        // With a gauge the payload gains `active_connections` -
         // the drain signal captain polls during rolling upgrades.
         let counter = sentin8_middleware::RequestCounter::new();
         let _guard = counter.enter();
@@ -1092,7 +1092,7 @@ mod tests {
     #[test]
     fn health_payload_without_gauge_omits_active_connections() {
         // Backward compatibility: a shell with metrics disabled serves the
-        // plain liveness shape — no `active_connections` key. Captain's
+        // plain liveness shape - no `active_connections` key. Captain's
         // drain falls back to the fixed window for such services.
         let payload = serde_json::json!({
             "status": "ok",
@@ -1105,18 +1105,18 @@ mod tests {
 }
 
 // ---------------------------------------------------------------------------
-// Sentin8:Policy — shared admin mount
+// Sentin8:Policy - shared admin mount
 // ---------------------------------------------------------------------------
 
 /// Mount the shared policy-admin surface (policy sets / relations /
 /// attributes + dry-run check) onto a `Router<Arc<AppState>>`. Every
 /// service that boots on the shell gets the full policy-admin API with zero
-/// per-service code — the handlers are generic over the state via
+/// per-service code - the handlers are generic over the state via
 /// `HasPolicyAdmin` (implemented for `ServiceCore` below, deriving the
 /// admin state from the shell's config + pool + a per-process engine).
 ///
 /// The engine is per-process and loaded at boot by `build_state` boot code
-/// (`PolicyEngine::load`) — this helper only mounts the routes and provides
+/// (`PolicyEngine::load`) - this helper only mounts the routes and provides
 /// the admin surface. Services with their own state containing
 /// `ServiceCore` implement `HasPolicyAdmin` on their own type the same way.
 /// Newtype wrapper so the shell can implement the crate-owned
@@ -1133,7 +1133,7 @@ impl sentin8_shield::admin::HasPolicyAdmin for PolicyAdminState {
 
 /// Mount the shared policy-admin surface onto a router whose state is
 /// `Arc<AppState>` (ServiceCore). The handlers are re-exposed over the
-/// wrapper via `Router::map_state` style — implemented as a plain function
+/// wrapper via `Router::map_state` style - implemented as a plain function
 /// returning the router with a changed state type; the service then merges
 /// it with `Router::merge`.
 pub fn policy_admin_router() -> axum::Router<PolicyAdminState> {
@@ -1211,7 +1211,7 @@ pub fn policy_admin_router() -> axum::Router<PolicyAdminState> {
 /// Mount the shared policy-admin routes onto a `Router<Arc<AppState>>`.
 /// Each route is a thin forwarding handler that wraps the shell state in
 /// [`PolicyAdminState`] (coherence newtype) and delegates to the generic
-/// handler in `sentin8-shield::admin` — one surface, zero per-service code.
+/// handler in `sentin8-shield::admin` - one surface, zero per-service code.
 pub fn mount_policy_admin(
     router: axum::Router<std::sync::Arc<AppState>>,
 ) -> axum::Router<std::sync::Arc<AppState>> {
@@ -1226,7 +1226,7 @@ pub fn mount_policy_admin(
                 .delete(policy_delete_set),
         )
         .route("/v1/admin/policy-sets/{name}/test", post(policy_test_set))
-        // RFW POST-alias row actions (Dash 28.14 — renderer is POST-only).
+        // RFW POST-alias row actions (Dash 28.14 - renderer is POST-only).
         .route("/v1/admin/policy-sets/enforce", post(policy_mode_enforce))
         .route("/v1/admin/policy-sets/shadow", post(policy_mode_shadow))
         .route("/v1/admin/policy-sets/disable", post(policy_mode_disable))
@@ -1268,8 +1268,8 @@ pub fn mount_policy_admin(
 //
 // Every wrapper carries a `#[utoipa::path]` annotation (OAPEC design §2:
 // the mount is a ServedRoute on every Shell-served service, so it must be
-// spec'd). The annotation documents the wire contract — path, tuple query
-// params, body/response shapes — and each service references the wrapper
+// spec'd). The annotation documents the wire contract - path, tuple query
+// params, body/response shapes - and each service references the wrapper
 // from its `#[openapi(paths(...))]` list as `sentin8_shell::{name}`
 // (utoipa resolves cross-crate paths to the generated `__path_{fn}`
 // struct; no turbofish).

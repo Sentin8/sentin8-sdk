@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! Graceful shutdown — SIGTERM / SIGINT handling for all Sentin8 services.
+//! Graceful shutdown - SIGTERM / SIGINT handling for all Sentin8 services.
 //!
 //! Provides [`shutdown_signal`] which returns a `Future` that completes when
 //! the process receives SIGTERM or SIGINT (or the tokio runtime is stopped).

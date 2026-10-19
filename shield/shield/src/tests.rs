@@ -247,12 +247,12 @@ fn m2m_evaluates_like_any_principal() {
     );
     assert!(
         out.is_allow(),
-        "m2m with the scope must be allowed — token type never bypasses or special-cases"
+        "m2m with the scope must be allowed - token type never bypasses or special-cases"
     );
     let out = engine.evaluate(&ctx("m2m", &[]), &EvalTarget::new("sentin8:post:read"));
     assert!(
         !out.is_allow(),
-        "m2m without the scope must be denied — no token-type bypass"
+        "m2m without the scope must be denied - no token-type bypass"
     );
 }
 
@@ -281,7 +281,7 @@ fn resource_attribute_rule_thresholds() {
 
 // ── Live roles + relations ─────────────────────────────
 
-// Shield's `in` is entity-hierarchy membership — role sets are tested with
+// Shield's `in` is entity-hierarchy membership - role sets are tested with
 // `.contains()` .
 const ROLE_GATE: &str =
   "permit(principal, action, resource) when { principal.roles.contains(\"sentin8:post:admin\") };";
@@ -326,7 +326,7 @@ fn roles_attribute_gate_allows_holder_and_denies_otherwise() {
         !out.is_allow(),
         "role-less principal must be denied (fail-closed)"
     );
-    // Scope-based rules do NOT grant via roles — models are distinct sets.
+    // Scope-based rules do NOT grant via roles - models are distinct sets.
     let mut scope_only = ctx("user", &[]);
     scope_only.roles = scopes(&["sentin8:post:admin"]);
     let scope_gate_engine = engine_with(vec![record(
@@ -378,7 +378,7 @@ fn upsert_disabled_or_foreign_set_removes_entry() {
         )])
         .expect("load");
     // Disabled row → removed from cache → NO sets for the env → deny
-    // (fail-closed — nothing grants the action anymore, ).
+    // (fail-closed - nothing grants the action anymore, ).
     let mut disabled = record("read", SCOPE_MIRROR, PolicyMode::Enforced, None);
     disabled.enabled = false;
     engine.upsert(disabled).expect("upsert");
@@ -481,7 +481,7 @@ fn enforce_flag_semantics() {
 #[test]
 fn principal_attrs_merge_without_override() {
     // Handler-supplied principal attrs must not override the engine-set
-    // scopes/token_tp — policies rely on them (fail-closed on tamper).
+    // scopes/token_tp - policies rely on them (fail-closed on tamper).
     let mut extra: BTreeMap<String, RestrictedExpression> = BTreeMap::new();
     extra.insert(
         "org".into(),

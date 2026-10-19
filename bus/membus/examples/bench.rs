@@ -53,7 +53,7 @@ async fn run() {
     let bus = match MemBus::connect(cfg).await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("bench: Valkey unreachable — {e}");
+            eprintln!("bench: Valkey unreachable - {e}");
             std::process::exit(2);
         }
     };

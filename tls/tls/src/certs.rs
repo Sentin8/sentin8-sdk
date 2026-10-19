@@ -19,7 +19,7 @@ use rustls::sign::CertifiedKey;
 
 /// Backoff duration (seconds) before retrying a failed ACME fetch for the
 /// same hostname. Prevents infinite retry loops when the ACME server is
-/// unreachable — every TLS handshake would otherwise trigger a fresh fetch.
+/// unreachable - every TLS handshake would otherwise trigger a fresh fetch.
 const FETCH_FAILURE_BACKOFF_S: u64 = 30;
 
 /// A SNI-aware certificate resolver that fetches certs on-the-fly from
@@ -28,7 +28,7 @@ const FETCH_FAILURE_BACKOFF_S: u64 = 30;
 /// On the first TLS connection for a hostname, `resolve` returns `None`
 /// (the handshake fails) but spawns a background task to fetch the cert
 /// from Acme. Subsequent connections for the same hostname get the
-/// cached cert. This avoids pre-warming all certs at startup — each
+/// cached cert. This avoids pre-warming all certs at startup - each
 /// service only fetches certs for hostnames it actually serves.
 pub struct WildcardCertResolver {
     /// hostname → CertifiedKey (exact match, e.g. `www.example.com`)
@@ -164,7 +164,7 @@ impl ResolvesServerCert for WildcardCertResolver {
             }
         }
 
-        // 3. No match — install an on-demand fetch from Acme (tls README §6
+        // 3. No match - install an on-demand fetch from Acme (tls README §6
         //    "the cert fetch is owned by a DETACHED task, not the
         //    handshake"). The first handshake for an unknown SNI returns
         //    `None` immediately (the client's retry loop covers the initial
@@ -182,7 +182,7 @@ impl ResolvesServerCert for WildcardCertResolver {
             None => {
                 tracing::warn!(
                     hostname = %sni,
-                    "sentin8-tls: ACME not resolved via service discovery — skipping cert fetch"
+                    "sentin8-tls: ACME not resolved via service discovery - skipping cert fetch"
                 );
                 return None;
             }
@@ -200,7 +200,7 @@ impl ResolvesServerCert for WildcardCertResolver {
                 }
             }
 
-            // Check if a fetch is already in progress — if so, wait for it.
+            // Check if a fetch is already in progress - if so, wait for it.
             let already_pending = self.pending.read().contains_key(sni);
             if already_pending {
                 // Poll until the pending fetch completes (up to 15s).
@@ -214,14 +214,14 @@ impl ResolvesServerCert for WildcardCertResolver {
                         return Some(key.clone());
                     }
                     // The owner of the pending entry already reported failure
-                    // and re-armed the backoff — fail fast within the window
+                    // and re-armed the backoff - fail fast within the window
                     // instead of a 15 s silent wait (tls README §6).
                     if failed.read().contains_key(&hostname) {
                         return None;
                     }
                     std::thread::sleep(std::time::Duration::from_millis(200));
                 }
-                // Timed out waiting — the owner may have failed mid-flight
+                // Timed out waiting - the owner may have failed mid-flight
                 // WITHOUT removing its pending marker (aborted future); reach
                 // the negative cache from here too, so the NEXT handshake
                 // re-triggers a real fetch (post-backoff) instead of eating
@@ -235,12 +235,12 @@ impl ResolvesServerCert for WildcardCertResolver {
                 return None;
             }
 
-            // No fetch in progress — spawn the fetch as a DETACHED task.
+            // No fetch in progress - spawn the fetch as a DETACHED task.
             // It must NOT run inline on the handshake task: when the peer
             // resets mid-handshake, the handshake future is dropped and an
             // inline fetch dies with it (Acme receives new-account then
             // silence, the pending marker leaks, and backoff plus
-            // client-gave-up suppress re-issuance for minutes — tls README
+            // client-gave-up suppress re-issuance for minutes - tls README
             // §6 "the cert fetch is owned by a DETACHED task").
             self.pending.write().insert(sni.to_string(), ());
             let hostname = sni.to_string();
@@ -255,7 +255,7 @@ impl ResolvesServerCert for WildcardCertResolver {
             tracing::info!(hostname = %hostname, "sentin8-tls: fetching cert on-demand");
             tokio::spawn(async move {
                 // The detached fetch inherits hard per-request deadlines from
-                // `request_cert_from_acme` (3 s connect / 10 s total) — a
+                // `request_cert_from_acme` (3 s connect / 10 s total) - a
                 // hung Acme cannot hold a worker thread.
                 let fetched =
                     request_cert_from_acme(&acme_url, &acme_sni, acme_addr, &hostname).await;
@@ -276,7 +276,7 @@ impl ResolvesServerCert for WildcardCertResolver {
                                 let mut failed = failed.write();
                                 // The backoff is an eviction bound, not only a
                                 // retry gate: prune entries older than the
-                                // backoff before storing the new one — the SNI
+                                // backoff before storing the new one - the SNI
                                 // key space is client-controlled and must never
                                 // accumulate unpruned for the process lifetime
                                 // (tls README §5, CR-TLS-2).
@@ -298,7 +298,7 @@ impl ResolvesServerCert for WildcardCertResolver {
                         failed.insert(hostname.clone(), now);
                     }
                 }
-                // Ownership ends here in EVERY branch — a detached task that
+                // Ownership ends here in EVERY branch - a detached task that
                 // exits without clearing `pending` would latch the entry and
                 // make every follow-up handshake eat the 15 s dead wait
                 // (tls README §6 "waiters never starve the negative cache").
@@ -338,11 +338,11 @@ fn parse_certified_key(
 
 impl WildcardCertResolver {
     /// Resolve the ACME directory URL from service discovery.
-    /// Returns `None` if ACME is not yet Active in the registry — fail fast
+    /// Returns `None` if ACME is not yet Active in the registry - fail fast
     /// rather than falling back to a static URL that may be stale.
     ///
     /// Returns `(directory_url, sni_host, socket_addr)` so the caller can
-    /// build a reqwest client with `.resolve(&sni_host, socket_addr)` —
+    /// build a reqwest client with `.resolve(&sni_host, socket_addr)` -
     /// this pins the IP while sending the correct SNI hostname, which is
     /// required because the ACME server's `WildcardCertResolver` can only
     /// find its bootstrap cert by SNI hostname, not by raw IP.
@@ -368,11 +368,11 @@ impl WildcardCertResolver {
 ///
 /// Full ACME (RFC 8555) client flow. Returns `(cert_pem, key_pem)`.
 ///
-/// `acme_directory_url` — the directory URL with the SNI hostname
+/// `acme_directory_url` - the directory URL with the SNI hostname
 /// (e.g. `https://acme.ops.sys.sentin8.local:8008/acme/directory`).
-/// `sni_host` — the SNI hostname for the ACME server (same as in the URL).
-/// `socket_addr` — the pinned IP:port to connect to (overrides DNS).
-/// `domain` — the domain to issue a cert for.
+/// `sni_host` - the SNI hostname for the ACME server (same as in the URL).
+/// `socket_addr` - the pinned IP:port to connect to (overrides DNS).
+/// `domain` - the domain to issue a cert for.
 pub async fn request_cert_from_acme(
     acme_directory_url: &str,
     sni_host: &str,
@@ -487,7 +487,7 @@ pub async fn request_cert_from_acme(
 
     // 5. Finalize with a placeholder CSR.
     // Acme decodes the CSR with URL_SAFE_NO_PAD, so we must encode
-    // with the same alphabet. The CSR content is a placeholder —
+    // with the same alphabet. The CSR content is a placeholder -
     // acme generates its own key via rcgen and ignores the CSR DER.
     let csr_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(format!(
         "-----BEGIN CERTIFICATE REQUEST-----\n{domain}\n-----END CERTIFICATE REQUEST-----"
@@ -507,7 +507,7 @@ pub async fn request_cert_from_acme(
 
     // 6. Download the certificate. Acme's `GET /acme/cert/{id}` returns a
     //    combined PEM (cert chain followed by the private key) for locally-
-    //    signed domains — see `acme::acme::get_cert`. Split it into
+    //    signed domains - see `acme::acme::get_cert`. Split it into
     //    separate cert and key buffers.
     let combined = client
         .get(cert_url)

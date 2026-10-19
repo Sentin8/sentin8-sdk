@@ -16,7 +16,7 @@ issuance) without hardcoding ports or IPs.
   the single source of truth for callers.
 - **Rolling-upgrade transparency.** When an instance's port changes or a
   new instance replaces an old one, callers pick it up on the next
-  registry notification — no restart, no config change.
+  registry notification - no restart, no config change.
 - **Load-aware routing.** With multiple instances of one service, calls
   should favor healthy, low-load, same-machine instances.
 
@@ -29,7 +29,7 @@ graph TD
     B2["captain:changed pub/sub"] --> C
     C --> D[In-memory map service_type → instances]
     D --> E["resolve(service_type)"]
-    E --> F[Best instance URL — caller's HTTP client]
+    E --> F[Best instance URL - caller's HTTP client]
 ```
 
 - The background task subscribes to the `captain:changed` pub/sub channel
@@ -39,16 +39,16 @@ graph TD
   resolvable; `Active` instances not yet probed are given the benefit of
   the doubt (a just-started instance must not be invisible until its first
   probe).
-- Callers get `https://{ip}:{port}` — every Sentin8 service terminates TLS
+- Callers get `https://{ip}:{port}` - every Sentin8 service terminates TLS
   directly, so the root CA must be in the OS trust store.
 
 ## 4. Key Traits and Data Structures
 
-- **`ServiceDiscovery`** — clone-cheap shared handle. `spawn(valkey_url,
+- **`ServiceDiscovery`** - clone-cheap shared handle. `spawn(valkey_url,
   local_ip)` starts the background task and returns immediately. `resolve`
   returns the best instance URL; `resolve_instance` the full record;
   `list` all known instances of a type; `service_types` the registry keys.
-- **`ServiceInstance`** — the registry row as stored by the captain:
+- **`ServiceInstance`** - the registry row as stored by the captain:
   identity (`key`, `service_type`, `local_ip`, `local_port`, `pid`),
   lifecycle (`status`, `start_priority`, `restarts`, `started_at`),
   liveness (`last_health_check`), and load signals (`cpu_avg_1m`,
@@ -63,7 +63,7 @@ graph TD
   permanently on a lost stream.
 - **In-memory snapshot, resolve from RAM.** Discovery is on the hot path
   of cross-service calls; a per-call registry round trip would add latency
-  and load. The snapshot is rebuilt wholesale (KEYS + HGETALL) on refresh —
+  and load. The snapshot is rebuilt wholesale (KEYS + HGETALL) on refresh -
   simple, consistent, and bounded by the ~20-service registry size.
 - **Load score `cpu*0.5 + mem*0.3 + latency/20*0.2`** (clamped to 0-100).
   Weighted toward CPU (the dominant saturation signal), with memory and
@@ -92,13 +92,13 @@ graph TD
     (`Active` + health check within 30 s, or never probed).
   - Selection = lowest `selection_score(my_ip)`; ties broken deterministically
     by the map order after the sort.
-  - The in-memory map is replaced wholesale on refresh — never patched —
+  - The in-memory map is replaced wholesale on refresh - never patched -
     so stale instances disappear in one atomic swap.
   - The background task never returns early: a failed pub/sub connect or
     subscribe degrades to safety-poll-only refresh.
 - **Debounce.** A 200 ms sleep after a notification coalesces bursts of
   registry writes (e.g. a mass upgrade) into one scan.
-- **`KEYS` usage.** The scan uses `KEYS captain:svc:*` — acceptable at this
+- **`KEYS` usage.** The scan uses `KEYS captain:svc:*` - acceptable at this
   registry scale; would need `SCAN` if the registry ever grew large.
 - **Graceful degradation.** Every failure path in the loop logs a WARN and
   continues with a safety sleep; discovery never panics the host task.
@@ -110,7 +110,7 @@ graph TD
 - The 20-point local bonus and load weights are constants; when tuning is
   motivated, read them from `SENTIN8_DISCOVERY_*` config keys.
 - Registry keys use a `KEYS` glob scan; switch to `SCAN` (`MATCH captain:*
-  COUNT 100` cursor loop) — the refresh path is the only caller.
+  COUNT 100` cursor loop) - the refresh path is the only caller.
 
 ---
 

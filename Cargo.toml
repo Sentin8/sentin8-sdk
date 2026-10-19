@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 # SPDX-License-Identifier: Apache-2.0
 
-# sentin8-sdk — The Sentin8 Shared Library Workspace (RS §2.3)
+# sentin8-sdk - The Sentin8 Shared Library Workspace (RS §2.3)
 #
 # ONE cargo workspace containing every shared platform crate, every service
 # SDK crate (client/contracts), and the facade crate `sentin8`.
@@ -12,7 +12,7 @@
 #
 #     sentin8 = { git = "...", tag = "sdk-v0.2.0" }
 #
-# Internal path deps are INTRA-REPO (allowed — RS-5 bans only cross-repo
+# Internal path deps are INTRA-REPO (allowed - RS-5 bans only cross-repo
 # path deps). All shared dependency versions are centralized here.
 
 [workspace]
@@ -87,7 +87,7 @@ once_cell = "1"
 
 # ── Database ──
 sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid", "chrono", "json", "macros"] }
-# Valkey GLIDE — the platform's mandated client engine (group DESIGN.md §3.1):
+# Valkey GLIDE - the platform's mandated client engine (group DESIGN.md §3.1):
 # glide-core owns TLS, reconnection, and backoff natively.
 valkey-glide = "0.9.0"
 arc-swap = "1"
@@ -160,6 +160,6 @@ sentin8-shield = { path = "shield/shield" }
 sentin8-shell = { path = "shell/shell" }
 sentin8-audit = { path = "shell/audit" }
 
-# Shield engine (vendor package — the ONLY place the vendor name appears;
+# Shield engine (vendor package - the ONLY place the vendor name appears;
 # see design §2.4 / AGENTS branding rule).
 shield = { version = "4.12", package = "cedar-policy" }

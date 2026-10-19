@@ -9,13 +9,13 @@
 //!
 //! All Sentin8 domains are derived at runtime from a single root configured via
 //! `SENTIN8_DOMAIN` (default: `sentin8.local`). This crate is the single source
-//! of truth for domain derivation: `{service}.{env}.{org}.{tld}` — platform
+//! of truth for domain derivation: `{service}.{env}.{org}.{tld}` - platform
 //! services live at `{service}.ops.sys.{domain}`.
 //!
 //! ## System UUIDs
 //!
-//! - `System Org ID`  = `00000000-0000-0000-0000-000000000001` — System organization (slug `sys`)
-//! - `System Env ID`  = `00000000-0000-0000-0000-000000000002` — System environment (slug `ops`)
+//! - `System Org ID`  = `00000000-0000-0000-0000-000000000001` - System organization (slug `sys`)
+//! - `System Env ID`  = `00000000-0000-0000-0000-000000000002` - System environment (slug `ops`)
 
 use std::env;
 
@@ -28,14 +28,14 @@ pub mod pg_pool;
 
 // ── Constants ───────────────────────────────────────────────────────────
 
-/// System organization UUID — the platform organization (slug `sys`).
+/// System organization UUID - the platform organization (slug `sys`).
 /// Used for platform-level tables only (sentin8_sys_organizations, etc.).
 pub const SYSTEM_ORG_ID: Uuid = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0001);
 
 /// System organization slug.
 pub const SYSTEM_ORG_SLUG: &str = "sys";
 
-/// System environment UUID — the platform environment (slug `ops`).
+/// System environment UUID - the platform environment (slug `ops`).
 pub const SYSTEM_ENV_ID: Uuid = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0002);
 
 /// System environment slug.
@@ -46,7 +46,7 @@ pub const DEFAULT_SENTIN8_DOMAIN: &str = "sentin8.local";
 
 // ── Base port ───────────────────────────────────────────────────────────
 
-/// Default base port — every Sentin8 service port derives from this as an
+/// Default base port - every Sentin8 service port derives from this as an
 /// offset (see [`base_port`] and the `PORT_OFFSET_*` constants below).
 ///
 /// `SENTIN8_BASE_PORT` env var overrides it. The fleet port layout:
@@ -60,7 +60,7 @@ pub const DEFAULT_SENTIN8_DOMAIN: &str = "sentin8.local";
 ///
 /// The auto-assigned service pool starts at `base_port() + 2` and runs up
 /// to `base_port() + 101` (overridable via `SENTIN8_CAPTAIN_PORT_RANGE_LOW/HIGH`).
-/// dash, web, and every other service are auto-assigned from this pool —
+/// dash, web, and every other service are auto-assigned from this pool -
 /// no fixed per-service ports.
 pub const DEFAULT_BASE_PORT: u16 = 8000;
 
@@ -68,7 +68,7 @@ pub const DEFAULT_BASE_PORT: u16 = 8000;
 pub const PORT_OFFSET_ORCH8: u16 = 0;
 /// Log UDP ingest (fixed, well-known so services know where to send logs).
 pub const PORT_OFFSET_LOG8: u16 = 1;
-/// Proxy external L4 LB — always on the standard HTTPS port 443 (overridable
+/// Proxy external L4 LB - always on the standard HTTPS port 443 (overridable
 /// via `SENTIN8_PROXY_PORT`). Not a base-port offset because it's a well-known port.
 pub const SENTIN8_PROXY_DEFAULT_PORT: u16 = 443;
 /// First auto-assigned service pool port = base + 2.
@@ -125,66 +125,66 @@ pub fn port_pool_high() -> u16 {
 //
 // | env var                  | default (prod)      | dev fallback        |
 // |--------------------------|----------------------|---------------------|
-// | `SENTIN8_CONFIG_DIR`     | `/etc/sentin8`       | (unset — unused)    |
-// | `SENTIN8_STATE_DIR`      | `/var/lib/sentin8`   | (unset — unused)    |
+// | `SENTIN8_CONFIG_DIR`     | `/etc/sentin8`       | (unset - unused)    |
+// | `SENTIN8_STATE_DIR`      | `/var/lib/sentin8`   | (unset - unused)    |
 // | `SENTIN8_LOG_DIR`        | `/var/log/sentin8`   | `.run/logs`         |
 // | `SENTIN8_RUN_DIR`        | `/run/sentin8`       | `.run`              |
 
 // The helpers resolve the packaged deployment's FHS-conventional
 // directories, overridable via env vars for dev builds.
 
-/// Configuration directory — `/etc/sentin8` in production (overridable via
+/// Configuration directory - `/etc/sentin8` in production (overridable via
 /// `SENTIN8_CONFIG_DIR`). Holds `sentin8.env`, `sentin8.toml`, per-vertical
 /// overrides.
 pub fn config_dir() -> String {
     std::env::var("SENTIN8_CONFIG_DIR").unwrap_or_else(|_| "/etc/sentin8".to_string())
 }
 
-/// Stateful data directory — `/var/lib/sentin8` in production (overridable via
+/// Stateful data directory - `/var/lib/sentin8` in production (overridable via
 /// `SENTIN8_STATE_DIR`). Holds TLS certs, storage adapter root, captain state.
 pub fn state_dir() -> String {
     std::env::var("SENTIN8_STATE_DIR").unwrap_or_else(|_| "/var/lib/sentin8".to_string())
 }
 
-/// Log directory — `/var/log/sentin8` in production (overridable via
+/// Log directory - `/var/log/sentin8` in production (overridable via
 /// `SENTIN8_LOG_DIR`). Defaults to `.run/logs` for dev builds (relative).
 pub fn log_dir() -> String {
     std::env::var("SENTIN8_LOG_DIR").unwrap_or_else(|_| ".run/logs".to_string())
 }
 
-/// Runtime (PID/socket) directory — `/run/sentin8` in production (overridable
+/// Runtime (PID/socket) directory - `/run/sentin8` in production (overridable
 /// via `SENTIN8_RUN_DIR`). Defaults to `.run` for dev builds (relative).
 /// `/run` is a tmpfs in Debian, so PID files do not survive reboot.
 pub fn run_dir() -> String {
     std::env::var("SENTIN8_RUN_DIR").unwrap_or_else(|_| ".run".to_string())
 }
 
-/// TLS state directory — `{state_dir()}/tls`. Holds the Acme CA + service certs.
+/// TLS state directory - `{state_dir()}/tls`. Holds the Acme CA + service certs.
 pub fn tls_dir() -> String {
     format!("{}/tls", state_dir())
 }
 
-/// Sentin8:Storage local-FS adapter root — `{state_dir()}/storage`.
+/// Sentin8:Storage local-FS adapter root - `{state_dir()}/storage`.
 pub fn storage_dir() -> String {
     format!("{}/storage", state_dir())
 }
 
-/// Captain state directory — `{state_dir()}/captain`.
+/// Captain state directory - `{state_dir()}/captain`.
 pub fn captain_state_dir() -> String {
     format!("{}/captain", state_dir())
 }
 
-/// Path to the captain PID file — `{run_dir()}/captain.pid`.
+/// Path to the captain PID file - `{run_dir()}/captain.pid`.
 pub fn captain_pid_file() -> String {
     format!("{}/captain.pid", run_dir())
 }
 
-/// Path to the captain local control socket — `{run_dir()}/captain.sock`.
+/// Path to the captain local control socket - `{run_dir()}/captain.sock`.
 ///
 /// The Unix domain socket serves the same management API as the TCP
 /// listener; requests from root or the socket owner are authorized by
 /// kernel-proven peer credentials (`SO_PEERCRED`) instead of a Bearer
-/// token — the `systemctl` model for local `make start/stop/status`.
+/// token - the `systemctl` model for local `make start/stop/status`.
 /// Overridable via `SENTIN8_CAPTAIN_SOCK`.
 pub fn captain_socket_file() -> String {
     std::env::var("SENTIN8_CAPTAIN_SOCK").unwrap_or_else(|_| format!("{}/captain.sock", run_dir()))
@@ -197,7 +197,7 @@ pub fn captain_socket_file() -> String {
 /// Construct via [`Sentin8Config::from_env`] or [`Sentin8Config::builder`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Sentin8Config {
-    /// Root domain — all Sentin8 domains derive from this.
+    /// Root domain - all Sentin8 domains derive from this.
     pub sentin8_domain: String,
 }
 
@@ -217,12 +217,12 @@ impl Sentin8Config {
         let toml_path = format!("{}/sentin8.toml", config_dir());
         let mut figment = figment::Figment::new();
 
-        // TOML layer — only if the file exists (optional).
+        // TOML layer - only if the file exists (optional).
         if std::path::Path::new(&toml_path).is_file() {
             figment = figment.merge(Toml::file(&toml_path));
         }
 
-        // Env layer — SENTIN8_* prefixed, overrides TOML.
+        // Env layer - SENTIN8_* prefixed, overrides TOML.
         figment = figment.merge(Env::prefixed("SENTIN8_"));
 
         // Extract the domain. Figment uses snake_case keys without the prefix.
@@ -264,7 +264,7 @@ impl Sentin8ConfigBuilder {
 
 // ── Service identity naming ─────────────────────────────────────────────
 
-/// Canonical `service_type` — the colon identity `vertical:service[:worker]`.
+/// Canonical `service_type` - the colon identity `vertical:service[:worker]`.
 ///
 /// Normalizes any accepted input to the colon form:
 /// - `sentin8:auth`              → `sentin8:auth` (canonical, returned as-is)
@@ -307,7 +307,7 @@ pub fn is_worker_service(service_type: &str) -> bool {
 /// The service identity without its `worker` segment.
 ///
 /// `bank8:payments:worker` → `bank8:payments`; `bank8:ledger` → `bank8:ledger`.
-/// Does not normalize dash forms to colon form — callers working with
+/// Does not normalize dash forms to colon form - callers working with
 /// legacy inputs should pass through [`canonical_service_type`] first.
 pub fn service_base_type(service_type: &str) -> &str {
     if let Some(base) = service_type.strip_suffix(":worker") {
@@ -322,7 +322,7 @@ pub fn service_base_type(service_type: &str) -> &str {
     service_type
 }
 
-/// The worker identity for a base identity — `bank8:payments` → `bank8:payments:worker`.
+/// The worker identity for a base identity - `bank8:payments` → `bank8:payments:worker`.
 /// Returns the input unchanged when it is not a base (non-worker) identity.
 pub fn worker_type(service_type: &str) -> String {
     if is_worker_service(service_type) {
@@ -331,7 +331,7 @@ pub fn worker_type(service_type: &str) -> String {
     format!("{service_type}:worker")
 }
 
-/// Dash (DNS/binary) form of a service identity — `:` → `-`.
+/// Dash (DNS/binary) form of a service identity - `:` → `-`.
 ///
 /// `bank8:payments:worker` → `bank8-payments-worker`; `bank8:ledger` → `bank8-ledger`.
 /// Used for binary names, log filenames, and any DNS-derived label that
@@ -340,7 +340,7 @@ pub fn service_dash_form(service_type: &str) -> String {
     service_type.replace(':', "-")
 }
 
-/// Upper-snake env-var slug — `:` and `-` → `_`, uppercased.
+/// Upper-snake env-var slug - `:` and `-` → `_`, uppercased.
 ///
 /// `sentin8:stat` → `SENTIN8_STAT`; `bank8:payments` → `BANK8_PAYMENTS`.
 /// This is the slug used for `{SLUG}_PORT` / `{SLUG}_W_PORT` env vars.
@@ -352,13 +352,13 @@ pub fn service_env_slug(service_type: &str) -> String {
 
 /// The scope namespace for a service identity.
 ///
-/// Uniform rule: every RBAC name starts with its vertical — the namespace
+/// Uniform rule: every RBAC name starts with its vertical - the namespace
 /// is the identity's first TWO segments
 /// plus a trailing colon, for ALL services (`sentin8:auth` →
 /// `sentin8:auth:`, `bank8:ledger` → `bank8:ledger:`). Workers resolve to
 /// their base service's namespace. Platform scopes therefore carry the
 /// literal `sentin8` segment (`sentin8:auth:read`), exactly like vertical
-/// scopes (`bank8:ledger:products:write`) — no exceptions.
+/// scopes (`bank8:ledger:products:write`) - no exceptions.
 pub fn service_scope_namespace(service_type: &str) -> String {
     let base = service_base_type(service_type);
     let segments: Vec<&str> = base.split(':').collect();
@@ -381,7 +381,7 @@ impl Sentin8Config {
     /// Accepts either a bare service name (`auth`), the colon identity
     /// (`sentin8:auth`, `bank8:ledger`), or the legacy hyphen form
     /// (`sentin8-auth`). The input is normalized to the canonical colon
-    /// identity first, then converted to the dash-form DNS label — e.g.
+    /// identity first, then converted to the dash-form DNS label - e.g.
     /// `sentin8:auth` → `auth.ops.sys.sentin8.local` (the `sentin8:`
     /// prefix is dropped), `bank8:ledger` and the legacy `bank8-ledger`
     /// both → `bank8-ledger.ops.sys.sentin8.local`.
@@ -424,7 +424,7 @@ impl Sentin8Config {
         // The fallback must be DNS-valid (config README §5): under a
         // tenant-scoped RLS context the SYSTEM-scoped registry row is
         // invisible, and the raw colon identity (`bank8:fdx`) is not a
-        // hostname — a URL built from it (`https://bank8:fdx.…`) cannot be
+        // hostname - a URL built from it (`https://bank8:fdx.…`) cannot be
         // navigated by any browser (colon = authority/port separator) nor
         // matched by TLS SNI. The dash form (`bank8-fdx`) is the registry's
         // own convention for vertical services, so the fallback matches it
@@ -433,7 +433,7 @@ impl Sentin8Config {
     }
 
     /// Check if a service is a platform service (vertical = "sentin8") by
-    /// querying the runtime registry. No hardcoded list — the `vertical`
+    /// querying the runtime registry. No hardcoded list - the `vertical`
     /// column is the single source of truth. Inputs are normalized to the
     /// canonical colon identity first.
     pub async fn is_platform_service(&self, pool: &sqlx::PgPool, service: &str) -> bool {
@@ -478,7 +478,7 @@ impl Sentin8Config {
     /// Used by the proxy and TLS to resolve a hostname's first DNS label
     /// (e.g. `func`) to the full service identity (e.g. `sentin8:func`).
     /// Falls back to the dash-form `sentin8-web` for unknown labels (app
-    /// instances) — consumers normalize via `canonical_service_type` when
+    /// instances) - consumers normalize via `canonical_service_type` when
     /// they need the colon form.
     pub async fn resolve_service_type(&self, pool: &sqlx::PgPool, label: &str) -> String {
         sqlx::query_scalar::<_, String>(
@@ -494,7 +494,7 @@ impl Sentin8Config {
 
     /// Transaction-scoped variant of [`Self::resolve_service_type`].
     ///
-    /// `sys.vertical_services` carries tenant RLS — callers inside a
+    /// `sys.vertical_services` carries tenant RLS - callers inside a
     /// context-carrying transaction MUST query on that transaction's
     /// connection, not a pooled one: a pooled query has no tenant context
     /// (RLS-filtered → wrong fallback) and leaks an open transaction per
@@ -538,7 +538,7 @@ impl Sentin8Config {
             .unwrap_or_default()
     }
 
-    /// Transaction-scoped variant of [`Self::load_subdomain_map`] — same RLS
+    /// Transaction-scoped variant of [`Self::load_subdomain_map`] - same RLS
     /// rule as [`Self::resolve_service_type_in_tx`]: callers inside a
     /// context-carrying transaction must query on that connection.
     pub async fn load_subdomain_map_in_tx(
@@ -601,7 +601,7 @@ impl Sentin8Config {
     //
     // All Sentin8 services can be exposed at an org-scoped sub-domain of the
     // form `{service_prefix}.ops.{org_domain}`. The `ops` segment is the
-    // org-level (staff) environment — the same `ops` slug used by the `sys`
+    // org-level (staff) environment - the same `ops` slug used by the `sys`
     // org for platform services. These helpers generate the canonical
     // hostname for each service at the org level. The platform only upserts
     // a subset of these mappings into `sentin8_tls_mappings` by default (auth,
@@ -762,7 +762,7 @@ impl Sentin8Config {
 
     /// Application BFF domain: `bff.{app_domain}`.
     ///
-    /// The BFF hostname for an app instance is always `bff.{app_domain}` —
+    /// The BFF hostname for an app instance is always `bff.{app_domain}` -
     /// e.g. `bff.www.ibank.local`.
     pub fn app_bff_domain(&self, app_domain: &str) -> String {
         format!("bff.{app_domain}")
@@ -872,7 +872,7 @@ impl Sentin8Config {
     /// runtime. The `sentin8` superuser role is only used for
     /// migrations/init scripts. PostgreSQL certificate identity
     /// (group DESIGN.md §3.2): the connection presents the `sentin8_app`
-    /// workload pair — there is no password component.
+    /// workload pair - there is no password component.
     pub fn default_database_url() -> &'static str {
         "postgres://sentin8_app@localhost:5432/sentin8"
     }
@@ -910,10 +910,10 @@ impl Sentin8Config {
         Ok(())
     }
 
-    /// Default Valkey URL: `valkey://localhost:6379/0` (plaintext — the
+    /// Default Valkey URL: `valkey://localhost:6379/0` (plaintext - the
     /// platform runs Valkey on a trusted internal network; no TLS).
     pub fn default_valkey_url() -> &'static str {
-        // The Valkey data plane is TLS-only (group DESIGN.md §3.1) — the
+        // The Valkey data plane is TLS-only (group DESIGN.md §3.1) - the
         // default scheme matches the deployed plane; a plaintext default
         // would fail-closed at the factory's scheme gate by design.
         "valkeys://localhost:6379/0"
@@ -934,7 +934,7 @@ impl Sentin8Config {
     /// be on PostgreSQL 16) is not broken:
     ///
     /// - **Release** builds: a version below `MIN_POSTGRES_VERSION` is a
-    ///   hard error — the service aborts startup.
+    ///   hard error - the service aborts startup.
     /// - **Debug** builds: a low version only logs a `warn!` so developers
     ///   can keep iterating against the dev image.
     ///
@@ -946,7 +946,7 @@ impl Sentin8Config {
             Ok(()) => Ok(()),
             Err(err) => {
                 if cfg!(debug_assertions) {
-                    tracing::warn!(error = %err, "PostgreSQL version check failed (debug build — continuing)");
+                    tracing::warn!(error = %err, "PostgreSQL version check failed (debug build - continuing)");
                     Ok(())
                 } else {
                     Err(err)
@@ -959,17 +959,17 @@ impl Sentin8Config {
     /// `Vec<LogDestination>`. Defaults to `[LogDestination::LogUdp]` when
     /// the var is **unset**. An explicit empty value
     /// (`SENTIN8_LOG_DESTINATIONS=`) or `"none"` disables emission
-    /// entirely — used by log itself to avoid the feedback
+    /// entirely - used by log itself to avoid the feedback
     /// loop of forwarding its own tracing events back to its own UDP
     /// listener.
     ///
-    /// Unknown values panic (the service fails fast at startup) — a typo
+    /// Unknown values panic (the service fails fast at startup) - a typo
     /// like `log:foo` should never silently degrade observability.
     pub fn log_destinations(&self) -> Vec<LogDestination> {
         // Distinguish "unset" from "explicitly empty": an unset var
         // falls back to the default `[log:udp]`, but an empty value
         // (e.g. `export SENTIN8_LOG_DESTINATIONS=` in a per-service env
-        // file) means "no fan-out — do not echo events back over UDP to
+        // file) means "no fan-out - do not echo events back over UDP to
         // the listener we are hosting".
         match std::env::var("SENTIN8_LOG_DESTINATIONS") {
             Ok(raw) => parse_log_destinations(&raw),
@@ -981,7 +981,7 @@ impl Sentin8Config {
 /// The database name a service identity owns (VDC §VDC.3, DSN integrity).
 ///
 /// Platform services (`sentin8:*` / `sentin8-*`) own the `sentin8`
-/// database; a vertical service owns its vertical's database — the first
+/// database; a vertical service owns its vertical's database - the first
 /// identity segment (`bank8:ledger` → `bank8`, `bank8:payments:worker` →
 /// `bank8`). This is the *expected* database for the service's main pool;
 /// a DSN pointing anywhere else is a misconfiguration (wrong-database
@@ -1005,26 +1005,26 @@ pub fn expected_database_name(service_identity: &str) -> String {
 /// Derive a service's PostgreSQL DSN from its service identity
 /// (DSNDERIVE-1, group DESIGN.md §3.2).
 ///
-/// Under certificate identity a DSN is PURE STRUCTURE — the connecting
+/// Under certificate identity a DSN is PURE STRUCTURE - the connecting
 /// role, the host, and the database; no secret component exists (the
 /// client certificate is the credential, resolved by the pg_pool
 /// factory from the role). All three parts derive from the
 /// `service_type` the service already hardcodes in `main.rs`:
 ///
-/// - **role** — the canonical identity with `:`→`_` and the `_service`
+/// - **role** - the canonical identity with `:`→`_` and the `_service`
 ///   suffix: `exchange8:sor` → `exchange8_sor_service`.
 ///   `:worker` identities resolve to the parent service's role
-///   (`bank8:payments:worker` → `bank8_payments_service` — the worker
+///   (`bank8:payments:worker` → `bank8_payments_service` - the worker
 ///   rides the same schema/role as its parent; a separate role would
 ///   defeat schema-per-service).
-/// - **database** — [`expected_database_name`] (the vertical, VDC
+/// - **database** - [`expected_database_name`] (the vertical, VDC
 ///   §VDC.3): `exchange8:sor` → `exchange8`.
-/// - **host/port** — `SENTIN8_PG_HOST` / `SENTIN8_PG_PORT`, defaulting
+/// - **host/port** - `SENTIN8_PG_HOST` / `SENTIN8_PG_PORT`, defaulting
 ///   to `localhost` / `5432`.
 ///
 /// The result is the DEFAULT DSN for [`ShellConfig::from_env`]; an
 /// explicit `{SERVICE}_DATABASE_URL` env var still overrides it (custom
-/// topologies — replicas, non-local hosts — keep the env-var channel),
+/// topologies - replicas, non-local hosts - keep the env-var channel),
 /// and the VDC §VDC.3 wrong-database guard checks whatever resolved.
 ///
 /// # Examples
@@ -1102,7 +1102,7 @@ pub fn dsn_database_name(dsn: &str) -> Option<String> {
 ///
 /// The `/0` suffix is EXPLICIT-BUT-INERT: the SDK factory's
 /// `parse_host_port` discards the number and GLIDE connects at its
-/// default DB 0 — the historical per-service `/1|/2|/3` URLs were
+/// default DB 0 - the historical per-service `/1|/2|/3` URLs were
 /// inoperative. Logical-DB isolation was never the mechanism; the
 /// ACL key namespaces (`~{ns}:*` per workload) are the only
 /// isolation boundary.
@@ -1400,7 +1400,7 @@ impl From<String> for AppDomain {
 mod tests {
     use super::*;
 
-    /// Serialize tests that mutate `SENTIN8_LOG_DESTINATIONS` — env vars
+    /// Serialize tests that mutate `SENTIN8_LOG_DESTINATIONS` - env vars
     /// are process-global and Rust runs tests on parallel threads.
     fn env_test_lock() -> std::sync::MutexGuard<'static, ()> {
         static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -1482,7 +1482,7 @@ mod tests {
         assert_eq!(service_base_type("sentin8:stat"), "sentin8:stat");
         assert_eq!(service_base_type("bank8-payments-worker"), "bank8-payments");
         assert_eq!(worker_type("bank8:payments"), "bank8:payments:worker");
-        // Already a worker — unchanged.
+        // Already a worker - unchanged.
         assert_eq!(
             worker_type("bank8:payments:worker"),
             "bank8:payments:worker"
@@ -1494,14 +1494,14 @@ mod tests {
         assert_eq!(service_env_slug("sentin8:auth"), "SENTIN8_AUTH");
         assert_eq!(service_env_slug("sentin8:stat"), "SENTIN8_STAT");
         assert_eq!(service_env_slug("bank8:ledger"), "BANK8_LEDGER");
-        // Workers derive from the base — BANK8_PAYMENTS_W_PORT, not
+        // Workers derive from the base - BANK8_PAYMENTS_W_PORT, not
         // BANK8_PAYMENTS_WORKER_PORT.
         assert_eq!(service_env_slug("bank8:payments:worker"), "BANK8_PAYMENTS");
     }
 
     #[test]
     fn scope_namespace_forms() {
-        // Uniform rule: every namespace starts with its vertical —
+        // Uniform rule: every namespace starts with its vertical -
         // no special case for the platform vertical.
         assert_eq!(service_scope_namespace("sentin8:auth"), "sentin8:auth:");
         assert_eq!(service_scope_namespace("sentin8:app"), "sentin8:app:");
@@ -1658,7 +1658,7 @@ mod tests {
     #[test]
     fn log_destinations_env_var_default_when_unset() {
         // Unset env var → default [log:udp] (the documented default).
-        // Serialized with the explicit-empty test — env vars are process-global.
+        // Serialized with the explicit-empty test - env vars are process-global.
         let _g = env_test_lock();
         std::env::remove_var("SENTIN8_LOG_DESTINATIONS");
         let cfg = Sentin8Config::from_env();
@@ -1669,7 +1669,7 @@ mod tests {
     fn log_destinations_env_var_explicit_empty_disables() {
         // Explicit empty value disables fan-out (used by log
         // to break the self-loop on its own UDP listener).
-        // Serialized with the unset-env test — env vars are process-global.
+        // Serialized with the unset-env test - env vars are process-global.
         let _g = env_test_lock();
         std::env::set_var("SENTIN8_LOG_DESTINATIONS", "");
         let cfg = Sentin8Config::from_env();

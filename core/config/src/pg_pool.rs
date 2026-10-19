@@ -13,7 +13,7 @@
 //! ## Why a shared helper?
 //!
 //! `sqlx::PgPool::connect` defaults to `max_connections = 10`. With ~20
-//! services that is 200+ connections from the main pools alone — before
+//! services that is 200+ connections from the main pools alone - before
 //! counting the per-service `sentin8-tls` sync pool. The fleet exhausts
 //! PostgreSQL, every pool starts returning `PoolTimedOut`, `sentin8-tls`
 //! can no longer resolve hostname mappings, proxy stops routing, BFF
@@ -29,14 +29,14 @@
 //! Acme-issued workload certificate (`sslmode=verify-full` against the
 //! public CA chain) and PostgreSQL's `cert` auth method resolves the
 //! connecting role from the certificate's CN through the `pgm` identity
-//! map — there are NO database passwords. Mirroring the Valkey factory
+//! map - there are NO database passwords. Mirroring the Valkey factory
 //! (§3.1), this module is the single cert-presenting connection builder:
 //! the DSN's `user` segment names the role, and the client pair is
 //! resolved from the m2m identity dir the same way
 //! `sentin8_m2m::persist_cert_files` writes it (fixed plane identities
 //! fall back to `infra-tls`).
 //!
-//! A DSN that carries a PASSWORD component is rejected — a half-converted
+//! A DSN that carries a PASSWORD component is rejected - a half-converted
 //! DSN from the pre-certificate plane is a configuration error, not a
 //! degraded mode the fleet should silently accept.
 
@@ -55,7 +55,7 @@ pub const DEFAULT_MAX_CONNECTIONS: u32 = 3;
 ///
 /// - `max_connections`: `SENTIN8_PG_POOL_MAX` env var, default
 ///   [`DEFAULT_MAX_CONNECTIONS`] (3).
-/// - `acquire_timeout`: 8s — long enough to ride out a brief connection
+/// - `acquire_timeout`: 8s - long enough to ride out a brief connection
 ///   spike, short enough to surface a real stall quickly.
 pub fn options() -> PgPoolOptions {
     let max = std::env::var("SENTIN8_PG_POOL_MAX")
@@ -90,7 +90,7 @@ pub async fn connect(url: &str) -> Result<sqlx::PgPool, sqlx::Error> {
 /// Build the certificate-presenting [`PgConnectOptions`] for a DSN
 /// (group DESIGN.md §3.2).
 ///
-/// - The DSN's password component (if any) is REJECTED — the plane is
+/// - The DSN's password component (if any) is REJECTED - the plane is
 ///   passwordless by design.
 /// - `ssl_mode` is forced to `VerifyFull`; a DSN that explicitly requests
 ///   `sslmode=disable` is rejected (there is no plaintext listener).
@@ -108,7 +108,7 @@ pub fn connect_options_for(url: &str) -> Result<PgConnectOptions, sqlx::Error> {
     // userinfo is exactly the component the certificate plane retires.
     if dsn_has_password(url) {
         return Err(sqlx::Error::Configuration(
-            "password-bearing PostgreSQL DSN rejected — the data plane is \
+            "password-bearing PostgreSQL DSN rejected - the data plane is \
              certificate-identity only (group DESIGN.md §3.2); drop the \
              password component"
                 .into(),
@@ -117,7 +117,7 @@ pub fn connect_options_for(url: &str) -> Result<PgConnectOptions, sqlx::Error> {
     let opts = PgConnectOptions::from_str(url)?;
     if matches!(opts.get_ssl_mode(), PgSslMode::Disable) {
         return Err(sqlx::Error::Configuration(
-            "sslmode=disable rejected — the PostgreSQL data plane has no \
+            "sslmode=disable rejected - the PostgreSQL data plane has no \
              plaintext listener (group DESIGN.md §3.2)"
                 .into(),
         ));
@@ -147,7 +147,7 @@ fn dsn_has_password(url: &str) -> bool {
     }
 }
 
-/// The m2m identity dir — the same resolution `sentin8_m2m` uses
+/// The m2m identity dir - the same resolution `sentin8_m2m` uses
 /// (`SENTIN8_M2M_CREDENTIALS_DIR`, else `{SENTIN8_SECRETS_DIR}/m2m-
 /// credentials`).
 fn m2m_identity_dir() -> PathBuf {
@@ -170,9 +170,9 @@ fn m2m_identity_dir() -> PathBuf {
 /// naming with colons/slashes → `_`). Platform roles
 /// (`sentin8_{leaf}_service`) and legacy shared roles (`sentin8_app`,
 /// `sentin8_app_dev` → workload `sentin8:app`) both reduce through the
-/// same rule — the trailing `_service` (and `_dev`) is stripped, nothing
+/// same rule - the trailing `_service` (and `_dev`) is stripped, nothing
 /// is hardcoded per service. The DDL/operator role (`sentin8`) presents
-/// the fixed `postgres-ops` infra pair — the `valkey-admin` analogue,
+/// the fixed `postgres-ops` infra pair - the `valkey-admin` analogue,
 /// `make infra-tls` material.
 ///
 /// # Errors
@@ -180,12 +180,12 @@ fn m2m_identity_dir() -> PathBuf {
 /// `infra-tls` holds the pair.
 fn workload_pair_for_role(role: &str) -> Result<(String, String), String> {
     let base = if role == "sentin8" {
-        // The operator/DDL identity — fixed plane material.
+        // The operator/DDL identity - fixed plane material.
         "postgres-ops".to_string()
     } else {
         // `sentin8_ai_service` → `sentin8_ai`; `sentin8_app_dev` →
         // `sentin8_app`. Vertical roles (`bank8_ledger_service` →
-        // `bank8_ledger`) reduce identically — zero vertical knowledge.
+        // `bank8_ledger`) reduce identically - zero vertical knowledge.
         role.trim_end_matches("_service")
             .trim_end_matches("_dev")
             .replace(['/', ':'], "_")
@@ -205,18 +205,18 @@ fn workload_pair_for_role(role: &str) -> Result<(String, String), String> {
     }
     Err(format!(
         "no workload certificate pair for PostgreSQL role '{role}' (expected \
-         '{base}.crt/.key') — service workloads mint via \
+         '{base}.crt/.key') - service workloads mint via \
          sentin8_m2m::ensure_workload_certificate, fixed plane identities via \
          make infra-tls (group DESIGN.md §3.2)"
     ))
 }
 
-/// The platform CA bundle path for the outbound PostgreSQL TLS channel —
+/// The platform CA bundle path for the outbound PostgreSQL TLS channel -
 /// the PUBLIC Acme Root-CA chain (root + intermediate; Acme leaves are
 /// intermediate-signed, so a root-only trust file cannot chain them).
 /// Same resolution order and rationale as the Valkey factory in this
 /// crate's sibling module (duplicated because `sentin8-m2m` sits behind
-/// this crate — the dependency edge cannot be inverted).
+/// this crate - the dependency edge cannot be inverted).
 fn platform_ca_path() -> String {
     for var in ["SENTIN8_TLS_CA_PEM", "SENTIN8_TLS_CLIENT_CA_PEM"] {
         if let Ok(p) = std::env::var(var) {
@@ -255,7 +255,7 @@ mod tests {
     #[test]
     fn accepts_passwordless_dsn_shape() {
         // The password gate itself (parse happens after; the DSN shape
-        // passes the gate — CA/pair resolution is what fails next in a
+        // passes the gate - CA/pair resolution is what fails next in a
         // bare test env, which is out of this unit's scope).
         assert!(!dsn_has_password("postgres://user@localhost:5432/sentin8"));
         assert!(!dsn_has_password("postgres://localhost/sentin8"));

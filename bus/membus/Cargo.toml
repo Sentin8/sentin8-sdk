@@ -10,14 +10,14 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Sentin8 MemBus — library-only Memory Bus (direct Valkey, valkey://, no TLS)."
+description = "Sentin8 MemBus - library-only Memory Bus (direct Valkey, valkey://, no TLS)."
 
 [lib]
 name = "sentin8_membus"
 path = "src/lib.rs"
 
 [dependencies]
-# Valkey GLIDE — the platform's mandated client engine (group DESIGN.md
+# Valkey GLIDE - the platform's mandated client engine (group DESIGN.md
 # §3.1): glide-core owns TLS, reconnection, and backoff natively.
 valkey-glide.workspace = true
 tokio.workspace = true
@@ -28,7 +28,7 @@ tracing.workspace = true
 uuid.workspace = true
 futures-util.workspace = true
 sentin8-config.workspace = true
-# Cert-presenting Valkey connections (group DESIGN.md §3.1) — MemBus is a
+# Cert-presenting Valkey connections (group DESIGN.md §3.1) - MemBus is a
 # client of the TLS plane like every other consumer.
 sentin8-middleware.workspace = true
 

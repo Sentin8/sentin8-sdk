@@ -62,7 +62,7 @@ const SENTIN8_HEADERS: &[&str] = &[
 /// API (`GET /v1/resolve/hostname`) for tenant hostnames.
 ///
 /// TLS-RLS-4 (design/sentin8-vertical-data-plane-contract.md §VDC.7): the
-/// resolver is DATABASE-FREE. The library never opens a SQL connection —
+/// resolver is DATABASE-FREE. The library never opens a SQL connection -
 /// a vertical service embedding it must not gain any platform-database
 /// access (no DSN, no role, no grants), and platform services no longer
 /// need routing-table grants for the library path either. Sys owns the
@@ -70,7 +70,7 @@ const SENTIN8_HEADERS: &[&str] = &[
 /// TENANT hostnames (M2M `sentin8:sys:instances:read`, cert-bound
 /// `{service}-tls` workload), identical for platform and vertical
 /// services. PLATFORM hostnames (`{label}.ops.sys.{domain}`) resolve via
-/// [`static_platform_mapping`] with no network — a runtime Sys dependency
+/// [`static_platform_mapping`] with no network - a runtime Sys dependency
 /// there would deadlock the boot order (Sys needs auth; auth's requests
 /// need resolution).
 #[derive(Clone)]
@@ -78,11 +78,11 @@ pub struct HostContextResolver {
     cache: MappingCache,
     /// Sys base URL (`SENTIN8_SYS_URL` / derived platform domain).
     sys_url: String,
-    /// The embedding service's identity (dash form) — names its `-tls`
+    /// The embedding service's identity (dash form) - names its `-tls`
     /// certificate workload (`bank8-ledger-tls`).
     service_identity: String,
     /// Cert-presenting transport for the resolve call (built lazily on
-    /// first cache miss — the `{dash}-tls` certificate IS the
+    /// first cache miss - the `{dash}-tls` certificate IS the
     /// identity; no token is fetched). Shared behind an RwLock so
     /// concurrent misses build it once.
     resolve_http: std::sync::Arc<tokio::sync::RwLock<Option<std::sync::Arc<reqwest::Client>>>>,
@@ -111,12 +111,12 @@ impl HostContextResolver {
     /// Resolve a hostname to a mapping.
     ///
     /// 1. Exact match in the positive cache.
-    /// 2. **Platform-plane static pattern** — `{label}.ops.sys.{domain}`
+    /// 2. **Platform-plane static pattern** - `{label}.ops.sys.{domain}`
     ///    hostnames map with ZERO lookups (service = the registry label,
     ///    org = SYSTEM_ORG_ID, env = SYSTEM_ENV_ID, no app instance).
     ///    This breaks the boot circularity: a booting service (or any
     ///    service while Sys is down) must still resolve the PLATFORM
-    ///    hostnames it depends on (auth, acme, bus…) — resolving them
+    ///    hostnames it depends on (auth, acme, bus…) - resolving them
     ///    through a runtime Sys call would make every request depend on
     ///    Sys (and Sys's on auth), a hard deadlock during boot. The
     ///    platform plane is static by construction (the System org/env
@@ -126,7 +126,7 @@ impl HostContextResolver {
     /// 3. Miss → Sys `GET /v1/resolve/hostname` (owner API) for TENANT
     ///    hostnames ({service}.{env}.{org}); a successful resolve
     ///    populates the cache. Transient failures (Sys booting, DCR
-    ///    pending) are NOT negatively cached — the next request retries;
+    ///    pending) are NOT negatively cached - the next request retries;
     ///    a genuine 404 (unresolvable hostname) returns `None` without
     ///    caching.
     pub async fn resolve(&self, hostname: &str) -> Option<Arc<Mapping>> {
@@ -160,7 +160,7 @@ impl HostContextResolver {
 
     /// Call Sys `GET /v1/resolve/hostname?hostname=…` presenting the
     /// embedding service's `{service}-tls` CERTIFICATE identity
-    /// ( — Sys's TLS layer authenticates the workload from the
+    /// ( - Sys's TLS layer authenticates the workload from the
     /// handshake; no token exists on this path).
     ///
     /// # Errors
@@ -192,7 +192,7 @@ impl HostContextResolver {
                 let org_id = parse("org_id")
                     .and_then(|s| Uuid::parse_str(&s).ok())
                     .ok_or("resolve response missing org_id")?;
-                // `env_id` is absent for system-scoped hostnames — the
+                // `env_id` is absent for system-scoped hostnames - the
                 // middleware injects no env header then (platform-scope
                 // requests). SYSTEM_ENV_ID fills the non-optional field.
                 let env_id = parse("env_id")
@@ -219,7 +219,7 @@ impl HostContextResolver {
 
     /// Build the cert-presenting transport for the resolve call, ensuring
     /// the `{service}-tls` workload certificate on first use
-    /// (`ensure_workload_certificate` — mint-if-missing; the grant must be
+    /// (`ensure_workload_certificate` - mint-if-missing; the grant must be
     /// declared in the embedding service's `m2m_grants` registration for
     /// Sys's registry-map authorization).
     async fn resolve_transport(&self) -> Result<std::sync::Arc<reqwest::Client>, String> {
@@ -230,7 +230,7 @@ impl HostContextResolver {
             }
         }
         // Fail-soft before touching the m2m crate: `platform_ca_pem_path`
-        // PANICS when no CA is configured (correct for real M2M callers —
+        // PANICS when no CA is configured (correct for real M2M callers -
         // fail-closed identity channel). The RESOLVER must degrade to a
         // 421 instead of crashing the request handler: a cache-miss
         // resolve simply cannot run without the CA, and the next request
@@ -244,7 +244,7 @@ impl HostContextResolver {
                     .unwrap_or(false)
             });
         if !ca_configured {
-            return Err("platform CA not configured — resolve unavailable".into());
+            return Err("platform CA not configured - resolve unavailable".into());
         }
         let mut guard = self.resolve_http.write().await;
         if let Some(http) = guard.as_ref() {
@@ -261,7 +261,7 @@ impl HostContextResolver {
         .await
         .map_err(|e| format!("workload certificate for '{workload}': {e}"))?;
         // Bounded (BOUNDED-OUTBOUND): the miss path runs INSIDE the request
-        // handler's TLS handshake — an unbounded resolve would hang the
+        // handler's TLS handshake - an unbounded resolve would hang the
         // handshake indefinitely. The miss path itself is the cache-seed
         // exception to the per-request rule (TLS-RLS-4: resolve on miss).
         let ca_pem = std::fs::read(&cert.ca_cert_path).map_err(|e| format!("read CA cert: {e}"))?;
@@ -292,7 +292,7 @@ impl HostContextResolver {
 /// with ZERO lookups.
 ///
 /// Why static: a runtime resolve (Sys API) for PLATFORM hostnames would
-/// make every request depend on Sys — and Sys's own boot depends on auth,
+/// make every request depend on Sys - and Sys's own boot depends on auth,
 /// whose inbound requests depend on resolution: a hard circular dependency
 /// that deadlocks cold starts and restart spirals. The platform plane is
 /// static by construction: the System org/env ids are well-known platform
@@ -308,7 +308,7 @@ fn static_platform_mapping(hostname: &str) -> Option<Mapping> {
     let expected_suffix = format!("ops.sys.{}", cfg.sentin8_domain);
     let host = hostname.trim().trim_end_matches('.').to_ascii_lowercase();
     let labels: Vec<&str> = host.split('.').collect();
-    // Exactly `{label}.ops.sys.{domain}` — no more, no fewer (tenant
+    // Exactly `{label}.ops.sys.{domain}` - no more, no fewer (tenant
     // hostnames carry an env label and go via Sys).
     if labels.len() != 3 + cfg.sentin8_domain.split('.').count() {
         return None;
@@ -338,7 +338,7 @@ fn static_platform_mapping(hostname: &str) -> Option<Mapping> {
 
 /// Resolve a platform subdomain label to its full service identity.
 /// Order: `SENTIN8_TLS_PLATFORM_LABELS` (comma-separated `label:service`
-/// pairs, captain-propagated from the runtime registry — the authoritative
+/// pairs, captain-propagated from the runtime registry - the authoritative
 /// source covering vertical subdomains too) → the built-in core-platform
 /// table (`label` == the platform leaf: `auth` → `sentin8:auth`).
 fn platform_service_for_label(label: &str) -> Option<String> {
@@ -357,7 +357,7 @@ fn platform_service_for_label(label: &str) -> Option<String> {
     }
     // Core-platform default: the label is the leaf of a platform service
     // (`auth` → `sentin8:auth`). Vertical subdomains MUST come via the
-    // env override — a bare vertical label here is a misconfiguration
+    // env override - a bare vertical label here is a misconfiguration
     // (missing propagation), and returning a fabricated platform identity
     // would misroute; fail the resolve instead (421, loud).
     Some(sentin8_config::canonical_service_type(&format!(
@@ -408,7 +408,7 @@ pub async fn context_middleware(
 
     // 2. Resolve the host context.
     //
-    // Bypass host resolution for health endpoints — captain's health
+    // Bypass host resolution for health endpoints - captain's health
     // probes hit the service directly on IP:port (not through proxy),
     // so the Host header is a raw IP, not a registered domain.
     // Without this bypass, the middleware would return 421 and captain
@@ -418,7 +418,7 @@ pub async fn context_middleware(
         || request.uri().path() == "/health";
 
     let mapping = if is_health {
-        // Return early with just the correlation ID — no host context.
+        // Return early with just the correlation ID - no host context.
         let mut new_headers = headers.clone();
         // Strip client-supplied X-Sentin8-* headers.
         for name in SENTIN8_HEADERS.iter() {
@@ -474,7 +474,7 @@ pub async fn context_middleware(
 
     // Inject the mTLS peer certificate headers when the TLS handshake
     // carried a client certificate (extension placed by the accept loop).
-    // These headers were also stripped above as client-supplied copies —
+    // These headers were also stripped above as client-supplied copies -
     // this is the only legitimate source.
     if let Some(peer) = request
         .extensions()
@@ -512,12 +512,12 @@ fn inject_header(headers: &mut HeaderMap, name: &str, value: &str) {
 /// Compute and inject the `X-Sentin8-Client-Cert-*` headers from a peer
 /// certificate.
 ///
-/// - `X-Sentin8-Client-Cert-Thumbprint` — base64url(SHA-256(DER)) = `x5t#S256`
-/// - `X-Sentin8-Client-Cert-Subject` — best-effort subject CN from the DER
-/// - `X-Sentin8-Client-Cert-Issuer` — best-effort issuer CN from the DER
+/// - `X-Sentin8-Client-Cert-Thumbprint` - base64url(SHA-256(DER)) = `x5t#S256`
+/// - `X-Sentin8-Client-Cert-Subject` - best-effort subject CN from the DER
+/// - `X-Sentin8-Client-Cert-Issuer` - best-effort issuer CN from the DER
 ///
 /// Subject/issuer extraction is deliberately minimal (no full X.509 parser
-/// dependency): the thumbprint is the security-relevant value (RFC 8705 —
+/// dependency): the thumbprint is the security-relevant value (RFC 8705 -
 /// Sentin8:Auth validates it against the registered thumbprint); the DN
 /// fields are informational.
 fn inject_client_cert_headers(headers: &mut HeaderMap, cert_der: &[u8]) {
@@ -539,7 +539,7 @@ fn inject_client_cert_headers(headers: &mut HeaderMap, cert_der: &[u8]) {
 /// Best-effort CN extraction from a DER certificate (subject when
 /// `subject`, else issuer). Walks the TLV structure looking for the
 /// CommonName OID (2.5.4.3 = 55 04 03) and returns the following
-/// PrintableString/UTF8String value. Returns None on any parse difficulty —
+/// PrintableString/UTF8String value. Returns None on any parse difficulty -
 /// the thumbprint header is the security-critical one.
 fn extract_cn(der: &[u8], subject: bool) -> Option<String> {
     // Locate the tbsCertificate: SEQUENCE { version [0], serialNumber,

@@ -7,14 +7,14 @@
 //!
 //! ## Layers (in recommended install order)
 //!
-//! 1. [`request_logging`] — opens the root `request` span, captures
+//! 1. [`request_logging`] - opens the root `request` span, captures
 //!    `correlation_id` and tenant markers, and emits a single
 //!    `request.completed` log line with `method`, `path`, `status`,
 //!    `latency_ms`, `correlation_id`, and `tenant` once the response
 //!    is built.
-//! 2. [`correlation_id`] — generates or propagates `X-Sentin8-Correlation-Id`
+//! 2. [`correlation_id`] - generates or propagates `X-Sentin8-Correlation-Id`
 //!    so handlers downstream can read it via `axum::Extension<CorrelationId>`.
-//! 3. [`sentin8_tls_context`](crate::context::sentin8_tls_context) — extracts
+//! 3. [`sentin8_tls_context`](crate::context::sentin8_tls_context) - extracts
 //!    `TLSContext` from TLS-injected headers.
 //!
 //! `request_logging` is the outermost layer, so it captures the
@@ -161,9 +161,9 @@ pub async fn request_logging(mut req: Request, next: Next) -> Response {
 /// keep the logfile readable.
 ///
 /// Currently covers:
-/// - `/v1/health` — probed by Sentin8:Captain for every service every 10s.
+/// - `/v1/health` - probed by Sentin8:Captain for every service every 10s.
 /// - `/v1/captain/services` (and its `/v1/captain/services/{key}` sub-paths)
-///   — polled by the dashboard and the CLI.
+///   - polled by the dashboard and the CLI.
 fn is_polling_endpoint(path: &str) -> bool {
     // Strip the query string before matching.
     let path = path.split('?').next().unwrap_or(path);
@@ -186,7 +186,7 @@ fn is_polling_endpoint(path: &str) -> bool {
     false
 }
 
-/// Legacy alias for [`request_logging`] — installed as the outermost
+/// Legacy alias for [`request_logging`] - installed as the outermost
 /// layer to keep span fields populated. Kept for backwards compatibility
 /// with code that imports the old name.
 pub async fn correlation_id(mut req: Request, next: Next) -> Response {

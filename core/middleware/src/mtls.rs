@@ -16,9 +16,9 @@
 //!
 //! ## File format
 //!
-//! - `ca_cert_path` — PEM file with one or more CA certificates.
-//! - `client_cert_path` — PEM file with the client's certificate chain.
-//! - `client_key_path` — PEM file with the client's private key (unencrypted
+//! - `ca_cert_path` - PEM file with one or more CA certificates.
+//! - `client_cert_path` - PEM file with the client's certificate chain.
+//! - `client_key_path` - PEM file with the client's private key (unencrypted
 //!   or the caller must handle passphrase via env).
 //!
 //! ## Error handling
@@ -108,7 +108,7 @@ pub fn build_mtls_client(config: &MtlsConfig) -> Result<reqwest::Client, String>
         .danger_accept_invalid_certs(false)
         .https_only(true)
         // Bounded (BOUNDED-OUTBOUND): an unbounded client lets a stalled
-        // proxy/backend hang the caller indefinitely — in the BOOT path
+        // proxy/backend hang the caller indefinitely - in the BOOT path
         // (m2m credential probe, DCR, Acme issuance) that stalls the
         // service before its listener binds, and the supervisor kills it
         // (restart spiral). A probe that misses the window keeps the
@@ -120,7 +120,7 @@ pub fn build_mtls_client(config: &MtlsConfig) -> Result<reqwest::Client, String>
         .map_err(|e| format!("failed to build mTLS client: {e}"))
 }
 
-/// Build a **streaming** mTLS `reqwest::Client` — identical to
+/// Build a **streaming** mTLS `reqwest::Client` - identical to
 /// [`build_mtls_client`] but WITHOUT the total request `.timeout()`, for
 /// long-lived SSE body streams (Bus's `GET /v1/consume/sse`) that must not
 /// be aborted mid-stream. The `connect_timeout` is retained so
@@ -128,7 +128,7 @@ pub fn build_mtls_client(config: &MtlsConfig) -> Result<reqwest::Client, String>
 /// `Sentin8HttpClient::new_streaming`).
 ///
 /// auth DESIGN §4.3f: the certificate presented here is the
-/// caller's COMPLETE identity on the token-free plane — the receiving
+/// caller's COMPLETE identity on the token-free plane - the receiving
 /// service's TLS layer CA-verifies it and injects the
 /// `X-Sentin8-Client-Cert-*` headers that drive authorization.
 pub fn build_mtls_streaming_client(config: &MtlsConfig) -> Result<reqwest::Client, String> {
@@ -164,7 +164,7 @@ pub fn build_mtls_streaming_client(config: &MtlsConfig) -> Result<reqwest::Clien
 /// no client certificate (https-only, strict verification). Used for
 /// outbound platform calls that must ride the CA-verified channel without
 /// presenting a client identity (e.g. first-boot DCR + Acme issuance in
-/// the m2m crate — the caller has no cert yet, or already presented one
+/// the m2m crate - the caller has no cert yet, or already presented one
 /// at the TLS layer).
 pub fn build_ca_client(ca_cert_path: &str) -> Result<reqwest::Client, String> {
     let ca_cert = std::fs::read(ca_cert_path)
@@ -178,7 +178,7 @@ pub fn build_ca_client(ca_cert_path: &str) -> Result<reqwest::Client, String> {
         .danger_accept_invalid_certs(false)
         .https_only(true)
         // Bounded (BOUNDED-OUTBOUND): first-boot DCR + Acme issuance ride
-        // this client from the boot path — an unbounded request stalls the
+        // this client from the boot path - an unbounded request stalls the
         // boot indefinitely (see build_mtls_client's note).
         .connect_timeout(std::time::Duration::from_secs(5))
         .timeout(std::time::Duration::from_secs(10))
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn validate_paths_returns_ok_for_existing_files() {
-        // Use /dev/null which exists but is not a valid PEM — validate_paths
+        // Use /dev/null which exists but is not a valid PEM - validate_paths
         // only checks existence.
         let cfg = MtlsConfig::new("/dev/null", "/dev/null", "/dev/null");
         assert!(cfg.validate_paths().is_ok());
@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn build_mtls_client_fails_on_dev_null_pem() {
-        // /dev/null exists but reads as empty — PEM parsing should fail.
+        // /dev/null exists but reads as empty - PEM parsing should fail.
         let cfg = MtlsConfig::new("/dev/null", "/dev/null", "/dev/null");
         let res = build_mtls_client(&cfg);
         assert!(res.is_err(), "empty PEM should fail to parse");
@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn build_ca_client_accepts_valid_pem() {
         // /dev/null reads as empty, which reqwest tolerates as an
-        // (empty) root store — the important contract is that a missing
+        // (empty) root store - the important contract is that a missing
         // file fails (above) and a real PEM builds. Use the same dev-null
         // path to assert the no-panic happy path when the file exists.
         let res = build_ca_client("/dev/null");

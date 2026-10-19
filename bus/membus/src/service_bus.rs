@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! Service composition helper — the adopter-facing face of MemBus.
+//! Service composition helper - the adopter-facing face of MemBus.
 //!
 //! [`ServiceBus::connect`] is what a latency-critical service calls in
 //! its `sentin8-shell` `with_state` closure (the same composition
@@ -13,7 +13,7 @@
 //! - empty `valkey_url`  → disabled silently (the shell's existing
 //!   "no publisher" convention for dev-only runs);
 //! - Valkey unreachable / bad env id → disabled with a WARN;
-//! - **never an `Err`** — MemBus is a hot-path accelerator, never a
+//! - **never an `Err`** - MemBus is a hot-path accelerator, never a
 //!   startup dependency (a realtime service must still boot).
 //!
 //! Disabled means every publish is a silent no-op.
@@ -38,14 +38,14 @@ impl ServiceBus {
     /// `sentin8_config::SYSTEM_ENV_ID`.
     ///
     /// `valkey_url` comes from `core.config.valkey_url` (the shell's
-    /// resolved `VALKEY_URL`); empty string disables the bus — the
+    /// resolved `VALKEY_URL`); empty string disables the bus - the
     /// same convention the shell applies to its metrics publisher.
     ///
     /// The connect is bounded (2 s): an unreachable Valkey disables
     /// the bus with a WARN rather than hanging startup.
     pub async fn connect(service_name: &str, valkey_url: &str) -> Self {
         if valkey_url.trim().is_empty() {
-            // Dev-only run without a publisher — quiet by design.
+            // Dev-only run without a publisher - quiet by design.
             return Self::disabled();
         }
         let env_id = Self::resolve_env_id(service_name);
@@ -71,7 +71,7 @@ impl ServiceBus {
                     tracing::warn!(
                         service = service_name,
                         error = %e,
-                        "membus: invalid env id '{env_id}' — publishing disabled"
+                        "membus: invalid env id '{env_id}' - publishing disabled"
                     );
                     Self::disabled()
                 }
@@ -80,7 +80,7 @@ impl ServiceBus {
                 tracing::warn!(
                     service = service_name,
                     error = %e,
-                    "membus: Valkey unreachable — publishing disabled"
+                    "membus: Valkey unreachable - publishing disabled"
                 );
                 Self::disabled()
             }
@@ -88,7 +88,7 @@ impl ServiceBus {
                 tracing::warn!(
                     service = service_name,
                     url = valkey_url,
-                    "membus: connect timed out — publishing disabled"
+                    "membus: connect timed out - publishing disabled"
                 );
                 Self::disabled()
             }
@@ -100,7 +100,7 @@ impl ServiceBus {
         self.env.is_some()
     }
 
-    /// Durable publish — no-op when disabled. Errors surface at DEBUG:
+    /// Durable publish - no-op when disabled. Errors surface at DEBUG:
     /// a lost fast-bus tick is tolerable by contract; the
     /// caller's durable record (journal, DB) remains authoritative.
     pub async fn publish_stream(&self, family: &str, event_type: &str, payload: serde_json::Value) {
@@ -112,7 +112,7 @@ impl ServiceBus {
         }
     }
 
-    /// Ephemeral publish — no-op when disabled.
+    /// Ephemeral publish - no-op when disabled.
     pub async fn publish_pubsub(&self, family: &str, event_type: &str, payload: serde_json::Value) {
         if let Some(env) = &self.env {
             let envelope = crate::Envelope::new(event_type, payload.to_string().into_bytes());
@@ -154,14 +154,14 @@ mod tests {
 
     #[tokio::test]
     async fn unreachable_valkey_disables_with_warn() {
-        // A port nothing listens on — connect must disable, not error.
+        // A port nothing listens on - connect must disable, not error.
         let bus = ServiceBus::connect("svc-role", "valkey://localhost:59999/0").await;
         assert!(!bus.is_enabled());
     }
 
     #[test]
     fn env_id_slug_resolution() {
-        // The slug derivation is pure — verify the mandated shape
+        // The slug derivation is pure - verify the mandated shape
         // (`svc:role` → `SVC_ROLE_ENV_ID`). The legacy hyphen form maps
         // to the same slug.
         let slug = "svc:role".to_ascii_uppercase().replace([':', '-'], "_");

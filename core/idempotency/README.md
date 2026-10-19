@@ -11,7 +11,7 @@ operations replay-safe. A no-op store implementation ships with the crate.
 
 - **At-least-once delivery is the norm.** Clients retry on timeouts, event
   triggers retry with backoff, and network retries happen invisibly. A
-  payment executed twice is not a retry problem — it is a money problem.
+  payment executed twice is not a retry problem - it is a money problem.
 - **One contract, many backends.** Different services have different
   durability needs (Valkey TTL cache vs. PostgreSQL dedupe table). A single
   trait keeps handler-level wiring identical across services while letting
@@ -35,15 +35,15 @@ under the key. Every trigger-based consumer dedupes on the event's
 
 ## 4. Key Traits and Data Structures
 
-- **`IDEMPOTENCY_KEY_HEADER`** — the canonical header name
+- **`IDEMPOTENCY_KEY_HEADER`** - the canonical header name
   (`Idempotency-Key`).
-- **`IdempotencyRecord`** — what gets stored: the key as presented, the
+- **`IdempotencyRecord`** - what gets stored: the key as presented, the
   original HTTP status code, and the serialized response body.
-- **`IdempotencyStore`** — the async contract: `get_or_claim(key)` returns
+- **`IdempotencyStore`** - the async contract: `get_or_claim(key)` returns
   the cached record for a seen key or `None` for a new one (claiming it),
   and `store(key, record)` persists the result.
-- **`NoopIdempotencyStore`** — every key is new; nothing is persisted.
-- **`StoreError`** — backend failure surface.
+- **`NoopIdempotencyStore`** - every key is new; nothing is persisted.
+- **`StoreError`** - backend failure surface.
 
 ## 5. Rationale, Trade-offs, and Alternatives
 
@@ -71,9 +71,9 @@ under the key. Every trigger-based consumer dedupes on the event's
 - **Invariants:**
   - `NoopIdempotencyStore` never returns a record and never errors.
   - A stored record must be byte-equivalent to the original response
-    (status + body) — replayed responses are indistinguishable from fresh
+    (status + body) - replayed responses are indistinguishable from fresh
     ones.
-  - The key is stored exactly as presented (no normalization) — callers
+  - The key is stored exactly as presented (no normalization) - callers
     own key semantics.
 - **Concurrency contract.** Real backends must make `get_or_claim`
   atomic per key; two concurrent claims of one key must yield exactly one
@@ -83,7 +83,7 @@ under the key. Every trigger-based consumer dedupes on the event's
 
 ## 7. Unresolved Questions / Future Designs
 
-- A shared Valkey-backed store (TTL + response-body cache) is agreed —
+- A shared Valkey-backed store (TTL + response-body cache) is agreed -
   implement it when a consumer needs the shared store.
 - Key scoping is defined preemptively in the trait docs: keys MUST be
   `{service}/{route}/{client-key}` namespaced.

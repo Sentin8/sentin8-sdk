@@ -8,19 +8,19 @@
 //! Shared axum middleware for all Sentin8 services.
 //!
 //! This crate provides:
-//! - [`correlation_id`] — generates or propagates `X-Sentin8-Correlation-Id`
-//! - [`sentin8_tls_context`] — extracts tenant context from TLS-injected headers
-//! - [`request_logging`] — structured request/response logging
-//! - [`recovery`] — catches panics and converts them to 500 errors
-//! - [`jwks_verifier`] — Auth JWKS-based token verification
-//! - [`rate_limit`] — token-bucket rate limiter
-//! - [`cors`] — CORS configuration
-//! - [`csp`] — Content-Security-Policy headers
-//! - [`mtls`] — mTLS reqwest client builder
-//! - [`structured_logging`] — JSON structured logging
-//! - [`otel_tracing`] — OpenTelemetry tracing
-//! - [`metrics`] — Prometheus metrics middleware
-//! - [`health`] — health check endpoints
+//! - [`correlation_id`] - generates or propagates `X-Sentin8-Correlation-Id`
+//! - [`sentin8_tls_context`] - extracts tenant context from TLS-injected headers
+//! - [`request_logging`] - structured request/response logging
+//! - [`recovery`] - catches panics and converts them to 500 errors
+//! - [`jwks_verifier`] - Auth JWKS-based token verification
+//! - [`rate_limit`] - token-bucket rate limiter
+//! - [`cors`] - CORS configuration
+//! - [`csp`] - Content-Security-Policy headers
+//! - [`mtls`] - mTLS reqwest client builder
+//! - [`structured_logging`] - JSON structured logging
+//! - [`otel_tracing`] - OpenTelemetry tracing
+//! - [`metrics`] - Prometheus metrics middleware
+//! - [`health`] - health check endpoints
 //!
 #![deny(missing_docs)]
 
@@ -80,11 +80,11 @@ pub struct JwksConfig {
     pub audience: String,
 }
 
-/// A verified Auth token — the claims needed by the Sentin8 authorization
+/// A verified Auth token - the claims needed by the Sentin8 authorization
 /// pipeline. The full implementation will parse these from the JWT payload.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct VerifiedClaims {
-    /// Subject — the authenticated principal id.
+    /// Subject - the authenticated principal id.
     pub sub: String,
     /// Issuer (the Auth issuer URL).
     pub iss: String,
@@ -96,10 +96,10 @@ pub struct VerifiedClaims {
     pub iat: i64,
     /// Unique token id.
     pub jti: String,
-    /// `token_tp` claim — token type marker (e.g. "m2m", "access").
+    /// `token_tp` claim - token type marker (e.g. "m2m", "access").
     #[serde(rename = "token_tp")]
     pub token_type: String,
-    /// `env_id` claim — environment UUID (globally unique, sole tenant key).
+    /// `env_id` claim - environment UUID (globally unique, sole tenant key).
     pub env_id: Option<String>,
     /// Space-separated scope string.
     pub scope: String,

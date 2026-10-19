@@ -5,7 +5,7 @@
 
 //! # bus-contracts
 //!
-//! Rust types for the Bus event-bus HTTP API — the produce/consume
+//! Rust types for the Bus event-bus HTTP API - the produce/consume
 //! request/response wire contract and the durable message envelope
 //! shared by every publisher and subscriber.
 //!
@@ -27,13 +27,13 @@ pub struct Message {
     pub message_id: String,
     /// The stream family the event was published to.
     pub stream_family: String,
-    /// Organization ID — OPTIONAL: `env_id` is globally unique and is the
+    /// Organization ID - OPTIONAL: `env_id` is globally unique and is the
     /// sole tenant key, so this is enrichment/audit metadata only.
     #[serde(default)]
     pub org_id: String,
     /// Tenant environment the event belongs to (the tenant key).
     pub env_id: String,
-    /// Platform event name — `vertical:service:resource:operation`.
+    /// Platform event name - `vertical:service:resource:operation`.
     pub event_type: String,
     /// Payload schema version.
     pub schema_version: String,
@@ -48,16 +48,16 @@ pub struct Message {
     /// Producer-supplied idempotency key for exactly-once consumers.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,
-    /// Publisher identity token — the JWT that authenticated the request
+    /// Publisher identity token - the JWT that authenticated the request
     /// which triggered this event. Enables subscriber-side delegation via
     /// RFC 8693 token exchange.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publisher_id_token: Option<String>,
-    /// Extracted `sub` claim from the publisher token — for audit/indexing.
+    /// Extracted `sub` claim from the publisher token - for audit/indexing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publisher_subject: Option<String>,
     /// The verified producer's vertical claim (VDC-2, design/
-    /// sentin8-vertical-data-plane-contract.md §VDC.4) — recorded by Bus at
+    /// sentin8-vertical-data-plane-contract.md §VDC.4) - recorded by Bus at
     /// produce from the M2M token. Consumers assert it against the
     /// event_type's first colon segment via `require_publisher` before
     /// acting on reaction-triggering events (defense-in-depth under the
@@ -71,11 +71,11 @@ pub struct Message {
 pub struct ProduceRequest {
     /// The stream family to publish into.
     pub stream_family: String,
-    /// Platform event name — `vertical:service:resource:operation`.
+    /// Platform event name - `vertical:service:resource:operation`.
     pub event_type: String,
     /// The domain payload.
     pub payload: serde_json::Value,
-    /// Tenant env — must match the JWT-derived tenant context (a
+    /// Tenant env - must match the JWT-derived tenant context (a
     /// defense-in-depth server check). Absent → the server uses the JWT
     /// claims.
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -86,7 +86,7 @@ pub struct ProduceRequest {
     /// Idempotency key for exactly-once consumers.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,
-    /// Publisher identity token — optional. If absent, the server derives
+    /// Publisher identity token - optional. If absent, the server derives
     /// it from the Authorization header.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publisher_id_token: Option<String>,
@@ -105,12 +105,12 @@ pub struct ProduceResponse {
     pub stream: String,
 }
 
-/// Request body for `POST /v1/produce/batch` — N events in ONE call
+/// Request body for `POST /v1/produce/batch` - N events in ONE call
 /// (bus DESIGN §4.3 / README §7). Rows are independent: the batch is a
 /// transport-level optimization, not a transaction.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, ToSchema)]
 pub struct ProduceBatchRequest {
-    /// The batched events (max 100 per call — matches the outbox relay
+    /// The batched events (max 100 per call - matches the outbox relay
     /// drain batch).
     pub events: Vec<ProduceRequest>,
 }
@@ -119,7 +119,7 @@ pub struct ProduceBatchRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, Default, ToSchema)]
 pub struct ProduceBatchResponse {
     /// Per-row results, in request order. A failed row carries `error`
-    /// and no `message_id` — the batch is best-effort per row.
+    /// and no `message_id` - the batch is best-effort per row.
     pub results: Vec<ProduceBatchItem>,
 }
 
@@ -161,7 +161,7 @@ pub struct ConsumeResponse {
     pub messages: Vec<Message>,
 }
 
-// Serde roundtrip tests — bus envelope wire-format stability. The
+// Serde roundtrip tests - bus envelope wire-format stability. The
 // optional-field defaults (org_id, idempotency, publisher metadata) are
 // pinned so producers that omit them deserialize cleanly.
 
@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn event_name_segments_colon_convention() {
-        // AGENTS.md: vertical:service:resource:operation — 4 colon segments.
+        // AGENTS.md: vertical:service:resource:operation - 4 colon segments.
         let m = sample_message();
         let segs: Vec<&str> = m.event_type.split(':').collect();
         assert_eq!(segs.len(), 4);

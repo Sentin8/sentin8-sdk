@@ -3,23 +3,23 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! # sentin8-membus — Sentin8 MemBus (Memory Bus)
+//! # sentin8-membus - Sentin8 MemBus (Memory Bus)
 //!
 //! Ultra-low-latency, library-only event bus. Not a service: no HTTP
 //! server, no ports, no per-message JWT verification, no inbox relay.
 //! Services embed this crate and talk RESP **directly to Valkey** via
-//! **Valkey GLIDE** (`valkey-glide`, imported as `glide` — the platform's
-//! mandated client engine) over the certificate-identity TLS plane —
+//! **Valkey GLIDE** (`valkey-glide`, imported as `glide` - the platform's
+//! mandated client engine) over the certificate-identity TLS plane -
 //! every connection presents the workload's Acme-issued m2m pair
 //! (group DESIGN.md §3.1).
 //!
 //! Two delivery classes:
 //!
-//! - **Durable** — Valkey Streams + consumer groups (`mbus:{env}:{family}`):
+//! - **Durable** - Valkey Streams + consumer groups (`mbus:{env}:{family}`):
 //!   `XADD` with mandatory `MAXLEN ~` trim, `XREADGROUP … BLOCK` on a
 //!   dedicated connection, coalesced `XACK`, library-owned `XAUTOCLAIM`
 //!   crash-recovery sweep.
-//! - **Ephemeral** — Valkey Pub/Sub (`mchan:{env}:{family}`): zero
+//! - **Ephemeral** - Valkey Pub/Sub (`mchan:{env}:{family}`): zero
 //!   persistence, newest-wins. `PUBLISH`/`SUBSCRIBE` only.
 //!
 //! The connection invariant is structural: blocking reads NEVER share the
@@ -65,7 +65,7 @@ const AUTOCLAIM_MIN_IDLE_MS: u64 = 60_000;
 const AUTOCLAIM_COUNT: u64 = 20;
 
 /// Connection configuration. The URL must use the platform's
-/// `valkeys://` scheme — the Valkey data plane is TLS-only
+/// `valkeys://` scheme - the Valkey data plane is TLS-only
 /// and the client presents the workload's certificate identity (group
 /// DESIGN.md §3.1). Plaintext schemes are REJECTED: there is no plaintext
 /// listener to connect to, and a silent downgrade would present NO
@@ -74,14 +74,14 @@ const AUTOCLAIM_COUNT: u64 = 20;
 pub struct MemBusConfig {
     /// Valkey URL, scheme `valkeys://` (the platform's TLS scheme).
     pub url: String,
-    /// The WORKLOAD whose certificate authenticates this connection —
+    /// The WORKLOAD whose certificate authenticates this connection -
     /// the CN maps to the enroll-provisioned ACL user of the same name
     /// (`m2m-{workload}`); the key patterns and command allowlist are
     /// (`m2m-{workload}`); the key patterns and command allowlist are
     /// that user's. Set once per process at `connect`.
     pub workload: String,
     /// Producer identity stamped into every envelope's `by` field.
-    /// Configured once per process; informative, not authoritative —
+    /// Configured once per process; informative, not authoritative -
     /// identity is the certificate.
     pub service_name: String,
     /// Approximate `MAXLEN ~` trim target for streams (per family).
@@ -104,7 +104,7 @@ impl std::fmt::Debug for MemBusConfig {
 impl MemBusConfig {
     /// Config from the platform's `VALKEY_URL` (via
     /// `sentin8_config::valkey_url_from_env()`) with the given WORKLOAD
-    /// identity (the certificate CN / ACL user) — the envelope `by`
+    /// identity (the certificate CN / ACL user) - the envelope `by`
     /// field derives from it.
     pub fn from_env(workload: impl Into<String>) -> Self {
         let workload = workload.into();
@@ -137,14 +137,14 @@ impl MemBusConfig {
 /// Construct once per process (`MemBus::connect`), then bind tenant
 /// context with [`MemBus::for_env`].
 pub struct MemBus {
-    /// Shared multiplexed command client — XADD, XACK, PUBLISH,
+    /// Shared multiplexed command client - XADD, XACK, PUBLISH,
     /// PING, XGROUP. Never issues a blocking command. glide-core
     /// owns reconnection and backoff (group DESIGN.md §3.1).
     cmd: GlideClient,
-    /// Connection config for subscribers — a fresh GLIDE connect per
+    /// Connection config for subscribers - a fresh GLIDE connect per
     /// subscriber (each drives its own push-message loop).
     config: MemBusConfig,
-    /// Per-(service, family) monotonic sequence — the envelope `sq`
+    /// Per-(service, family) monotonic sequence - the envelope `sq`
     /// field. Keyed by family; the producer identity is process-wide.
     seq: Arc<Mutex<HashMap<String, Arc<AtomicU64>>>>,
     /// Instance hash for consumer names (`{group}-{instance_hash}`).
@@ -154,7 +154,7 @@ pub struct MemBus {
 impl MemBus {
     /// Connect to Valkey over the certificate-identity TLS plane,
     /// presenting the configured workload's m2m pair via Valkey GLIDE
-    /// (group DESIGN.md §3.1). PINGs once — fails fast when unreachable
+    /// (group DESIGN.md §3.1). PINGs once - fails fast when unreachable
     /// so service startup surfaces the problem immediately; the
     /// factory's connection timeout bounds the handshake.
     pub async fn connect(config: MemBusConfig) -> Result<Self, MemBusError> {
@@ -162,7 +162,7 @@ impl MemBus {
             .await
             .map_err(|e| MemBusError::Connect(e.to_string()))?;
         // Fail fast: the constructor must not succeed against a dead
-        // Valkey — callers build their startup path on this.
+        // Valkey - callers build their startup path on this.
         use glide::AsyncCommands as _;
         let _: Result<String, _> = cmd.ping().await;
         let instance_hash = std::process::id() as u64
@@ -180,10 +180,10 @@ impl MemBus {
 
     /// Bind a tenant context. Every subsequent publish/subscribe on the
     /// returned handle derives its key as `mbus:{env_id}:{family}` /
-    /// `mchan:{env_id}:{family}` — the caller never supplies `env_id`
+    /// `mchan:{env_id}:{family}` - the caller never supplies `env_id`
     /// again, and there is no API to cross tenants on one handle.
     pub fn for_env(&self, env_id: &str) -> Result<EnvBus, MemBusError> {
-        // A non-UUID env id is rejected outright — same rule as the
+        // A non-UUID env id is rejected outright - same rule as the
         // control-plane bus's tenant resolution (no silent default).
         let env = uuid::Uuid::parse_str(env_id)
             .map_err(|_| MemBusError::InvalidEnv(env_id.to_string()))?;
@@ -196,7 +196,7 @@ impl MemBus {
         })
     }
 
-    /// Liveness probe — PINGs Valkey and refreshes the
+    /// Liveness probe - PINGs Valkey and refreshes the
     /// `mbus:ping:{service}` key with a 30s TTL.
     pub async fn ping(&self) -> Result<(), MemBusError> {
         let conn = self.cmd.clone();
@@ -216,7 +216,7 @@ impl MemBus {
 
 /// A tenant-bound handle. All keys derive from the bound `env_id`.
 ///
-/// Constructed only via [`MemBus::for_env`] — never with an
+/// Constructed only via [`MemBus::for_env`] - never with an
 /// attacker-supplied tenant.
 pub struct EnvBus {
     cmd: GlideClient,
@@ -242,7 +242,7 @@ impl EnvBus {
         Ok(format!("mchan:{}:{}", self.env_id, family))
     }
 
-    /// Next sequence number for (service, family) — monotonic, wraps at
+    /// Next sequence number for (service, family) - monotonic, wraps at
     /// u64 (`sq` is the dedupe/gap-detection key).
     fn next_seq(&self, family: &str) -> u64 {
         // The map is write-once per family; get-or-init is idempotent
@@ -267,7 +267,7 @@ impl EnvBus {
         counter.fetch_add(1, Ordering::Relaxed) + 1
     }
 
-    /// Durable publish — one `XADD` with mandatory approximate trim:
+    /// Durable publish - one `XADD` with mandatory approximate trim:
     /// `XADD mbus:{env}:{family} MAXLEN ~ {trim} * <fields…>`.
     ///
     /// Trimming is what keeps a `maxmemory`-bounded Valkey survivable
@@ -279,14 +279,14 @@ impl EnvBus {
     ) -> Result<String, MemBusError> {
         let key = self.stream_key(family)?;
         // The library assigns the per-(service, family) sequence at
-        // publish time — the `sq` the consumer dedupes/gap-checks on.
+        // publish time - the `sq` the consumer dedupes/gap-checks on.
         let mut envelope = envelope.clone();
         envelope.sq = self.next_seq(family);
         if envelope.producer.is_empty() {
             envelope.producer = self.config.service_name.clone();
         }
         let started = std::time::Instant::now();
-        // Raw `XADD` with approximate trim — the fields are opaque
+        // Raw `XADD` with approximate trim - the fields are opaque
         // bytes (`p` payload); the typed wrapper is not a fit. Raw
         // `Cmd`s dispatch through the same `AsyncCommands` trait the
         // typed methods use (GLIDE mirrors the typed-client surface).
@@ -310,7 +310,7 @@ impl EnvBus {
         Ok(id)
     }
 
-    /// Durable publish, pipelined — one round trip for N messages.
+    /// Durable publish, pipelined - one round trip for N messages.
     pub async fn publish_stream_many(
         &self,
         family: &str,
@@ -353,8 +353,8 @@ impl EnvBus {
         Ok(ids)
     }
 
-    /// Ephemeral publish — one `PUBLISH` of the binary frame. The
-    /// channel holds nothing; a message with no live subscriber is gone —
+    /// Ephemeral publish - one `PUBLISH` of the binary frame. The
+    /// channel holds nothing; a message with no live subscriber is gone -
     /// that is the contract.
     pub async fn publish_pubsub(
         &self,
@@ -381,7 +381,7 @@ impl EnvBus {
         Ok(receivers)
     }
 
-    /// Durable subscribe — owns a DEDICATED connection: the
+    /// Durable subscribe - owns a DEDICATED connection: the
     /// blocking `XREADGROUP … BLOCK` can never stall the shared command
     /// connection. Creates the consumer group (from `$`, MKSTREAM) if
     /// absent, and runs the library-owned `XAUTOCLAIM` crash-recovery
@@ -395,7 +395,7 @@ impl EnvBus {
         let key = self.stream_key(family)?;
         validate_group(group)?;
         let consumer = format!("{group}-{:x}", self.instance_hash);
-        // A DEDICATED GLIDE client per subscriber — the blocking
+        // A DEDICATED GLIDE client per subscriber - the blocking
         // XREADGROUP never stalls the shared command client, and
         // glide-core heals this connection independently.
         let conn = sentin8_middleware::valkey_client(&self.config.url, &self.config.workload)
@@ -426,12 +426,12 @@ impl EnvBus {
         })
     }
 
-    /// Ephemeral subscribe — a DEDICATED GLIDE client in subscribe mode.
+    /// Ephemeral subscribe - a DEDICATED GLIDE client in subscribe mode.
     /// Frames are raw pub/sub payloads; decode via
     /// [`Envelope::decode_frame`].
     pub async fn subscribe_pubsub(&self, family: &str) -> Result<PubSubscriber, MemBusError> {
         let channel = self.channel_key(family)?;
-        // A dedicated client per subscriber — its push-message loop is
+        // A dedicated client per subscriber - its push-message loop is
         // independent of the shared command client.
         let client =
             sentin8_middleware::valkey_client_pubsub(&self.config.url, &self.config.workload)
@@ -446,7 +446,7 @@ impl EnvBus {
     }
 }
 
-/// Ephemeral (pub/sub) consumer — one dedicated GLIDE client in
+/// Ephemeral (pub/sub) consumer - one dedicated GLIDE client in
 /// subscribe mode.
 pub struct PubSubscriber {
     client: GlideClient,
@@ -468,7 +468,7 @@ impl PubSubscriber {
                 .map(Some)
                 .map_err(|e| MemBusError::Decode(e.to_string())),
             Err(e) => {
-                // A closed push channel surfaces as an error — treat it
+                // A closed push channel surfaces as an error - treat it
                 // as the subscription end, not a bus failure.
                 tracing::debug!(error = %e, "membus: pubsub channel closed");
                 Ok(None)
@@ -477,11 +477,11 @@ impl PubSubscriber {
     }
 }
 
-/// Scheme policy (group DESIGN.md §3.1): the plane is TLS-only — the
+/// Scheme policy (group DESIGN.md §3.1): the plane is TLS-only - the
 /// cert-presenting factory ([`sentin8_middleware::valkey_client`]) is
 /// the single construction path and it REQUIRES `valkeys://`.
 /// A plaintext scheme here is a configuration error surfaced as
-/// `MemBusError::Connect` at `connect` time — never a silent downgrade.
+/// `MemBusError::Connect` at `connect` time - never a silent downgrade.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -506,7 +506,7 @@ mod tests {
             trim_default: 1000,
             metrics: Arc::new(NoopMetrics),
         };
-        // Cannot construct without a live Valkey — test the id check
+        // Cannot construct without a live Valkey - test the id check
         // through the error path only: non-UUID must fail validation.
         let bad = uuid::Uuid::parse_str("not-a-uuid");
         assert!(bad.is_err());

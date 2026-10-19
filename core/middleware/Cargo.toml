@@ -25,7 +25,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 chrono.workspace = true
-# Valkey GLIDE — the platform's mandated client engine (group DESIGN.md
+# Valkey GLIDE - the platform's mandated client engine (group DESIGN.md
 # §3.1): glide-core owns TLS, reconnection, and backoff natively.
 valkey-glide.workspace = true
 reqwest.workspace = true

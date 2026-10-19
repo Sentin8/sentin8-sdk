@@ -64,7 +64,7 @@ pub enum ErrorCode {
     TenantMismatch,
     /// A required feature is not enabled for the environment.
     FeatureDisabled,
-    /// Internal server error — unexpected failure.
+    /// Internal server error - unexpected failure.
     Internal,
 
     // ── Auth ──
@@ -295,7 +295,7 @@ impl std::fmt::Display for Sentin8Error {
     }
 }
 
-// Convenience constructors — cross-cutting.
+// Convenience constructors - cross-cutting.
 impl Sentin8Error {
     /// Build a `400 invalid_request` error.
     pub fn invalid_request(msg: impl Into<String>) -> Self {

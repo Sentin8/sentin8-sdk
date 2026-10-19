@@ -16,7 +16,7 @@ name = "sentin8_tls"
 path = "src/lib.rs"
 
 [dependencies]
-# Sentin8:TLS stack — Graviola provider (pure Rust, ML-KEM support, Sentin8:TLS 1.3 only)
+# Sentin8:TLS stack - Graviola provider (pure Rust, ML-KEM support, Sentin8:TLS 1.3 only)
 rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "logging"] }
 rustls-graviola = "0.4"
 rustls-pemfile = "2"
@@ -38,7 +38,7 @@ serde_json = { workspace = true }
 # Database-free hostname resolution (TLS-RLS-4, design/
 # sentin8-vertical-data-plane-contract.md §VDC.7): cache miss → Sys
 # `GET /v1/resolve/hostname` with the embedding service's cert-bound
-# `{dash}-tls` M2M workload. NO sqlx — the library never opens a SQL
+# `{dash}-tls` M2M workload. NO sqlx - the library never opens a SQL
 # connection, so no service (platform or vertical) gains platform-database
 # access by embedding it.
 sentin8-m2m = { workspace = true }
