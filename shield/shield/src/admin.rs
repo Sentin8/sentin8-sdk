@@ -258,7 +258,7 @@ pub async fn list_policy_sets<T>(
     State(st): State<T>,
     headers: HeaderMap,
     Query(q): Query<TargetEnv>,
-) -> Result<Json<Vec<serde_json::Value>>, (StatusCode, String)>
+) -> Result<Json<Vec<PolicySetRow>>, (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -276,23 +276,21 @@ where
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let sets: Vec<serde_json::Value> = rows
+    let sets: Vec<PolicySetRow> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
+        .map(|r| PolicySetRow {
               // id = the set name - the RFW row actions substitute {id}
               // from this field; without it every Delete/Enforce
               // click POSTed `policy-sets//delete` (empty id → 404).
-              "id": r.get::<String, _>("policy_set_name"),
-              "policy_set_name": r.get::<String, _>("policy_set_name"),
-              "description": r.get::<String, _>("description"),
-              "origin": r.get::<String, _>("origin"),
-              "mode": r.get::<String, _>("mode"),
-              "version": r.get::<i32, _>("version"),
-              "enabled": r.get::<bool, _>("enabled"),
-              "policies_len": r.get::<i64, _>("policies_len"),
-              "updated_at": r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at").to_rfc3339(),
-            })
+              id: r.get::<String, _>("policy_set_name"),
+              policy_set_name: r.get::<String, _>("policy_set_name"),
+              description: r.get::<String, _>("description"),
+              origin: r.get::<String, _>("origin"),
+              mode: r.get::<String, _>("mode"),
+              version: r.get::<i32, _>("version"),
+              enabled: r.get::<bool, _>("enabled"),
+              policies_len: r.get::<i64, _>("policies_len"),
+              updated_at: r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at").to_rfc3339(),
         })
         .collect();
     Ok(Json(sets))
@@ -304,7 +302,7 @@ pub async fn get_policy_set<T>(
     headers: HeaderMap,
     Path(name): Path<String>,
     Query(q): Query<TargetEnv>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)>
+) -> Result<Json<PolicySetDetail>, (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -328,18 +326,18 @@ where
             format!("policy set '{name}' not found"),
         )
     })?;
-    Ok(Json(serde_json::json!({
-      "policy_set_name": row.get::<String, _>("policy_set_name"),
-      "description": row.get::<String, _>("description"),
-      "policies": row.get::<String, _>("policies"),
-      "schema": row.get::<Option<String>, _>("schema"),
-      "origin": row.get::<String, _>("origin"),
-      "mode": row.get::<String, _>("mode"),
-      "version": row.get::<i32, _>("version"),
-      "enabled": row.get::<bool, _>("enabled"),
-      "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
-      "updated_at": row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at").to_rfc3339(),
-    })))
+    Ok(Json(PolicySetDetail {
+      policy_set_name: row.get::<String, _>("policy_set_name"),
+      description: row.get::<String, _>("description"),
+      policies: row.get::<String, _>("policies"),
+      schema: row.get::<Option<String>, _>("schema"),
+      origin: row.get::<String, _>("origin"),
+      mode: row.get::<String, _>("mode"),
+      version: row.get::<i32, _>("version"),
+      enabled: row.get::<bool, _>("enabled"),
+      created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+      updated_at: row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at").to_rfc3339(),
+    }))
 }
 
 /// `PUT /v1/admin/policy-sets/{name}` body.
@@ -365,7 +363,7 @@ pub async fn put_policy_set<T>(
     Path(name): Path<String>,
     Query(q): Query<TargetEnv>,
     axum::Json(body): axum::Json<PutPolicySetBody>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, String)>
+) -> Result<(StatusCode, Json<PolicySetMutated>), (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -460,7 +458,7 @@ where
     .await;
     Ok((
         StatusCode::CREATED,
-        Json(serde_json::json!({"policy_set_name": name, "version": version, "mode": out_mode})),
+        Json(PolicySetMutated { policy_set_name: name, version, mode: out_mode }),
     ))
 }
 
@@ -546,7 +544,7 @@ pub async fn test_policy_set<T>(
     Path(name): Path<String>,
     Query(q): Query<TargetEnv>,
     axum::Json(body): axum::Json<TestPolicySetBody>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)>
+) -> Result<Json<PolicyTestOutcome>, (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -592,12 +590,13 @@ where
     ctx.roles = body.roles.iter().cloned().collect();
     let action = body.action.unwrap_or_else(|| format!("{}:read", s.service));
     let outcome = engine.evaluate(&ctx, &crate::EvalTarget::new(action.clone()));
-    Ok(Json(serde_json::json!({
-      "policy_set_name": name,
-      "action": action,
-      "decision": outcome.enforce_decision,
-      "would_deny": outcome.shadow_deny.is_some() || !outcome.enforce_decision.is_allow(),
-    })))
+    let would_deny = outcome.shadow_deny.is_some() || !outcome.enforce_decision.is_allow();
+    Ok(Json(PolicyTestOutcome {
+      policy_set_name: name,
+      action,
+      decision: outcome.enforce_decision,
+      would_deny,
+    }))
 }
 
 /// `POST /v1/admin/policy-sets/{mode}` body (RFW row actions).
@@ -617,7 +616,7 @@ async fn flip_policy_mode(
     mode: Option<&str>,
     enabled_override: Option<bool>,
     body: &PolicyModeBody,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PolicyModeMutated>, (StatusCode, String)> {
     let (a, env_id, mut conn) = admin_gate(s, headers, q, &write_scope(s)).await?;
     let (new_mode, new_enabled) = match (mode, enabled_override) {
         (Some("enforced"), _) => ("enforced".to_string(), body.enabled.unwrap_or(true)),
@@ -678,12 +677,12 @@ async fn flip_policy_mode(
         }),
     )
     .await;
-    Ok(Json(serde_json::json!({
-      "policy_set_name": body.policy_set_name,
-      "mode": out_mode,
-      "enabled": out_enabled,
-      "version": version,
-    })))
+    Ok(Json(PolicyModeMutated {
+      policy_set_name: body.policy_set_name.clone(),
+      mode: out_mode,
+      enabled: out_enabled,
+      version,
+    }))
 }
 
 // ── RFW renderer helpers ──────────────────────────────────
@@ -813,7 +812,7 @@ pub async fn save_policy_set<T>(
     Path(name): Path<String>,
     Query(q): Query<TargetEnv>,
     body: axum::Json<PutPolicySetBody>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, String)>
+) -> Result<(StatusCode, Json<PolicySetMutated>), (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -948,7 +947,7 @@ pub async fn list_policy_decisions<T>(
     State(st): State<T>,
     headers: HeaderMap,
     Query(q): Query<TargetEnv>,
-) -> Result<Json<Vec<serde_json::Value>>, (StatusCode, String)>
+) -> Result<Json<Vec<PolicyDecisionRow>>, (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -968,20 +967,20 @@ where
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<PolicyDecisionRow> = rows
         .iter()
         .map(|r| {
             let event: serde_json::Value = r.get("event");
-            serde_json::json!({
-              "id": r.get::<Uuid, _>("id"),
-              "timestamp": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
-              "decision": event.get("action").cloned().unwrap_or(serde_json::json!("unknown")),
-              "action_id": event.get("action_id").cloned().unwrap_or(serde_json::json!("")),
-              "reason": event.get("reason").cloned().unwrap_or(serde_json::json!("")),
-              "policy_set": event.get("policy_set").cloned().unwrap_or(serde_json::json!("")),
-              "subject": event.get("subject").cloned().unwrap_or(serde_json::json!("")),
-              "enforced": event.get("enforced").cloned().unwrap_or(serde_json::json!(false)),
-            })
+            PolicyDecisionRow {
+              id: r.get::<Uuid, _>("id"),
+              timestamp: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+              decision: event.get("action").cloned().unwrap_or(serde_json::json!("unknown")),
+              action_id: event.get("action_id").cloned().unwrap_or(serde_json::json!("")),
+              reason: event.get("reason").cloned().unwrap_or(serde_json::json!("")),
+              policy_set: event.get("policy_set").cloned().unwrap_or(serde_json::json!("")),
+              subject: event.get("subject").cloned().unwrap_or(serde_json::json!("")),
+              enforced: event.get("enforced").cloned().unwrap_or(serde_json::json!(false)),
+            }
         })
         .collect();
     Ok(Json(items))
@@ -993,7 +992,7 @@ pub async fn admin_enforce_policy_set<T>(
     headers: HeaderMap,
     Query(q): Query<TargetEnv>,
     Json(body): Json<PolicyModeBody>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)>
+) -> Result<Json<PolicyModeMutated>, (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -1007,7 +1006,7 @@ pub async fn admin_shadow_policy_set<T>(
     headers: HeaderMap,
     Query(q): Query<TargetEnv>,
     Json(body): Json<PolicyModeBody>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)>
+) -> Result<Json<PolicyModeMutated>, (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -1021,7 +1020,7 @@ pub async fn admin_disable_policy_set<T>(
     headers: HeaderMap,
     Query(q): Query<TargetEnv>,
     Json(body): Json<PolicyModeBody>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)>
+) -> Result<Json<PolicyModeMutated>, (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -1072,7 +1071,7 @@ pub async fn list_relations<T>(
     State(st): State<T>,
     headers: HeaderMap,
     Query(q): Query<TargetEnv>,
-) -> Result<Json<Vec<serde_json::Value>>, (StatusCode, String)>
+) -> Result<Json<Vec<RelationRecordRow>>, (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -1090,17 +1089,17 @@ where
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<RelationRecordRow> = rows
         .iter()
         .map(|r| {
-            serde_json::json!({
-              "subject_type": r.get::<String, _>("subject_type"),
-              "subject_id": r.get::<String, _>("subject_id"),
-              "relation": r.get::<String, _>("relation"),
-              "object_type": r.get::<String, _>("object_type"),
-              "object_id": r.get::<String, _>("object_id"),
-              "origin": r.get::<String, _>("origin"),
-            })
+            RelationRecordRow {
+              subject_type: r.get::<String, _>("subject_type"),
+              subject_id: r.get::<String, _>("subject_id"),
+              relation: r.get::<String, _>("relation"),
+              object_type: r.get::<String, _>("object_type"),
+              object_id: r.get::<String, _>("object_id"),
+              origin: r.get::<String, _>("origin"),
+            }
         })
         .collect();
     Ok(Json(items))
@@ -1112,7 +1111,7 @@ pub async fn put_relation<T>(
     headers: HeaderMap,
     Query(q): Query<TargetEnv>,
     axum::Json(body): axum::Json<PutRelationBody>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, String)>
+) -> Result<(StatusCode, Json<RelationUpserted>), (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -1160,7 +1159,7 @@ where
     .await;
     Ok((
         StatusCode::CREATED,
-        Json(serde_json::json!({"id": row.0, "status": "upserted"})),
+        Json(RelationUpserted { id: row.0, status: "upserted".to_string() }),
     ))
 }
 
@@ -1249,7 +1248,7 @@ pub async fn check_relation<T>(
     State(st): State<T>,
     headers: HeaderMap,
     Query(q): Query<RelationCheckQuery>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)>
+) -> Result<Json<RelationCheckResult>, (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -1290,15 +1289,15 @@ where
             break;
         }
     }
-    Ok(Json(serde_json::json!({
-      "subject": format!("{}/{}", q.subject_type, q.subject_id),
-      "relation": q.relation,
-      "object": format!("{}/{}", q.object_type, q.object_id),
-      "direct": direct,
-      "transitive": transitive,
-      "connected": direct || transitive,
-      "tuple_count": slice.len(),
-    })))
+    Ok(Json(RelationCheckResult {
+      subject: format!("{}/{}", q.subject_type, q.subject_id),
+      relation: q.relation,
+      object: format!("{}/{}", q.object_type, q.object_id),
+      direct,
+      transitive,
+      connected: direct || transitive,
+      tuple_count: slice.len(),
+    }))
 }
 
 // ── Attributes endpoints ─────────────────────────────────────────
@@ -1347,7 +1346,7 @@ pub async fn list_attributes<T>(
     State(st): State<T>,
     headers: HeaderMap,
     Query(q): Query<ListAttributesQuery>,
-) -> Result<Json<Vec<serde_json::Value>>, (StatusCode, String)>
+) -> Result<Json<Vec<PrincipalAttr>>, (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -1379,15 +1378,15 @@ where
         .await
     }
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<PrincipalAttr> = rows
         .iter()
         .map(|r| {
-            serde_json::json!({
-              "subject_id": r.get::<String, _>("subject_id"),
-              "attr_key": r.get::<String, _>("attr_key"),
-              "attr_value": r.get::<serde_json::Value, _>("attr_value"),
-              "origin": r.get::<String, _>("origin"),
-            })
+            PrincipalAttr {
+              subject_id: r.get::<String, _>("subject_id"),
+              attr_key: r.get::<String, _>("attr_key"),
+              attr_value: r.get::<serde_json::Value, _>("attr_value"),
+              origin: r.get::<String, _>("origin"),
+            }
         })
         .collect();
     Ok(Json(items))
@@ -1401,7 +1400,7 @@ pub async fn put_attribute<T>(
     headers: HeaderMap,
     Query(q): Query<TargetEnv>,
     axum::Json(body): axum::Json<PutAttributeBody>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, String)>
+) -> Result<(StatusCode, Json<AttributeUpserted>), (StatusCode, String)>
 where
     T: HasPolicyAdmin,
 {
@@ -1443,7 +1442,7 @@ where
     .await;
     Ok((
         StatusCode::CREATED,
-        Json(serde_json::json!({"status": "upserted"})),
+        Json(AttributeUpserted { status: "upserted".to_string() }),
     ))
 }
 
@@ -1496,6 +1495,180 @@ where
     .await;
     Ok(StatusCode::NO_CONTENT)
 }
+
+// ── Typed admin responses (OAPEC-9: no free-form bodies) ────────────────
+
+/// One policy set in the list view (the RFW row shape).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct PolicySetRow {
+    /// The set name; doubles as the RFW row id.
+    pub id: String,
+    /// The set name.
+    pub policy_set_name: String,
+    /// Human description.
+    pub description: String,
+    /// Row origin (`platform` enroll-managed vs `tenant`).
+    pub origin: String,
+    /// Evaluation mode (`shadow`/`enforced`).
+    pub mode: String,
+    /// Monotonic revision.
+    pub version: i32,
+    /// Whether the set participates in evaluation.
+    pub enabled: bool,
+    /// Number of policy statements in the set.
+    pub policies_len: i64,
+    /// Last update instant (RFC 3339).
+    pub updated_at: String,
+}
+
+/// One policy set in the detail view (adds the full policy text).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct PolicySetDetail {
+    /// The set name.
+    pub policy_set_name: String,
+    /// Human description.
+    pub description: String,
+    /// The full policy text (Shield policy language).
+    pub policies: String,
+    /// Optional schema text bound to the set.
+    pub schema: Option<String>,
+    /// Row origin (`platform`/`tenant`).
+    pub origin: String,
+    /// Evaluation mode.
+    pub mode: String,
+    /// Monotonic revision.
+    pub version: i32,
+    /// Whether the set participates in evaluation.
+    pub enabled: bool,
+    /// Creation instant (RFC 3339).
+    pub created_at: String,
+    /// Last update instant (RFC 3339).
+    pub updated_at: String,
+}
+
+/// A stored policy-set mutation result.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct PolicySetMutated {
+    /// The set name.
+    pub policy_set_name: String,
+    /// The revision after the mutation.
+    pub version: i32,
+    /// The evaluation mode after the mutation.
+    pub mode: String,
+}
+
+/// A dry-run (test) outcome; nothing was stored.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct PolicyTestOutcome {
+    /// The set name the candidate text was compiled under.
+    pub policy_set_name: String,
+    /// The action evaluated.
+    pub action: String,
+    /// The enforce-mode decision.
+    pub decision: crate::Decision,
+    /// Whether the shadow evaluation would deny.
+    pub would_deny: bool,
+}
+
+/// A mode/enable flip result.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct PolicyModeMutated {
+    /// The set name flipped.
+    pub policy_set_name: String,
+    /// The evaluation mode after the flip.
+    pub mode: String,
+    /// Whether the set is enabled after the flip.
+    pub enabled: bool,
+    /// The revision after the flip.
+    pub version: i32,
+}
+
+/// One principal attribute in the list view.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct PrincipalAttr {
+    /// The attribute owner (subject id).
+    pub subject_id: String,
+    /// The attribute key.
+    pub attr_key: String,
+    /// The attribute value (free-form JSON by contract).
+    pub attr_value: serde_json::Value,
+    /// Row origin.
+    pub origin: String,
+}
+
+/// An attribute upsert result.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct AttributeUpserted {
+    /// Always `upserted`.
+    pub status: String,
+}
+
+/// One relation tuple in the list view.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct RelationRecordRow {
+    /// The subject entity type.
+    pub subject_type: String,
+    /// The subject entity id.
+    pub subject_id: String,
+    /// The relation name.
+    pub relation: String,
+    /// The object entity type.
+    pub object_type: String,
+    /// The object entity id.
+    pub object_id: String,
+    /// Row origin.
+    pub origin: String,
+}
+
+/// A relation-tuple upsert result.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct RelationUpserted {
+    /// The stored tuple id.
+    pub id: Uuid,
+    /// Always `upserted`.
+    pub status: String,
+}
+
+/// A relation connectivity check result.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct RelationCheckResult {
+    /// The subject in `type/id` form.
+    pub subject: String,
+    /// The relation checked.
+    pub relation: String,
+    /// The object in `type/id` form.
+    pub object: String,
+    /// Whether a direct tuple exists.
+    pub direct: bool,
+    /// Whether a transitive path exists.
+    pub transitive: bool,
+    /// `direct || transitive`.
+    pub connected: bool,
+    /// Number of tuples inspected.
+    pub tuple_count: usize,
+}
+
+/// One recent deny / would-deny decision feed row.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct PolicyDecisionRow {
+    /// Audit row id.
+    pub id: Uuid,
+    /// Decision instant (RFC 3339).
+    pub timestamp: String,
+    /// The decision action (`policy.deny`/`policy.would_deny`).
+    pub decision: serde_json::Value,
+    /// The evaluated action id.
+    pub action_id: serde_json::Value,
+    /// Why the decision was reached.
+    pub reason: serde_json::Value,
+    /// The policy set that produced the decision.
+    pub policy_set: serde_json::Value,
+    /// The subject the decision was about.
+    pub subject: serde_json::Value,
+    /// Whether the deny was enforced (vs shadow-mode).
+    pub enforced: serde_json::Value,
+}
+
 // ── Scope-derivation tests (28.7 reopen per-service naming) ─────
 
 #[cfg(test)]

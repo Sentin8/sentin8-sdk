@@ -438,11 +438,23 @@ pub fn print_registration(
     reg: &Registration,
     openapi: fn() -> Value,
 ) -> anyhow::Result<()> {
+    // The utoipa dump for the `openapi`/`all` sections walks the full typed
+    // schema graph (deep RFW widget trees); that recursion exceeds the
+    // default main-thread stack, so the spec generation alone runs on a
+    // dedicated large-stack thread. `openapi` is a plain fn pointer (+Send).
+    let openapi_json = |spec: fn() -> Value| -> anyhow::Result<Value> {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn(spec)
+            .map_err(|e| anyhow::anyhow!("spec thread spawn failed: {e}"))?
+            .join()
+            .map_err(|_| anyhow::anyhow!("openapi schema generation panicked (stack?)"))
+    };
     let json = match section.as_deref() {
         None | Some("all") => {
             let mut value = serde_json::to_value(reg)?;
             if let Some(obj) = value.as_object_mut() {
-                obj.insert("openapi_spec".to_string(), openapi());
+                obj.insert("openapi_spec".to_string(), openapi_json(openapi)?);
             }
             value
         }
@@ -468,7 +480,7 @@ pub fn print_registration(
         Some("audit_findings") => serde_json::to_value(reg.audit_findings.unwrap_or(&[]))?,
         Some("service_actions") => serde_json::to_value(reg.service_actions.unwrap_or(&[]))?,
         Some("m2m_grants") => serde_json::to_value(reg.m2m_grants.unwrap_or(&[]))?,
-        Some("openapi") => openapi(),
+        Some("openapi") => openapi_json(openapi)?,
         Some(other) => anyhow::bail!("unknown section: {other}"),
     };
     println!("{}", serde_json::to_string_pretty(&json)?);

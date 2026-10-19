@@ -7,12 +7,13 @@
 
 use crate::page::AdminUiPage;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// The response from an admin UI endpoint.
 ///
 /// - `GET /v1/admin/ui/{page}` → `AdminUiResponse::Page(page_def)`
 /// - `POST /v1/admin/{resource}` → `AdminUiResponse::Page(updated_page_def)` or `AdminUiResponse::Redirect(route)`
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "response_type", rename_all = "snake_case")]
 pub enum AdminUiResponse {
     /// Render this page definition.
@@ -36,7 +37,7 @@ pub enum AdminUiResponse {
 }
 
 /// A per-field validation error.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FieldError {
     /// The form field key the error refers to.
     pub field: String,

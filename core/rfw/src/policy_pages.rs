@@ -304,3 +304,33 @@ pub fn policy_page(service_type: &str, page: &str) -> Option<AdminPage> {
         _ => None,
     }
 }
+
+// ── Shared admin-data response types (OAPEC-9 typed bodies) ─────────────
+
+/// The `GET /v1/admin/{resource}` rows payload: the per-resource row
+/// documents the RFW DataTable renders (row cells and per-resource
+/// column sets are service-defined; the RFW renderer reads them
+/// dynamically).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AdminDataRows {
+    /// The default `{ items: [rows] }` envelope the RFW table reads.
+    Items {
+        /// The row documents.
+        items: Vec<serde_json::Value>,
+    },
+}
+
+/// A mutation acknowledgement returning an RFW redirect (the
+/// POST-only renderer navigates to `route` after the action).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct AdminRedirectAck {
+    /// The RFW envelope tag (`redirect`).
+    #[serde(rename = "response_type")]
+    pub response_type: String,
+    /// The admin-relative route to navigate to.
+    pub route: String,
+    /// The mutated resource payload (absent for pure redirects).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resource: Option<serde_json::Value>,
+}

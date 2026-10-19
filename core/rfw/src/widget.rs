@@ -12,10 +12,16 @@
 #![deny(missing_docs)]
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 // ── Top-level enum ──
 
 /// A single node in the remote widget tree.
+///
+/// The type is recursive (containers hold child trees), so [`ToSchema`]
+/// is implemented manually as a one-of of the variant schemas - the
+/// generated component terminates recursion via `$ref` inside the
+/// variants' own schemas.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum RemoteWidget {
@@ -46,7 +52,7 @@ pub enum RemoteWidget {
 // ── Container ──
 
 /// A scrollable container with layout direction and padding.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetContainer {
     /// Layout direction of the children.
     #[serde(default)]
@@ -58,11 +64,16 @@ pub struct WidgetContainer {
     #[serde(default)]
     pub padding: f64,
     /// Child widgets.
+    ///
+    /// `no_recursion` keeps the derive from forwarding the reference
+    /// collection back into [`RemoteWidget`]'s manual `ToSchema::schemas` -
+    /// recursion terminates at the `$ref` (see the RemoteWidget schema impl).
+    #[schema(no_recursion)]
     pub children: Vec<RemoteWidget>,
 }
 
 /// Layout direction for a container's children.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ContainerDirection {
     /// Stack children vertically (default).
@@ -75,7 +86,7 @@ pub enum ContainerDirection {
 // ── Text ──
 
 /// A text label with optional styling.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetText {
     /// The text content.
     pub text: String,
@@ -91,7 +102,7 @@ pub struct WidgetText {
 }
 
 /// Text style variant.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum WidgetTextType {
     /// Default body text.
@@ -110,7 +121,7 @@ pub enum WidgetTextType {
 }
 
 /// Text alignment.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum TextAlign {
     /// Left-aligned (default).
@@ -125,7 +136,7 @@ pub enum TextAlign {
 // ── DataTable ──
 
 /// A data table with server-side rows, sorting, filtering, and pagination.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetDataTable {
     /// Column definitions.
     pub columns: Vec<WidgetDataTableColumn>,
@@ -153,7 +164,7 @@ pub struct WidgetDataTable {
 }
 
 /// One column of a [`WidgetDataTable`].
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetDataTableColumn {
     /// Row-data key for this column.
     pub key: String,
@@ -173,7 +184,7 @@ pub struct WidgetDataTableColumn {
 // ── Form ──
 
 /// A form with fields and a submit action.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetForm {
     /// Form fields in render order.
     pub fields: Vec<WidgetFormField>,
@@ -191,7 +202,7 @@ pub struct WidgetForm {
     pub method: FormMethod,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 /// HTTP method used for form submission.
 #[serde(rename_all = "lowercase")]
 pub enum FormMethod {
@@ -203,7 +214,7 @@ pub enum FormMethod {
 }
 
 /// One input field of a [`WidgetForm`].
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetFormField {
     /// Field key in the submitted payload.
     pub key: String,
@@ -240,7 +251,7 @@ pub struct WidgetFormField {
 }
 
 /// A visibility condition for a form field.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FieldCondition {
     /// The key of the field whose value to check.
     pub field: String,
@@ -248,7 +259,7 @@ pub struct FieldCondition {
     pub equals: serde_json::Value,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 /// Input widget type for a form field.
 #[serde(rename_all = "snake_case")]
 pub enum FormFieldType {
@@ -288,7 +299,7 @@ pub enum FormFieldType {
 }
 
 /// One choice of a select-type form field.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FormFieldOption {
     /// The submitted value.
     pub value: String,
@@ -297,7 +308,7 @@ pub struct FormFieldOption {
 }
 
 /// Validation constraints for a form field.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FormFieldValidation {
     /// Minimum numeric value.
     #[serde(default)]
@@ -322,7 +333,7 @@ pub struct FormFieldValidation {
 // ── Button ──
 
 /// A button (submit, cancel, row action, or link).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetButton {
     /// Button label.
     pub label: String,
@@ -342,7 +353,7 @@ pub struct WidgetButton {
 }
 
 /// Button visual style.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ButtonType {
     /// Filled primary button (default).
@@ -361,7 +372,7 @@ pub enum ButtonType {
 // ── Card ──
 
 /// A glass card panel with optional title and children.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetCard {
     /// Card title.
     #[serde(default)]
@@ -369,8 +380,9 @@ pub struct WidgetCard {
     /// Card subtitle.
     #[serde(default)]
     pub subtitle: Option<String>,
-    /// Card body widgets.
+    /// Card body widgets (`no_recursion` - see [`RemoteWidget`]).
     #[serde(default)]
+    #[schema(no_recursion)]
     pub children: Vec<RemoteWidget>,
     /// Buttons rendered in the card footer/header.
     #[serde(default)]
@@ -380,7 +392,7 @@ pub struct WidgetCard {
 // ── Chart ──
 
 /// A simple chart backed by a data endpoint.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetChart {
     /// The chart kind.
     pub chart_type: ChartType,
@@ -394,7 +406,7 @@ pub struct WidgetChart {
     pub height: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// Chart kind.
 #[serde(rename_all = "lowercase")]
 pub enum ChartType {
@@ -409,7 +421,7 @@ pub enum ChartType {
 // ── Native widget host ──
 
 /// A native widget host - the dash renders a built-in Flutter widget.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetNative {
     /// The native widget name the dash recognizes.
     /// Built-in hosts: `posting_console`, `payment_simulator`, `workflow_visualizer`.
@@ -425,9 +437,10 @@ pub struct WidgetNative {
 // ── Row / Column / Spacer ──
 
 /// A horizontal layout row.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetRow {
-    /// Child widgets.
+    /// Child widgets (`no_recursion` - see [`RemoteWidget`]).
+    #[schema(no_recursion)]
     pub children: Vec<RemoteWidget>,
     /// Gap between children.
     #[serde(default)]
@@ -435,9 +448,10 @@ pub struct WidgetRow {
 }
 
 /// A vertical layout column.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetColumn {
-    /// Child widgets.
+    /// Child widgets (`no_recursion` - see [`RemoteWidget`]).
+    #[schema(no_recursion)]
     pub children: Vec<RemoteWidget>,
     /// Gap between children.
     #[serde(default)]
@@ -445,9 +459,125 @@ pub struct WidgetColumn {
 }
 
 /// An empty gap.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WidgetSpacer {
     /// Gap size in logical pixels.
     #[serde(default)]
     pub size: f64,
+}
+
+// ── Manual recursion-breaking schema ─────────────────────────────────────
+// `RemoteWidget` is a recursive tree (WidgetContainer.children, WidgetCard,
+// WidgetRow, WidgetColumn). A ToSchema derive inlines the full variant tree
+// at every recursion level and the utoipa generator recurses forever, so the
+// impl is hand-written here (DESIGN.md §3.2, "Recursive widget tree"):
+//
+// - `PartialSchema::schema()` emits a `OneOf` of the variant objects. Each
+//   item carries the serde internal tag (`"type": "<variant>"`, lowercase)
+//   plus the variant struct's own properties inlined - exactly the shape the
+//   derive produces for an internally-tagged enum - so the component body is
+//   a genuine union, never a bare self-`$ref` (a degenerate
+//   `{"$ref": "#/components/schemas/RemoteWidget"}` body breaks redocly's
+//   bundler with "Self-referencing circular pointer" and silently skips
+//   site doc generation for every unit carrying RFW pages).
+// - `ToSchema::schemas()` registers the variant structs so their `$ref`-able
+//   components exist alongside the union.
+// - Recursion terminates through property `$$ref`s: variant structs keep
+//   their `children: Vec<RemoteWidget>` references, which resolve against
+//   this same component without re-inlining it.
+impl utoipa::PartialSchema for RemoteWidget {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        use utoipa::openapi::OneOfBuilder;
+        use utoipa::openapi::schema::{Schema, SchemaType};
+
+        /// The internal tag property schema: a single-constant string enum
+        /// (`serde(tag = "type")` variant discriminator).
+        fn tag_schema(tag: &'static str) -> Schema {
+            Schema::Object(
+                utoipa::openapi::schema::ObjectBuilder::new()
+                    .schema_type(SchemaType::Type(utoipa::openapi::schema::Type::String))
+                    .enum_values(Some([tag]))
+                    .build(),
+            )
+        }
+
+        /// Flatten the variant struct's object schema into a tagged oneOf
+        /// item - the derive-equivalent internally-tagged newtype shape.
+        fn tagged_item(
+            tag: &'static str,
+            item: utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+        ) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+            let mut builder = utoipa::openapi::schema::ObjectBuilder::new()
+                .property("type", tag_schema(tag))
+                .required("type");
+            match item {
+                utoipa::openapi::RefOr::T(Schema::Object(obj)) => {
+                    for (name, prop) in obj.properties.iter() {
+                        builder = builder.property(name.clone(), prop.clone());
+                    }
+                    for req in &obj.required {
+                        builder = builder.required(req.clone());
+                    }
+                    builder.into()
+                }
+                // Non-object variant schema (currently impossible - every
+                // variant is a derived struct): carry it untagged.
+                other => other,
+            }
+        }
+
+        let one_of = OneOfBuilder::new()
+            .item(tagged_item("container", WidgetContainer::schema()))
+            .item(tagged_item("text", WidgetText::schema()))
+            .item(tagged_item("data_table", WidgetDataTable::schema()))
+            .item(tagged_item("form", WidgetForm::schema()))
+            .item(tagged_item("button", WidgetButton::schema()))
+            .item(tagged_item("card", WidgetCard::schema()))
+            .item(tagged_item("chart", WidgetChart::schema()))
+            .item(tagged_item("native", WidgetNative::schema()))
+            .item(tagged_item("row", WidgetRow::schema()))
+            .item(tagged_item("column", WidgetColumn::schema()))
+            .item(tagged_item("spacer", WidgetSpacer::schema()))
+            .build();
+        utoipa::openapi::RefOr::T(Schema::OneOf(one_of))
+    }
+}
+
+impl utoipa::ToSchema for RemoteWidget {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("RemoteWidget")
+    }
+
+    /// Register the variant structs reachable from the union so their
+    /// components are emitted alongside `RemoteWidget`.
+    fn schemas(
+        schemas: &mut Vec<(
+            String,
+            utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+        )>,
+    ) {
+        use utoipa::{PartialSchema, ToSchema};
+        macro_rules! push_variant {
+            ($v:ty) => {{
+                schemas.push((<$v as ToSchema>::name().into_owned(), <$v as PartialSchema>::schema()));
+                <$v as ToSchema>::schemas(schemas);
+            }};
+        }
+        // Each variant struct pulls in its own field types (ContainerDirection,
+        // WidgetDataTableColumn, FormFieldType, ...) - their components must be
+        // registered for the inline `$ref`s in the oneOf items to resolve.
+        // Variant `children` references resolve against the RemoteWidget
+        // component itself.
+        push_variant!(WidgetContainer);
+        push_variant!(WidgetText);
+        push_variant!(WidgetDataTable);
+        push_variant!(WidgetForm);
+        push_variant!(WidgetButton);
+        push_variant!(WidgetCard);
+        push_variant!(WidgetChart);
+        push_variant!(WidgetNative);
+        push_variant!(WidgetRow);
+        push_variant!(WidgetColumn);
+        push_variant!(WidgetSpacer);
+    }
 }

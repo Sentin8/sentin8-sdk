@@ -4190,6 +4190,7 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "tracing-subscriber",
+ "utoipa",
  "uuid",
  "valkey-glide",
 ]
@@ -4237,6 +4238,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "utoipa",
 ]
 
 [[package]]

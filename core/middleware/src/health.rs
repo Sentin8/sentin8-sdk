@@ -286,3 +286,29 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 }
+
+// ── Liveness payload (OAPEC-9 typed bodies) ─────────────────────────────
+
+/// The `GET /v1/health` liveness payload every service returns: the
+/// status string, the serving service's short name, build identity, and
+/// (when the process tracks them) the count of live connections.
+/// `service` and `active_connections` stay absent when a service does
+/// not set them (e.g. the bus mounts the generic handler).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct LiveHealth {
+    /// Always `ok` on a live instance.
+    pub status: String,
+    /// The serving service's short name (absent when the generic handler
+    /// does not carry one).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service: Option<String>,
+    /// Build identity id (`sentin8::build_info::id()`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// Build hash (`sentin8::build_info::build_hash()`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build: Option<String>,
+    /// Live socket count when the traffic counter is mounted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_connections: Option<i64>,
+}

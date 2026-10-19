@@ -1297,7 +1297,7 @@ fwd!(policy_list_sets, sentin8_shield::admin::list_policy_sets, (
     get,
     path = "/v1/admin/policy-sets",
     responses(
-        (status = 200, description = "Policy sets of this service", body = Vec<serde_json::Value>),
+        (status = 200, description = "Policy sets of this service", body = Vec<sentin8_shield::admin::PolicySetRow>),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
     security(("sentin8:admin" = [])),
@@ -1313,7 +1313,7 @@ fwd!(policy_get_set, sentin8_shield::admin::get_policy_set, (
     path = "/v1/admin/policy-sets/{name}",
     params(("name" = String, Path, description = "Policy set name")),
     responses(
-        (status = 200, description = "The policy set", body = serde_json::Value),
+        (status = 200, description = "The policy set", body = sentin8_shield::admin::PolicySetDetail),
         (status = 404, description = "Unknown policy set name"),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
@@ -1330,9 +1330,9 @@ fwd!(policy_put_set, sentin8_shield::admin::put_policy_set, (
     put,
     path = "/v1/admin/policy-sets/{name}",
     params(("name" = String, Path, description = "Policy set name")),
-    request_body = serde_json::Value,
+    request_body = sentin8_shield::admin::PutPolicySetBody,
     responses(
-        (status = 200, description = "Policy set stored", body = serde_json::Value),
+        (status = 201, description = "Policy set stored", body = sentin8_shield::admin::PolicySetMutated),
         (status = 400, description = "Invalid policy set definition"),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
@@ -1365,9 +1365,9 @@ fwd!(policy_test_set, sentin8_shield::admin::test_policy_set, (
     post,
     path = "/v1/admin/policy-sets/{name}/test",
     params(("name" = String, Path, description = "Policy set name")),
-    request_body = serde_json::Value,
+    request_body = sentin8_shield::admin::TestPolicySetBody,
     responses(
-        (status = 200, description = "Dry-run decision trace", body = serde_json::Value),
+        (status = 200, description = "Dry-run decision trace", body = sentin8_shield::admin::PolicyTestOutcome),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
     security(("sentin8:admin" = [])),
@@ -1381,7 +1381,7 @@ fwd!(policy_mode_enforce, sentin8_shield::admin::admin_enforce_policy_set, (
 ), #[utoipa::path(
     post,
     path = "/v1/admin/policy-sets/enforce",
-    request_body = serde_json::Value,
+    request_body = sentin8_shield::admin::PolicyModeBody,
     responses(
         (status = 200, description = "Sets switched to enforce mode"),
         (status = 403, description = "Caller lacks the admin scope"),
@@ -1397,7 +1397,7 @@ fwd!(policy_mode_shadow, sentin8_shield::admin::admin_shadow_policy_set, (
 ), #[utoipa::path(
     post,
     path = "/v1/admin/policy-sets/shadow",
-    request_body = serde_json::Value,
+    request_body = sentin8_shield::admin::PolicyModeBody,
     responses(
         (status = 200, description = "Sets switched to shadow mode"),
         (status = 403, description = "Caller lacks the admin scope"),
@@ -1413,7 +1413,7 @@ fwd!(policy_mode_disable, sentin8_shield::admin::admin_disable_policy_set, (
 ), #[utoipa::path(
     post,
     path = "/v1/admin/policy-sets/disable",
-    request_body = serde_json::Value,
+    request_body = sentin8_shield::admin::PolicyModeBody,
     responses(
         (status = 200, description = "Sets disabled"),
         (status = 403, description = "Caller lacks the admin scope"),
@@ -1429,9 +1429,9 @@ fwd!(policy_create_set, sentin8_shield::admin::create_policy_set, (
 ), #[utoipa::path(
     post,
     path = "/v1/admin/policy-sets",
-    request_body = serde_json::Value,
+    request_body = sentin8_shield::admin::CreatePolicySetBody,
     responses(
-        (status = 200, description = "Policy set created", body = serde_json::Value),
+        (status = 201, description = "Policy set created", body = sentin8_shield::admin::PolicySetMutated),
         (status = 400, description = "Invalid policy set definition"),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
@@ -1448,9 +1448,9 @@ fwd!(policy_save_set, sentin8_shield::admin::save_policy_set, (
     post,
     path = "/v1/admin/policy-sets/{name}/save",
     params(("name" = String, Path, description = "Policy set name")),
-    request_body = serde_json::Value,
+    request_body = sentin8_shield::admin::PutPolicySetBody,
     responses(
-        (status = 200, description = "Policy set saved", body = serde_json::Value),
+        (status = 201, description = "Policy set saved (alias of PUT; RFW POST-only renderer)", body = sentin8_shield::admin::PolicySetMutated),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
     security(("sentin8:admin" = [])),
@@ -1469,7 +1469,7 @@ fwd!(policy_flip_set, sentin8_shield::admin::admin_flip_policy_set, (
         ("action" = String, Path, description = "Row action (enforce, shadow, disable)")
     ),
     responses(
-        (status = 200, description = "Action applied", body = serde_json::Value),
+        (status = 200, description = "Action applied", body = sentin8_shield::admin::PolicyModeMutated),
         (status = 400, description = "Unknown row action"),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
@@ -1484,7 +1484,7 @@ fwd!(policy_list_decisions, sentin8_shield::admin::list_policy_decisions, (
     get,
     path = "/v1/admin/policy-decisions",
     responses(
-        (status = 200, description = "Recent decision log", body = Vec<serde_json::Value>),
+        (status = 200, description = "Recent decision log", body = Vec<sentin8_shield::admin::PolicyDecisionRow>),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
     security(("sentin8:admin" = [])),
@@ -1530,7 +1530,7 @@ fwd!(policy_list_relations, sentin8_shield::admin::list_relations, (
     get,
     path = "/v1/admin/relations",
     responses(
-        (status = 200, description = "ReBAC relations of this service", body = Vec<serde_json::Value>),
+        (status = 200, description = "ReBAC relations of this service", body = Vec<sentin8_shield::admin::RelationRecordRow>),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
     security(("sentin8:admin" = [])),
@@ -1544,9 +1544,9 @@ fwd!(policy_put_relation, sentin8_shield::admin::put_relation, (
 ), #[utoipa::path(
     put,
     path = "/v1/admin/relations",
-    request_body = serde_json::Value,
+    request_body = sentin8_shield::admin::PutRelationBody,
     responses(
-        (status = 200, description = "Relation stored", body = serde_json::Value),
+        (status = 200, description = "Relation stored", body = sentin8_shield::admin::RelationUpserted),
         (status = 400, description = "Invalid relation definition"),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
@@ -1581,7 +1581,7 @@ fwd!(policy_check_relation, sentin8_shield::admin::check_relation, (
         ("object" = String, Query, description = "Object key")
     ),
     responses(
-        (status = 200, description = "The check verdict", body = serde_json::Value),
+        (status = 200, description = "The check verdict", body = sentin8_shield::admin::RelationCheckResult),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
     security(("sentin8:admin" = [])),
@@ -1595,7 +1595,7 @@ fwd!(policy_list_attributes, sentin8_shield::admin::list_attributes, (
     get,
     path = "/v1/admin/attributes",
     responses(
-        (status = 200, description = "Principal attributes of this service", body = Vec<serde_json::Value>),
+        (status = 200, description = "Principal attributes of this service", body = Vec<sentin8_shield::admin::PrincipalAttr>),
         (status = 403, description = "Caller lacks the admin scope"),
     ),
     security(("sentin8:admin" = [])),
@@ -1609,9 +1609,9 @@ fwd!(policy_put_attribute, sentin8_shield::admin::put_attribute, (
 ), #[utoipa::path(
     put,
     path = "/v1/admin/attributes",
-    request_body = serde_json::Value,
+    request_body = sentin8_shield::admin::PutAttributeBody,
     responses(
-        (status = 200, description = "Attribute stored", body = serde_json::Value),
+        (status = 201, description = "Attribute stored", body = sentin8_shield::admin::AttributeUpserted),
         (status = 400, description = "Invalid attribute definition"),
         (status = 403, description = "Caller lacks the admin scope"),
     ),

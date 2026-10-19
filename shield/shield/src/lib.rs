@@ -348,7 +348,7 @@ impl EvalTarget {
 
 // ── Decision ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase", tag = "decision")]
 pub enum Decision {
     Allow,

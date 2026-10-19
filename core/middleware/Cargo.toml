@@ -13,6 +13,7 @@ rust-version.workspace = true
 description = "Shared axum middleware for Sentin8 services: Sentin8:Auth token verification, Sentin8:TLS context extraction, correlation ID, logging, recovery."
 
 [dependencies]
+utoipa = { version = "5", features = ["chrono", "uuid"] } # typed liveness schema (OAPEC-9)
 axum.workspace = true
 tower.workspace = true
 tower-http.workspace = true
@@ -43,3 +44,4 @@ tokio.workspace = true
 tower.workspace = true
 # Test-only: install the Graviola PQ provider (reqwest panics without one).
 sentin8-tls = { workspace = true }
+

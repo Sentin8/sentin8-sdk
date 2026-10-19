@@ -7,9 +7,10 @@
 
 use crate::widget::RemoteWidget;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// A complete admin UI page definition returned by `GET /v1/admin/ui/{page}`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AdminUiPage {
     /// The page title (shown in breadcrumb and header).
     pub title: String,
@@ -21,7 +22,7 @@ pub struct AdminUiPage {
 }
 
 /// An action button shown in the page header.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AdminUiAction {
     /// Button label.
     pub label: String,
@@ -39,7 +40,7 @@ pub struct AdminUiAction {
 }
 
 /// The kind of a header action button.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(ToSchema, Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum AdminUiActionType {
     /// Navigate to another route.
@@ -52,7 +53,7 @@ pub enum AdminUiActionType {
 }
 
 /// A convenience builder for constructing admin pages.
-#[derive(Debug, Clone)]
+#[derive(ToSchema, Debug, Clone)]
 pub struct AdminPage {
     title: String,
     widgets: Vec<RemoteWidget>,
