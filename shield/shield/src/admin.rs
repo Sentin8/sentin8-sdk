@@ -279,18 +279,20 @@ where
     let sets: Vec<PolicySetRow> = rows
         .iter()
         .map(|r| PolicySetRow {
-              // id = the set name - the RFW row actions substitute {id}
-              // from this field; without it every Delete/Enforce
-              // click POSTed `policy-sets//delete` (empty id → 404).
-              id: r.get::<String, _>("policy_set_name"),
-              policy_set_name: r.get::<String, _>("policy_set_name"),
-              description: r.get::<String, _>("description"),
-              origin: r.get::<String, _>("origin"),
-              mode: r.get::<String, _>("mode"),
-              version: r.get::<i32, _>("version"),
-              enabled: r.get::<bool, _>("enabled"),
-              policies_len: r.get::<i64, _>("policies_len"),
-              updated_at: r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at").to_rfc3339(),
+            // id = the set name - the RFW row actions substitute {id}
+            // from this field; without it every Delete/Enforce
+            // click POSTed `policy-sets//delete` (empty id → 404).
+            id: r.get::<String, _>("policy_set_name"),
+            policy_set_name: r.get::<String, _>("policy_set_name"),
+            description: r.get::<String, _>("description"),
+            origin: r.get::<String, _>("origin"),
+            mode: r.get::<String, _>("mode"),
+            version: r.get::<i32, _>("version"),
+            enabled: r.get::<bool, _>("enabled"),
+            policies_len: r.get::<i64, _>("policies_len"),
+            updated_at: r
+                .get::<chrono::DateTime<chrono::Utc>, _>("updated_at")
+                .to_rfc3339(),
         })
         .collect();
     Ok(Json(sets))
@@ -327,16 +329,20 @@ where
         )
     })?;
     Ok(Json(PolicySetDetail {
-      policy_set_name: row.get::<String, _>("policy_set_name"),
-      description: row.get::<String, _>("description"),
-      policies: row.get::<String, _>("policies"),
-      schema: row.get::<Option<String>, _>("schema"),
-      origin: row.get::<String, _>("origin"),
-      mode: row.get::<String, _>("mode"),
-      version: row.get::<i32, _>("version"),
-      enabled: row.get::<bool, _>("enabled"),
-      created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
-      updated_at: row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at").to_rfc3339(),
+        policy_set_name: row.get::<String, _>("policy_set_name"),
+        description: row.get::<String, _>("description"),
+        policies: row.get::<String, _>("policies"),
+        schema: row.get::<Option<String>, _>("schema"),
+        origin: row.get::<String, _>("origin"),
+        mode: row.get::<String, _>("mode"),
+        version: row.get::<i32, _>("version"),
+        enabled: row.get::<bool, _>("enabled"),
+        created_at: row
+            .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+            .to_rfc3339(),
+        updated_at: row
+            .get::<chrono::DateTime<chrono::Utc>, _>("updated_at")
+            .to_rfc3339(),
     }))
 }
 
@@ -458,7 +464,11 @@ where
     .await;
     Ok((
         StatusCode::CREATED,
-        Json(PolicySetMutated { policy_set_name: name, version, mode: out_mode }),
+        Json(PolicySetMutated {
+            policy_set_name: name,
+            version,
+            mode: out_mode,
+        }),
     ))
 }
 
@@ -592,10 +602,10 @@ where
     let outcome = engine.evaluate(&ctx, &crate::EvalTarget::new(action.clone()));
     let would_deny = outcome.shadow_deny.is_some() || !outcome.enforce_decision.is_allow();
     Ok(Json(PolicyTestOutcome {
-      policy_set_name: name,
-      action,
-      decision: outcome.enforce_decision,
-      would_deny,
+        policy_set_name: name,
+        action,
+        decision: outcome.enforce_decision,
+        would_deny,
     }))
 }
 
@@ -678,10 +688,10 @@ async fn flip_policy_mode(
     )
     .await;
     Ok(Json(PolicyModeMutated {
-      policy_set_name: body.policy_set_name.clone(),
-      mode: out_mode,
-      enabled: out_enabled,
-      version,
+        policy_set_name: body.policy_set_name.clone(),
+        mode: out_mode,
+        enabled: out_enabled,
+        version,
     }))
 }
 
@@ -972,14 +982,34 @@ where
         .map(|r| {
             let event: serde_json::Value = r.get("event");
             PolicyDecisionRow {
-              id: r.get::<Uuid, _>("id"),
-              timestamp: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
-              decision: event.get("action").cloned().unwrap_or(serde_json::json!("unknown")),
-              action_id: event.get("action_id").cloned().unwrap_or(serde_json::json!("")),
-              reason: event.get("reason").cloned().unwrap_or(serde_json::json!("")),
-              policy_set: event.get("policy_set").cloned().unwrap_or(serde_json::json!("")),
-              subject: event.get("subject").cloned().unwrap_or(serde_json::json!("")),
-              enforced: event.get("enforced").cloned().unwrap_or(serde_json::json!(false)),
+                id: r.get::<Uuid, _>("id"),
+                timestamp: r
+                    .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                    .to_rfc3339(),
+                decision: event
+                    .get("action")
+                    .cloned()
+                    .unwrap_or(serde_json::json!("unknown")),
+                action_id: event
+                    .get("action_id")
+                    .cloned()
+                    .unwrap_or(serde_json::json!("")),
+                reason: event
+                    .get("reason")
+                    .cloned()
+                    .unwrap_or(serde_json::json!("")),
+                policy_set: event
+                    .get("policy_set")
+                    .cloned()
+                    .unwrap_or(serde_json::json!("")),
+                subject: event
+                    .get("subject")
+                    .cloned()
+                    .unwrap_or(serde_json::json!("")),
+                enforced: event
+                    .get("enforced")
+                    .cloned()
+                    .unwrap_or(serde_json::json!(false)),
             }
         })
         .collect();
@@ -1091,15 +1121,13 @@ where
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let items: Vec<RelationRecordRow> = rows
         .iter()
-        .map(|r| {
-            RelationRecordRow {
-              subject_type: r.get::<String, _>("subject_type"),
-              subject_id: r.get::<String, _>("subject_id"),
-              relation: r.get::<String, _>("relation"),
-              object_type: r.get::<String, _>("object_type"),
-              object_id: r.get::<String, _>("object_id"),
-              origin: r.get::<String, _>("origin"),
-            }
+        .map(|r| RelationRecordRow {
+            subject_type: r.get::<String, _>("subject_type"),
+            subject_id: r.get::<String, _>("subject_id"),
+            relation: r.get::<String, _>("relation"),
+            object_type: r.get::<String, _>("object_type"),
+            object_id: r.get::<String, _>("object_id"),
+            origin: r.get::<String, _>("origin"),
         })
         .collect();
     Ok(Json(items))
@@ -1159,7 +1187,10 @@ where
     .await;
     Ok((
         StatusCode::CREATED,
-        Json(RelationUpserted { id: row.0, status: "upserted".to_string() }),
+        Json(RelationUpserted {
+            id: row.0,
+            status: "upserted".to_string(),
+        }),
     ))
 }
 
@@ -1290,13 +1321,13 @@ where
         }
     }
     Ok(Json(RelationCheckResult {
-      subject: format!("{}/{}", q.subject_type, q.subject_id),
-      relation: q.relation,
-      object: format!("{}/{}", q.object_type, q.object_id),
-      direct,
-      transitive,
-      connected: direct || transitive,
-      tuple_count: slice.len(),
+        subject: format!("{}/{}", q.subject_type, q.subject_id),
+        relation: q.relation,
+        object: format!("{}/{}", q.object_type, q.object_id),
+        direct,
+        transitive,
+        connected: direct || transitive,
+        tuple_count: slice.len(),
     }))
 }
 
@@ -1380,13 +1411,11 @@ where
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let items: Vec<PrincipalAttr> = rows
         .iter()
-        .map(|r| {
-            PrincipalAttr {
-              subject_id: r.get::<String, _>("subject_id"),
-              attr_key: r.get::<String, _>("attr_key"),
-              attr_value: r.get::<serde_json::Value, _>("attr_value"),
-              origin: r.get::<String, _>("origin"),
-            }
+        .map(|r| PrincipalAttr {
+            subject_id: r.get::<String, _>("subject_id"),
+            attr_key: r.get::<String, _>("attr_key"),
+            attr_value: r.get::<serde_json::Value, _>("attr_value"),
+            origin: r.get::<String, _>("origin"),
         })
         .collect();
     Ok(Json(items))
@@ -1442,7 +1471,9 @@ where
     .await;
     Ok((
         StatusCode::CREATED,
-        Json(AttributeUpserted { status: "upserted".to_string() }),
+        Json(AttributeUpserted {
+            status: "upserted".to_string(),
+        }),
     ))
 }
 

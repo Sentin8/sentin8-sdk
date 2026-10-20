@@ -112,7 +112,13 @@ impl RoutingTable {
                 if let (Some(id), Some(value_line)) = (id, value_line) {
                     if let Some(rest) = value_line.strip_prefix("): ") {
                         let value = rest.trim().trim_end_matches(',').trim();
-                        match classify_value(value, &id, &mut table, &mut saw_paths, &mut saw_method_router) {
+                        match classify_value(
+                            value,
+                            &id,
+                            &mut table,
+                            &mut saw_paths,
+                            &mut saw_method_router,
+                        ) {
                             Classification::MethodRouter => current_id = Some(id),
                             _ => current_id = None,
                         }
@@ -124,7 +130,13 @@ impl RoutingTable {
                 if let Some(colon_at) = rest.find("): ") {
                     let id = rest[..colon_at].trim().trim_end_matches(',').to_string();
                     let value = rest[colon_at + 3..].trim().trim_end_matches(',').trim();
-                    match classify_value(value, &id, &mut table, &mut saw_paths, &mut saw_method_router) {
+                    match classify_value(
+                        value,
+                        &id,
+                        &mut table,
+                        &mut saw_paths,
+                        &mut saw_method_router,
+                    ) {
                         Classification::MethodRouter => current_id = Some(id),
                         _ => current_id = None,
                     }
@@ -149,9 +161,7 @@ impl RoutingTable {
                         }
                     }
                 }
-            } else if let Some(rest) =
-                trimmed.strip_prefix("allow_header: Bytes(b\"")
-            {
+            } else if let Some(rest) = trimmed.strip_prefix("allow_header: Bytes(b\"") {
                 // COMPACT Bytes shape (single line).
                 if let Some(end) = rest.find('"') {
                     let header = &rest[..end];
@@ -321,8 +331,7 @@ pub fn assert_openapi_covers_router(
     exempt_path_prefixes: &[&str],
 ) {
     let exempt = |path: &str| {
-        path == "/openapi.json"
-            || exempt_path_prefixes.iter().any(|p| path.starts_with(p))
+        path == "/openapi.json" || exempt_path_prefixes.iter().any(|p| path.starts_with(p))
     };
 
     let spec_set: BTreeSet<(String, String)> = spec_pairs
@@ -414,9 +423,7 @@ mod tests {
         assert!(result.is_err(), "absent sections must fail loudly");
         // ...and when the routes/node maps are empty.
         let result = std::panic::catch_unwind(|| {
-            let _ = served_routes_from_debug(
-                "Router { path_router: PathRouter { routes: {} } }",
-            );
+            let _ = served_routes_from_debug("Router { path_router: PathRouter { routes: {} } }");
         });
         assert!(result.is_err(), "empty maps must fail loudly");
     }
@@ -453,8 +460,7 @@ mod tests {
     #[tokio::test]
     async fn exemption_prefixes_are_respected() {
         async fn a() {}
-        let router: axum::Router<()> =
-            axum::Router::new().route("/v1/proxy/everything", get(a));
+        let router: axum::Router<()> = axum::Router::new().route("/v1/proxy/everything", get(a));
         let routes = served_routes(&router);
         assert_openapi_covers_router(&routes, &[], &["/v1/proxy"]);
     }
@@ -463,8 +469,14 @@ mod tests {
     async fn head_is_normalized_to_get() {
         let spec = vec![("GET".to_string(), "/v1/things".to_string())];
         let routes = vec![
-            ServedRoute { method: "GET".into(), path: "/v1/things".into() },
-            ServedRoute { method: "HEAD".into(), path: "/v1/things".into() },
+            ServedRoute {
+                method: "GET".into(),
+                path: "/v1/things".into(),
+            },
+            ServedRoute {
+                method: "HEAD".into(),
+                path: "/v1/things".into(),
+            },
         ];
         assert_openapi_covers_router(&routes, &spec, &[]);
     }

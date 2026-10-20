@@ -487,8 +487,8 @@ pub struct WidgetSpacer {
 //   this same component without re-inlining it.
 impl utoipa::PartialSchema for RemoteWidget {
     fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::OneOfBuilder;
         use utoipa::openapi::schema::{Schema, SchemaType};
+        use utoipa::openapi::OneOfBuilder;
 
         /// The internal tag property schema: a single-constant string enum
         /// (`serde(tag = "type")` variant discriminator).
@@ -559,7 +559,10 @@ impl utoipa::ToSchema for RemoteWidget {
         use utoipa::{PartialSchema, ToSchema};
         macro_rules! push_variant {
             ($v:ty) => {{
-                schemas.push((<$v as ToSchema>::name().into_owned(), <$v as PartialSchema>::schema()));
+                schemas.push((
+                    <$v as ToSchema>::name().into_owned(),
+                    <$v as PartialSchema>::schema(),
+                ));
                 <$v as ToSchema>::schemas(schemas);
             }};
         }
