@@ -79,7 +79,16 @@ const SENTIN8_CAPTAIN_SVC_PREFIX: &str = "captain:svc:";
 /// within this many seconds of `now`.
 const HEALTH_FRESHNESS_S: i64 = 30;
 /// Safety poll interval (catches missed pub/sub notifications).
-const SAFETY_POLL_S: u64 = 60;
+///
+/// MUST stay below `HEALTH_FRESHNESS_S`: the poll is the only guaranteed
+/// full refresh in an idle fleet (no `captain:changed` notifications),
+/// and `is_healthy()` rejects entries whose in-memory
+/// `last_health_check` is older than the freshness window. A poll at or
+/// above the window makes every entry expire between refreshes -
+/// resolution then fails fleet-wide for up to a full poll period
+/// (live failure: tenant-host cert fetches stranded with "ACME not
+/// resolved via service discovery" while the registry row was fresh).
+const SAFETY_POLL_S: u64 = 15;
 
 /// One service instance as stored in Valkey.
 #[derive(Debug, Clone, Deserialize)]
