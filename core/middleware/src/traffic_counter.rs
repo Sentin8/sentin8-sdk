@@ -40,8 +40,8 @@ use parking_lot::Mutex;
 
 /// Thread-safe inbound request counter (excludes health checks).
 ///
-/// Also carries the in-flight connection gauge ([`Self::active_connections`])
-/// - the drain signal captain polls via the health payload during
+/// Also carries the in-flight connection gauge ([`Self::active_connections`]) -
+/// the drain signal captain polls via the health payload during
 /// rolling upgrades (captain README §7).
 #[derive(Clone)]
 pub struct RequestCounter {

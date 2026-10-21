@@ -223,95 +223,135 @@ impl ServiceDiscovery {
             tracing::info!("service-discovery: initial scan complete");
 
             // Pub/sub loop with safety poll.
+            //
+            // PUBSUB-HANG-1: the change-notification listener runs as a
+            // DETACHED task that posts change payloads through a bounded
+            // channel; the main loop selects on the channel + the safety
+            // timer. A GLIDE pubsub call that never completes (observed
+            // live: `subscribe()` on a pubsub-enabled RESP3 connection
+            // awaits forever, freezing the whole refresh loop and letting
+            // every entry age past the 30s freshness window - fleet-wide
+            // "ACME not resolved via service discovery" strandings) can
+            // only stall the accelerator, never the guaranteed refresh.
             let safety = Duration::from_secs(SAFETY_POLL_S);
-            let mut last_refresh = Instant::now();
+            let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(64);
+            {
+                let valkey_url = valkey_url.clone();
+                let workload = workload.clone();
+                let safety_t = safety;
+                tokio::spawn(async move {
+                    loop {
+                        let pubsub_client = match sentin8_middleware::valkey_client_pubsub(
+                            &valkey_url,
+                            &workload,
+                        )
+                        .await
+                        {
+                            Ok(c) => c,
+                            Err(e) => {
+                                tracing::warn!(error = %e, "service-discovery: failed to create pubsub client");
+                                tokio::time::sleep(safety_t).await;
+                                continue;
+                            }
+                        };
 
+                        use glide::PubSubCommands as _;
+                        if let Err(e) = pubsub_client
+                            .subscribe(&[SENTIN8_CAPTAIN_CHANGED_CHANNEL])
+                            .await
+                        {
+                            tracing::warn!(error = %e, "service-discovery: subscribe failed");
+                            tokio::time::sleep(safety_t).await;
+                            continue;
+                        }
+
+                        // Message loop - ONE subscription, many
+                        // `captain:changed` notifications. The subscription
+                        // is rebuilt only on a terminal stream end
+                        // (connection closed, Valkey restart); a
+                        // per-message client teardown churned a GLIDE
+                        // connect + drop for every registry notification
+                        // captain publishes.
+                        loop {
+                            match pubsub_client.get_pubsub_message().await {
+                                Ok(msg) => {
+                                    let changed = String::from_utf8_lossy(&msg.payload).to_string();
+                                    if tx.send(changed).await.is_err() {
+                                        return; // receiver dropped - shut down
+                                    }
+                                }
+                                Err(_) => {
+                                    // Pub/sub channel ended (Valkey restart,
+                                    // idle eviction, network blip). Rebuild
+                                    // the client + subscription.
+                                    tracing::warn!(
+                                        "service-discovery: pubsub stream ended - reconnecting"
+                                    );
+                                    tokio::time::sleep(Duration::from_millis(500)).await;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // POLL-STARVE-1: the safety deadline is a TIME-BASED DUE
+            // CHECK, not a select arm that resets on every message. A
+            // select arm with `sleep(safety)` RESTARTS on each loop
+            // entry, and `captain:changed` is chatty under load (the
+            // monitor's health/version/api-calls upserts publish per
+            // instance) - the message arm completed every few seconds,
+            // the timer arm never fired, and only the message's NAMED
+            // type refreshed while every OTHER type's last_health_check
+            // aged past the 30s freshness window - services silently
+            // vanished from resolution fleet-wide ("ACME not resolved
+            // via service discovery" strandings; reproduced with a
+            // 30s-resolution liveness probe). With the due check, a
+            // message burst still coalesces into targeted refreshes,
+            // and a full refresh is GUARANTEED every SAFETY_POLL_S
+            // regardless of message cadence.
+            let mut last_refresh = Instant::now();
             loop {
-                // A SEPARATE pubsub-enabled client for the change
-                // channel (its push loop is independent of the command
-                // client's pipeline).
-                let pubsub_client = match sentin8_middleware::valkey_client_pubsub(
-                    &valkey_url,
-                    &workload,
-                )
-                .await
-                {
-                    Ok(c) => c,
-                    Err(e) => {
-                        tracing::warn!(error = ?e, "service-discovery: failed to create pubsub client");
-                        tokio::time::sleep(safety).await;
+                let mut changed: Option<String> = None;
+                // Drain-pending: coalesce a burst into one refresh.
+                tokio::select! {
+                    maybe_changed = rx.recv() => {
+                        changed = match maybe_changed {
+                            Some(c) => Some(c),
+                            None => {
+                                // Listener task died (receiver dropped) -
+                                // sleep, then the due check forces a full
+                                // refresh below.
+                                tokio::time::sleep(Duration::from_millis(500)).await;
+                                None
+                            }
+                        };
+                    }
+                    _ = tokio::time::sleep(Duration::from_millis(500)) => {}
+                }
+                let refresh_due = last_refresh.elapsed() >= safety;
+
+                // FIREHOSE-1: a message payload names the service type
+                // that changed - refresh ONLY that type's hash (1
+                // HGETALL) instead of a full registry scan.
+                // `captain:changed` broadcasts to every subscriber; a
+                // full-scan-per-message was 63 HGETALL x 64 services x
+                // msg rate ~= 13,000 HGETALL/s fleet-wide - the root
+                // cause of the fleet-wide idle CPU (~20%/service) and
+                // RSS drift (heaptrack: ~5,000 TLS-decrypt allocations/s
+                // per idle service; MTALEAK-1). A payload that is not a
+                // known service type (or the "alert" marker) falls back
+                // to the coalesced full scan. The due check forces the
+                // full scan on the safety cadence - this is the only
+                // path that refreshes types nobody publishes about.
+                match changed.as_deref() {
+                    Some(c) if c != "alert" && !refresh_due => {
+                        refresh_one(&client, &inner, c).await;
+                    }
+                    _ => {
                         refresh(&client, &inner).await;
                         last_refresh = Instant::now();
-                        continue;
-                    }
-                };
-
-                use glide::PubSubCommands as _;
-                if let Err(e) = pubsub_client
-                    .subscribe(&[SENTIN8_CAPTAIN_CHANGED_CHANNEL])
-                    .await
-                {
-                    tracing::warn!(error = %e, "service-discovery: subscribe failed");
-                    tokio::time::sleep(safety).await;
-                    refresh(&client, &inner).await;
-                    last_refresh = Instant::now();
-                    continue;
-                }
-
-                // Message loop - ONE subscription, many `captain:changed`
-                // notifications. The subscription is rebuilt only on a
-                // terminal stream end (connection closed, Valkey restart);
-                // a per-message client teardown churned a GLIDE connect +
-                // drop for every registry notification captain publishes.
-                loop {
-                    tokio::select! {
-                        maybe_msg = pubsub_client.get_pubsub_message() => {
-                            if maybe_msg.is_err() {
-                                // Pub/sub channel ended (Valkey restart, idle
-                                // eviction, network blip). Break to the outer
-                                // loop - the pubsub client + subscription
-                                // rebuild keeps discovery refreshing; without
-                                // this the map freezes and is_healthy()
-                                // (30s freshness) fails for every service.
-                                tracing::warn!("service-discovery: pubsub stream ended - reconnecting");
-                                tokio::time::sleep(Duration::from_millis(500)).await;
-                                refresh(&client, &inner).await;
-                                last_refresh = Instant::now();
-                                break;
-                            }
-                            // Debounce: small delay to coalesce bursts,
-                            // then refresh. FIREHOSE-1: the payload names the
-                            // service type that changed - refresh ONLY that
-                            // type's hash (1 HGETALL) instead of a full
-                            // registry scan. `captain:changed` broadcasts to
-                            // every subscriber; a full-scan-per-message was
-                            // 63 HGETALL x 64 services x msg rate ≈ 13,000
-                            // HGETALL/s fleet-wide - the root cause of the
-                            // fleet-wide idle CPU (~20%/service) and RSS drift
-                            // (heaptrack: ~5,000 TLS-decrypt allocations/s
-                            // per idle service; MTALEAK-1). A payload that is
-                            // not a known service type (or the "alert"
-                            // marker) falls back to the coalesced full scan.
-                            tokio::time::sleep(Duration::from_millis(200)).await;
-                            if let Some(msg) = maybe_msg.ok() {
-                                let changed = String::from_utf8_lossy(&msg.payload).to_string();
-                                if changed == "alert" {
-                                    refresh(&client, &inner).await;
-                                } else {
-                                    refresh_one(&client, &inner, &changed).await;
-                                }
-                            } else {
-                                refresh(&client, &inner).await;
-                            }
-                            last_refresh = Instant::now();
-                        }
-                        _ = tokio::time::sleep(safety) => {
-                            // Safety poll - catches missed notifications.
-                            if last_refresh.elapsed() >= safety {
-                                refresh(&client, &inner).await;
-                                last_refresh = Instant::now();
-                            }
-                        }
                     }
                 }
             }
@@ -441,11 +481,13 @@ async fn refresh(
     // registered yet).
     let was_empty = inner
         .read()
-        .map(|m| total_instances(&*m) == 0)
+        .map(|m| total_instances(&m) == 0)
         .unwrap_or(true);
     let now_empty = total_instances(&new_map) == 0;
     if should_reject_empty_scan(now_empty, was_empty) {
-        tracing::error!("service-discovery: scan returned zero instances - keeping previous view (suspect)");
+        tracing::error!(
+            "service-discovery: scan returned zero instances - keeping previous view (suspect)"
+        );
         return;
     }
 
