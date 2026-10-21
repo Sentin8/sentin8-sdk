@@ -18,7 +18,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 /// headers, and the methods used by the platform.
 ///
 /// `origins` must be a list of fully-qualified origin URLs
-/// (e.g. `https://sentin8-dash.ops.sys.sentin8.local`). An empty list produces a layer that
+/// (e.g. `https://sentin8-dash.ops.sys.local.sentin8.dev`). An empty list produces a layer that
 /// denies all cross-origin requests.
 pub fn cors_config(origins: &[String]) -> CorsLayer {
     let parsed: Vec<HeaderValue> = origins
@@ -27,7 +27,7 @@ pub fn cors_config(origins: &[String]) -> CorsLayer {
         .collect();
 
     let allow_origin = if parsed.is_empty() {
-        AllowOrigin::exact(HeaderValue::from_static("https://denied.sentin8.local"))
+        AllowOrigin::exact(HeaderValue::from_static("https://denied.local.sentin8.dev"))
     } else {
         AllowOrigin::list(parsed)
     };
@@ -79,13 +79,13 @@ mod tests {
 
     #[tokio::test]
     async fn allows_whitelisted_origin() {
-        let app = make_app(&["https://sentin8-dash.ops.sys.sentin8.local".to_string()]);
+        let app = make_app(&["https://sentin8-dash.ops.sys.local.sentin8.dev".to_string()]);
         let resp = app
             .oneshot(
                 Request::builder()
                     .method("OPTIONS")
                     .uri("/ping")
-                    .header("origin", "https://sentin8-dash.ops.sys.sentin8.local")
+                    .header("origin", "https://sentin8-dash.ops.sys.local.sentin8.dev")
                     .header("access-control-request-method", "GET")
                     .body(Body::empty())
                     .unwrap(),
@@ -95,13 +95,13 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get("access-control-allow-origin").unwrap(),
-            "https://sentin8-dash.ops.sys.sentin8.local"
+            "https://sentin8-dash.ops.sys.local.sentin8.dev"
         );
     }
 
     #[tokio::test]
     async fn rejects_unknown_origin() {
-        let app = make_app(&["https://sentin8-dash.ops.sys.sentin8.local".to_string()]);
+        let app = make_app(&["https://sentin8-dash.ops.sys.local.sentin8.dev".to_string()]);
         let resp = app
             .oneshot(
                 Request::builder()
@@ -122,7 +122,7 @@ mod tests {
     async fn empty_origins_denies_unknown_request_origin() {
         // With no whitelisted origins, the request origin must not be echoed
         // back in access-control-allow-origin (the request origin is
-        // "https://anything.sentin8.local" but the only allowed value is the
+        // "https://anything.local.sentin8.dev" but the only allowed value is the
         // internal "denied" placeholder).
         let app = make_app(&[]);
         let resp = app
@@ -130,7 +130,7 @@ mod tests {
                 Request::builder()
                     .method("OPTIONS")
                     .uri("/ping")
-                    .header("origin", "https://anything.sentin8.local")
+                    .header("origin", "https://anything.local.sentin8.dev")
                     .header("access-control-request-method", "GET")
                     .body(Body::empty())
                     .unwrap(),
@@ -142,7 +142,7 @@ mod tests {
         if let Some(ao) = allow_origin {
             assert_ne!(
                 ao.to_str().unwrap(),
-                "https://anything.sentin8.local",
+                "https://anything.local.sentin8.dev",
                 "unknown origin must not be allowed"
             );
         }
@@ -150,13 +150,13 @@ mod tests {
 
     #[tokio::test]
     async fn allow_credentials_true() {
-        let app = make_app(&["https://sentin8-dash.ops.sys.sentin8.local".to_string()]);
+        let app = make_app(&["https://sentin8-dash.ops.sys.local.sentin8.dev".to_string()]);
         let resp = app
             .oneshot(
                 Request::builder()
                     .method("OPTIONS")
                     .uri("/ping")
-                    .header("origin", "https://sentin8-dash.ops.sys.sentin8.local")
+                    .header("origin", "https://sentin8-dash.ops.sys.local.sentin8.dev")
                     .header("access-control-request-method", "GET")
                     .body(Body::empty())
                     .unwrap(),
@@ -175,13 +175,13 @@ mod tests {
     async fn exposes_correlation_id_header_on_actual_response() {
         // Expose headers are returned on actual responses (not preflight),
         // so we issue a GET request with an Origin header.
-        let app = make_app(&["https://sentin8-dash.ops.sys.sentin8.local".to_string()]);
+        let app = make_app(&["https://sentin8-dash.ops.sys.local.sentin8.dev".to_string()]);
         let resp = app
             .oneshot(
                 Request::builder()
                     .method("GET")
                     .uri("/ping")
-                    .header("origin", "https://sentin8-dash.ops.sys.sentin8.local")
+                    .header("origin", "https://sentin8-dash.ops.sys.local.sentin8.dev")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -200,7 +200,7 @@ mod tests {
         // Invalid header value is filtered out, not panicked.
         let layer = cors_config(&[
             "not a valid origin\n".to_string(),
-            "https://ok.sentin8.local".to_string(),
+            "https://ok.local.sentin8.dev".to_string(),
         ]);
         // Building the layer should not panic.
         let _ = layer;

@@ -72,9 +72,9 @@ pub use valkey::{valkey_client, valkey_client_pubsub, valkey_client_sync, Valkey
 /// verifies JWT signatures + claims (issuer, audience, expiry, token type).
 #[derive(Debug, Clone)]
 pub struct JwksConfig {
-    /// Auth issuer URL (e.g. `https://auth.ops.sys.sentin8.local`).
+    /// Auth issuer URL (e.g. `https://auth.ops.sys.local.sentin8.dev`).
     pub issuer: String,
-    /// JWKS endpoint (e.g. `https://auth.ops.sys.sentin8.local/.well-known/jwks.json`).
+    /// JWKS endpoint (e.g. `https://auth.ops.sys.local.sentin8.dev/.well-known/jwks.json`).
     pub jwks_url: String,
     /// Expected audience for this service (e.g. `auth`, `ledger`).
     pub audience: String,

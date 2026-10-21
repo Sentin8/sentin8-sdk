@@ -356,7 +356,7 @@ impl WildcardCertResolver {
             inst.local_port,
         ));
         let sentin8_domain =
-            std::env::var("SENTIN8_DOMAIN").unwrap_or_else(|_| "sentin8.local".to_string());
+            std::env::var("SENTIN8_DOMAIN").unwrap_or_else(|_| "local.sentin8.dev".to_string());
         let sni_host = format!("acme.ops.sys.{sentin8_domain}");
         let url = format!("https://{}:{}/acme/directory", sni_host, inst.local_port);
         tracing::info!(url = %url, sni = %sni_host, ip = %inst.local_ip, port = inst.local_port, "sentin8-tls: resolved ACME endpoint from service discovery");
@@ -369,7 +369,7 @@ impl WildcardCertResolver {
 /// Full ACME (RFC 8555) client flow. Returns `(cert_pem, key_pem)`.
 ///
 /// `acme_directory_url` - the directory URL with the SNI hostname
-/// (e.g. `https://acme.ops.sys.sentin8.local:8008/acme/directory`).
+/// (e.g. `https://acme.ops.sys.local.sentin8.dev:8008/acme/directory`).
 /// `sni_host` - the SNI hostname for the ACME server (same as in the URL).
 /// `socket_addr` - the pinned IP:port to connect to (overrides DNS).
 /// `domain` - the domain to issue a cert for.

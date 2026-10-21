@@ -20,9 +20,9 @@ pub struct Sentin8TlsConfig {
     /// Reads from `SENTIN8_TLS_SERVICE_IDENTITY` if not set.
     pub service_identity: String,
     /// Acme directory URL for certificate ordering.
-    /// e.g. `https://acme.ops.sys.sentin8.local/acme/directory`
+    /// e.g. `https://acme.ops.sys.local.sentin8.dev/acme/directory`
     pub acme_directory_url: String,
-    /// Root Sentin8 domain (e.g. `sentin8.local`).
+    /// Root Sentin8 domain (e.g. `local.sentin8.dev`).
     pub sentin8_domain: String,
     /// TLS mode: "off" (plain HTTP), "internal" (Acme for all), "acme"
     /// (production with an upstream ACME provider).
@@ -74,7 +74,7 @@ impl Sentin8TlsConfig {
         let service_identity = env::var("SENTIN8_TLS_SERVICE_IDENTITY").unwrap_or_default();
 
         let sentin8_domain =
-            env::var("SENTIN8_DOMAIN").unwrap_or_else(|_| "sentin8.local".to_string());
+            env::var("SENTIN8_DOMAIN").unwrap_or_else(|_| "local.sentin8.dev".to_string());
 
         let acme_directory_url = env::var("SENTIN8_ACME_DIRECTORY_URL").unwrap_or_else(|_| {
             // Default: Acme on the local machine. The port is auto-assigned

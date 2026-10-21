@@ -8,7 +8,7 @@
 //! Sentin8 domain derivation, constants, and platform configuration.
 //!
 //! All Sentin8 domains are derived at runtime from a single root configured via
-//! `SENTIN8_DOMAIN` (default: `sentin8.local`). This crate is the single source
+//! `SENTIN8_DOMAIN` (default: `local.sentin8.dev`). This crate is the single source
 //! of truth for domain derivation: `{service}.{env}.{org}.{tld}` - platform
 //! services live at `{service}.ops.sys.{domain}`.
 //!
@@ -42,7 +42,7 @@ pub const SYSTEM_ENV_ID: Uuid = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_
 pub const SYSTEM_ENV_SLUG: &str = "ops";
 
 /// Default root domain if `SENTIN8_DOMAIN` is not set.
-pub const DEFAULT_SENTIN8_DOMAIN: &str = "sentin8.local";
+pub const DEFAULT_SENTIN8_DOMAIN: &str = "local.sentin8.dev";
 
 // ── Base port ───────────────────────────────────────────────────────────
 
@@ -209,7 +209,7 @@ impl Sentin8Config {
     /// The `.env` file is loaded by the caller (e.g. via `dotenvy::dotenv` in
     /// `main`), so env vars from `.env` are also picked up.
     ///
-    /// Reads `SENTIN8_DOMAIN` (default: `sentin8.local`).
+    /// Reads `SENTIN8_DOMAIN` (default: `local.sentin8.dev`).
     pub fn from_env() -> Self {
         use figment::providers::{Env, Format, Toml};
 
@@ -371,7 +371,7 @@ pub fn service_scope_namespace(service_type: &str) -> String {
 // ── Domain derivation ────────────────────────────────────────────────────
 
 impl Sentin8Config {
-    /// Root domain (e.g. `sentin8.local`).
+    /// Root domain (e.g. `local.sentin8.dev`).
     pub fn domain(&self) -> &str {
         &self.sentin8_domain
     }
@@ -382,11 +382,11 @@ impl Sentin8Config {
     /// (`sentin8:auth`, `bank8:ledger`), or the legacy hyphen form
     /// (`sentin8-auth`). The input is normalized to the canonical colon
     /// identity first, then converted to the dash-form DNS label - e.g.
-    /// `sentin8:auth` → `auth.ops.sys.sentin8.local` (the `sentin8:`
+    /// `sentin8:auth` → `auth.ops.sys.local.sentin8.dev` (the `sentin8:`
     /// prefix is dropped), `bank8:ledger` and the legacy `bank8-ledger`
-    /// both → `bank8-ledger.ops.sys.sentin8.local`.
+    /// both → `bank8-ledger.ops.sys.local.sentin8.dev`.
     ///
-    /// E.g. `auth.ops.sys.sentin8.local`.
+    /// E.g. `auth.ops.sys.local.sentin8.dev`.
     pub fn platform_domain(&self, service: &str) -> String {
         let canonical = canonical_service_type(service);
         let label = if let Some(rest) = canonical.strip_prefix("sentin8:") {
@@ -406,8 +406,8 @@ impl Sentin8Config {
     /// if not found in the registry.
     ///
     /// Platform services like `sentin8:func` have `subdomain = "func"` in the
-    /// registry, so the upstream URL becomes `func.ops.sys.sentin8.local` (not
-    /// `sentin8-func.ops.sys.sentin8.local`). Vertical services like
+    /// registry, so the upstream URL becomes `func.ops.sys.local.sentin8.dev` (not
+    /// `sentin8-func.ops.sys.local.sentin8.dev`). Vertical services like
     /// `bank8:ledger` have `subdomain = "bank8-ledger"` (the DNS label form of
     /// the identity). Inputs are normalized to the canonical colon identity
     /// first, so legacy hyphen callers resolve identically.
@@ -1203,7 +1203,7 @@ pub fn parse_log_destinations(raw: &str) -> Vec<LogDestination> {
 // `env_domain_typed` / `app_domain_typed`, or `from_str` when the domain is
 // already known (e.g. custom domain).
 
-/// Organization-scoped domain (e.g. `org1.sentin8.local` or a custom domain).
+/// Organization-scoped domain (e.g. `org1.local.sentin8.dev` or a custom domain).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct OrgDomain(String);
 
@@ -1281,7 +1281,7 @@ impl OrgDomain {
     }
 }
 
-/// Environment-scoped domain (e.g. `qa1.org1.sentin8.local`).
+/// Environment-scoped domain (e.g. `qa1.org1.local.sentin8.dev`).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EnvDomain(String);
 
@@ -1359,7 +1359,7 @@ impl EnvDomain {
     }
 }
 
-/// Application-scoped domain (e.g. `ebank.qa1.org1.sentin8.local`).
+/// Application-scoped domain (e.g. `ebank.qa1.org1.local.sentin8.dev`).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AppDomain(String);
 
@@ -1409,7 +1409,7 @@ mod tests {
 
     fn cfg() -> Sentin8Config {
         Sentin8Config::builder()
-            .sentin8_domain("sentin8.local")
+            .sentin8_domain("local.sentin8.dev")
             .build()
     }
 
@@ -1418,26 +1418,26 @@ mod tests {
         let c = cfg();
         assert_eq!(
             c.platform_domain("sentin8:auth"),
-            "auth.ops.sys.sentin8.local"
+            "auth.ops.sys.local.sentin8.dev"
         );
         assert_eq!(
             c.platform_domain("sentin8:dash"),
-            "dash.ops.sys.sentin8.local"
+            "dash.ops.sys.local.sentin8.dev"
         );
-        assert_eq!(c.platform_domain("auth"), "auth.ops.sys.sentin8.local");
+        assert_eq!(c.platform_domain("auth"), "auth.ops.sys.local.sentin8.dev");
         // Colon identity of a vertical service → dash-form DNS label
         assert_eq!(
             c.platform_domain("bank8:ledger"),
-            "bank8-ledger.ops.sys.sentin8.local"
+            "bank8-ledger.ops.sys.local.sentin8.dev"
         );
         // Legacy hyphen forms normalize identically
         assert_eq!(
             c.platform_domain("sentin8-auth"),
-            "auth.ops.sys.sentin8.local"
+            "auth.ops.sys.local.sentin8.dev"
         );
         assert_eq!(
             c.platform_domain("bank8-ledger"),
-            "bank8-ledger.ops.sys.sentin8.local"
+            "bank8-ledger.ops.sys.local.sentin8.dev"
         );
     }
 
@@ -1529,13 +1529,13 @@ mod tests {
     fn org_domain_derivation() {
         let c = cfg();
         let org = c.org_domain("org1");
-        assert_eq!(org, "org1.sentin8.local");
-        assert_eq!(c.org_auth_domain(&org), "auth.ops.org1.sentin8.local");
-        assert_eq!(c.org_dash_domain(&org), "dash.ops.org1.sentin8.local");
-        assert_eq!(c.org_sentin8_bff_domain(&org), "bff.ops.org1.sentin8.local");
+        assert_eq!(org, "org1.local.sentin8.dev");
+        assert_eq!(c.org_auth_domain(&org), "auth.ops.org1.local.sentin8.dev");
+        assert_eq!(c.org_dash_domain(&org), "dash.ops.org1.local.sentin8.dev");
+        assert_eq!(c.org_sentin8_bff_domain(&org), "bff.ops.org1.local.sentin8.dev");
         assert_eq!(
             c.org_sentin8_storage_domain(&org),
-            "storage.ops.org1.sentin8.local"
+            "storage.ops.org1.local.sentin8.dev"
         );
     }
 
@@ -1544,11 +1544,11 @@ mod tests {
         let c = cfg();
         let org = c.org_domain("org1");
         let env = c.env_domain("qa1", &org);
-        assert_eq!(env, "qa1.org1.sentin8.local");
-        assert_eq!(c.env_auth_domain(&env), "auth.qa1.org1.sentin8.local");
+        assert_eq!(env, "qa1.org1.local.sentin8.dev");
+        assert_eq!(c.env_auth_domain(&env), "auth.qa1.org1.local.sentin8.dev");
         assert_eq!(
             c.env_sentin8_storage_domain(&env),
-            "storage.qa1.org1.sentin8.local"
+            "storage.qa1.org1.local.sentin8.dev"
         );
     }
 
@@ -1558,8 +1558,8 @@ mod tests {
         let org = c.org_domain("org1");
         let env = c.env_domain("qa1", &org);
         let app = c.app_domain("ebank", &env);
-        assert_eq!(app, "ebank.qa1.org1.sentin8.local");
-        assert_eq!(c.app_bff_domain(&app), "bff.ebank.qa1.org1.sentin8.local");
+        assert_eq!(app, "ebank.qa1.org1.local.sentin8.dev");
+        assert_eq!(c.app_bff_domain(&app), "bff.ebank.qa1.org1.local.sentin8.dev");
     }
 
     #[test]
@@ -1698,24 +1698,24 @@ mod tests {
     fn typed_org_domain_subdomains() {
         let c = cfg();
         let org = c.org_domain_typed("org1");
-        assert_eq!(org.as_str(), "org1.sentin8.local");
-        assert_eq!(org.auth_subdomain(), "auth.ops.org1.sentin8.local");
-        assert_eq!(org.dash_subdomain(), "dash.ops.org1.sentin8.local");
-        assert_eq!(org.sentin8_bff_subdomain(), "bff.ops.org1.sentin8.local");
+        assert_eq!(org.as_str(), "org1.local.sentin8.dev");
+        assert_eq!(org.auth_subdomain(), "auth.ops.org1.local.sentin8.dev");
+        assert_eq!(org.dash_subdomain(), "dash.ops.org1.local.sentin8.dev");
+        assert_eq!(org.sentin8_bff_subdomain(), "bff.ops.org1.local.sentin8.dev");
         assert_eq!(
             org.sentin8_storage_subdomain(),
-            "storage.ops.org1.sentin8.local"
+            "storage.ops.org1.local.sentin8.dev"
         );
-        assert_eq!(org.sentin8_app_subdomain(), "app.ops.org1.sentin8.local");
-        assert_eq!(org.sentin8_db_subdomain(), "db.ops.org1.sentin8.local");
-        assert_eq!(org.sentin8_bus_subdomain(), "bus.ops.org1.sentin8.local");
-        assert_eq!(org.sentin8_tls_subdomain(), "tls.ops.org1.sentin8.local");
-        assert_eq!(org.sentin8_stat_subdomain(), "stat.ops.org1.sentin8.local");
-        assert_eq!(org.sentin8_log_subdomain(), "log.ops.org1.sentin8.local");
-        assert_eq!(org.sentin8_func_subdomain(), "func.ops.org1.sentin8.local");
-        assert_eq!(org.sentin8_cron_subdomain(), "cron.ops.org1.sentin8.local");
-        assert_eq!(org.sentin8_flow_subdomain(), "flow.ops.org1.sentin8.local");
-        assert_eq!(org.sentin8_sys_subdomain(), "sys.ops.org1.sentin8.local");
+        assert_eq!(org.sentin8_app_subdomain(), "app.ops.org1.local.sentin8.dev");
+        assert_eq!(org.sentin8_db_subdomain(), "db.ops.org1.local.sentin8.dev");
+        assert_eq!(org.sentin8_bus_subdomain(), "bus.ops.org1.local.sentin8.dev");
+        assert_eq!(org.sentin8_tls_subdomain(), "tls.ops.org1.local.sentin8.dev");
+        assert_eq!(org.sentin8_stat_subdomain(), "stat.ops.org1.local.sentin8.dev");
+        assert_eq!(org.sentin8_log_subdomain(), "log.ops.org1.local.sentin8.dev");
+        assert_eq!(org.sentin8_func_subdomain(), "func.ops.org1.local.sentin8.dev");
+        assert_eq!(org.sentin8_cron_subdomain(), "cron.ops.org1.local.sentin8.dev");
+        assert_eq!(org.sentin8_flow_subdomain(), "flow.ops.org1.local.sentin8.dev");
+        assert_eq!(org.sentin8_sys_subdomain(), "sys.ops.org1.local.sentin8.dev");
     }
 
     #[test]
@@ -1723,24 +1723,24 @@ mod tests {
         let c = cfg();
         let org = c.org_domain_typed("org1");
         let env = c.env_domain_typed("qa1", &org);
-        assert_eq!(env.as_str(), "qa1.org1.sentin8.local");
-        assert_eq!(env.auth_subdomain(), "auth.qa1.org1.sentin8.local");
-        assert_eq!(env.dash_subdomain(), "dash.qa1.org1.sentin8.local");
-        assert_eq!(env.sentin8_bff_subdomain(), "bff.qa1.org1.sentin8.local");
+        assert_eq!(env.as_str(), "qa1.org1.local.sentin8.dev");
+        assert_eq!(env.auth_subdomain(), "auth.qa1.org1.local.sentin8.dev");
+        assert_eq!(env.dash_subdomain(), "dash.qa1.org1.local.sentin8.dev");
+        assert_eq!(env.sentin8_bff_subdomain(), "bff.qa1.org1.local.sentin8.dev");
         assert_eq!(
             env.sentin8_storage_subdomain(),
-            "storage.qa1.org1.sentin8.local"
+            "storage.qa1.org1.local.sentin8.dev"
         );
-        assert_eq!(env.sentin8_app_subdomain(), "app.qa1.org1.sentin8.local");
-        assert_eq!(env.sentin8_db_subdomain(), "db.qa1.org1.sentin8.local");
-        assert_eq!(env.sentin8_bus_subdomain(), "bus.qa1.org1.sentin8.local");
-        assert_eq!(env.sentin8_tls_subdomain(), "tls.qa1.org1.sentin8.local");
-        assert_eq!(env.sentin8_stat_subdomain(), "stat.qa1.org1.sentin8.local");
-        assert_eq!(env.sentin8_log_subdomain(), "log.qa1.org1.sentin8.local");
-        assert_eq!(env.sentin8_func_subdomain(), "func.qa1.org1.sentin8.local");
-        assert_eq!(env.sentin8_cron_subdomain(), "cron.qa1.org1.sentin8.local");
-        assert_eq!(env.sentin8_flow_subdomain(), "flow.qa1.org1.sentin8.local");
-        assert_eq!(env.sentin8_sys_subdomain(), "sys.qa1.org1.sentin8.local");
+        assert_eq!(env.sentin8_app_subdomain(), "app.qa1.org1.local.sentin8.dev");
+        assert_eq!(env.sentin8_db_subdomain(), "db.qa1.org1.local.sentin8.dev");
+        assert_eq!(env.sentin8_bus_subdomain(), "bus.qa1.org1.local.sentin8.dev");
+        assert_eq!(env.sentin8_tls_subdomain(), "tls.qa1.org1.local.sentin8.dev");
+        assert_eq!(env.sentin8_stat_subdomain(), "stat.qa1.org1.local.sentin8.dev");
+        assert_eq!(env.sentin8_log_subdomain(), "log.qa1.org1.local.sentin8.dev");
+        assert_eq!(env.sentin8_func_subdomain(), "func.qa1.org1.local.sentin8.dev");
+        assert_eq!(env.sentin8_cron_subdomain(), "cron.qa1.org1.local.sentin8.dev");
+        assert_eq!(env.sentin8_flow_subdomain(), "flow.qa1.org1.local.sentin8.dev");
+        assert_eq!(env.sentin8_sys_subdomain(), "sys.qa1.org1.local.sentin8.dev");
     }
 
     #[test]
@@ -1749,8 +1749,8 @@ mod tests {
         let org = c.org_domain_typed("org1");
         let env = c.env_domain_typed("qa1", &org);
         let app = c.app_domain_typed("ebank", &env);
-        assert_eq!(app.as_str(), "ebank.qa1.org1.sentin8.local");
-        assert_eq!(app.bff_subdomain(), "bff.ebank.qa1.org1.sentin8.local");
+        assert_eq!(app.as_str(), "ebank.qa1.org1.local.sentin8.dev");
+        assert_eq!(app.bff_subdomain(), "bff.ebank.qa1.org1.local.sentin8.dev");
     }
 
     #[test]

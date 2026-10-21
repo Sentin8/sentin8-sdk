@@ -39,7 +39,7 @@
 //! let tls = Sentin8Tls::builder()
 //!     .service_identity("bank8:ledger")
 //!     .acme_directory_url(acme_url)
-//!     .sentin8_domain("sentin8.local")
+//!     .sentin8_domain("local.sentin8.dev")
 //!     .build()
 //!     .await?;
 //!

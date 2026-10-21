@@ -366,7 +366,7 @@ impl Client {
     ///
     /// # Parameters
     /// - `subject_token`: The access token to exchange.
-    /// - `audience`: The target service audience (e.g. `https://bank8-ledger.ops.sys.sentin8.local`).
+    /// - `audience`: The target service audience (e.g. `https://bank8-ledger.ops.sys.local.sentin8.dev`).
     /// - `env_id`: The target environment ID.
     /// - `scope`: The requested scope (space-separated, already downscoped to
     ///   the target service's scopes). If empty, all subject scopes are kept.
@@ -1698,11 +1698,11 @@ mod tests {
     fn client_options_builder() {
         install_provider();
         let opts = ClientOptions::builder()
-            .base_url("https://auth.ops.sys.sentin8.local")
+            .base_url("https://auth.ops.sys.local.sentin8.dev")
             .api_key("test-key")
             .build()
             .unwrap();
-        assert_eq!(opts.base_url, "https://auth.ops.sys.sentin8.local");
+        assert_eq!(opts.base_url, "https://auth.ops.sys.local.sentin8.dev");
         assert_eq!(opts.api_key.as_deref(), Some("test-key"));
     }
 
@@ -1715,10 +1715,10 @@ mod tests {
     fn client_strips_trailing_slash() {
         install_provider();
         let client = Client::new(ClientOptions {
-            base_url: "https://auth.ops.sys.sentin8.local/".into(),
+            base_url: "https://auth.ops.sys.local.sentin8.dev/".into(),
             ..Default::default()
         });
-        assert_eq!(client.base_url, "https://auth.ops.sys.sentin8.local");
+        assert_eq!(client.base_url, "https://auth.ops.sys.local.sentin8.dev");
     }
 
     #[test]

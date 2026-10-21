@@ -31,7 +31,7 @@ use tower::ServiceExt;
 fn platform_mapping(service: &str) -> Mapping {
     Mapping {
         id: uuid::Uuid::new_v4(),
-        hostname: format!("{service}.ops.sys.sentin8.local"),
+        hostname: format!("{service}.ops.sys.local.sentin8.dev"),
         service: service.to_string(),
         org_id: uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
         env_id: uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap(),
@@ -46,7 +46,7 @@ fn platform_mapping(service: &str) -> Mapping {
 fn app_mapping(app: &str, env: &str) -> Mapping {
     Mapping {
         id: uuid::Uuid::new_v4(),
-        hostname: format!("{app}.{env}.ibank22475123.sentin8.local"),
+        hostname: format!("{app}.{env}.ibank22475123.local.sentin8.dev"),
         service: "sentin8:web".to_string(),
         org_id: uuid::Uuid::parse_str("0f5f7c6a-0000-0000-0000-000000000001").unwrap(),
         env_id: uuid::Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap(),
@@ -124,7 +124,7 @@ async fn echo_headers(response: axum::response::Response) -> Vec<(String, String
 #[tokio::test]
 async fn strips_client_sentin8_headers_and_injects_context() {
     let cache = MappingCache::new();
-    cache.set("auth.ops.sys.sentin8.local", platform_mapping("auth"));
+    cache.set("auth.ops.sys.local.sentin8.dev", platform_mapping("auth"));
     let app = echo_router(cache);
 
     let response = app
@@ -132,7 +132,7 @@ async fn strips_client_sentin8_headers_and_injects_context() {
         .oneshot(
             Request::builder()
                 .uri("/v1/echo")
-                .header("host", "auth.ops.sys.sentin8.local")
+                .header("host", "auth.ops.sys.local.sentin8.dev")
                 // Attacker-supplied identity headers - must be stripped.
                 .header("x-sentin8-env-id", "11111111-1111-1111-1111-111111111111")
                 .header("x-sentin8-service", "evil-service")
@@ -165,7 +165,7 @@ async fn strips_client_sentin8_headers_and_injects_context() {
     assert_eq!(find("x-sentin8-service", &headers).as_deref(), Some("auth"));
     assert_eq!(
         find("x-sentin8-hostname", &headers).as_deref(),
-        Some("auth.ops.sys.sentin8.local")
+        Some("auth.ops.sys.local.sentin8.dev")
     );
     // Attacker values never reached the handler.
     assert!(headers.iter().all(|(_, v)| v != "evil-service"));
@@ -183,7 +183,7 @@ async fn unregistered_hostname_returns_421() {
         .oneshot(
             Request::builder()
                 .uri("/v1/echo")
-                .header("host", "unknown.host.sentin8.local")
+                .header("host", "unknown.host.local.sentin8.dev")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -249,14 +249,14 @@ async fn health_endpoint_bypasses_host_resolution() {
 #[tokio::test]
 async fn client_supplied_cert_headers_stripped() {
     let cache = MappingCache::new();
-    cache.set("auth.ops.sys.sentin8.local", platform_mapping("auth"));
+    cache.set("auth.ops.sys.local.sentin8.dev", platform_mapping("auth"));
     let app = echo_router(cache);
 
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/v1/echo")
-                .header("host", "auth.ops.sys.sentin8.local")
+                .header("host", "auth.ops.sys.local.sentin8.dev")
                 .header("x-sentin8-client-cert-subject", "CN=evil")
                 .header("x-sentin8-client-cert-thumbprint", "deadbeef")
                 .body(Body::empty())
@@ -299,7 +299,7 @@ async fn peer_cert_extension_injects_cert_headers() {
     .collect();
 
     let cache = MappingCache::new();
-    cache.set("auth.ops.sys.sentin8.local", platform_mapping("auth"));
+    cache.set("auth.ops.sys.local.sentin8.dev", platform_mapping("auth"));
     let state = ContextMiddlewareState {
         resolver: HostContextResolver::new(cache, "sentin8:test-svc"),
     };
@@ -328,7 +328,7 @@ async fn peer_cert_extension_injects_cert_headers() {
         .oneshot(
             Request::builder()
                 .uri("/v1/echo")
-                .header("host", "auth.ops.sys.sentin8.local")
+                .header("host", "auth.ops.sys.local.sentin8.dev")
                 .extension(PeerClientCert::new(der.clone()))
                 .body(Body::empty())
                 .unwrap(),
@@ -368,14 +368,14 @@ async fn peer_cert_extension_injects_cert_headers() {
 async fn app_mapping_injects_app_id_header() {
     let cache = MappingCache::new();
     let m = app_mapping("ebank", "prod");
-    cache.set("ebank.prod.ibank22475123.sentin8.local", m);
+    cache.set("ebank.prod.ibank22475123.local.sentin8.dev", m);
     let app = echo_router(cache);
 
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/v1/echo")
-                .header("host", "ebank.prod.ibank22475123.sentin8.local")
+                .header("host", "ebank.prod.ibank22475123.local.sentin8.dev")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -397,14 +397,14 @@ async fn app_mapping_injects_app_id_header() {
 #[tokio::test]
 async fn platform_mapping_does_not_inject_app_id() {
     let cache = MappingCache::new();
-    cache.set("auth.ops.sys.sentin8.local", platform_mapping("auth"));
+    cache.set("auth.ops.sys.local.sentin8.dev", platform_mapping("auth"));
     let app = echo_router(cache);
 
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/v1/echo")
-                .header("host", "auth.ops.sys.sentin8.local")
+                .header("host", "auth.ops.sys.local.sentin8.dev")
                 .body(Body::empty())
                 .unwrap(),
         )

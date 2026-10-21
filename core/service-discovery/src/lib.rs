@@ -30,6 +30,22 @@
 //! discovery client picks it up on the next Valkey notification. The
 //! caller gets the new URL - no restart needed.
 //!
+//! ## Refresh failure semantics
+//!
+//! A registry scan that FAILS (Valkey connection error, KEYS/HGETALL
+//! error) must never degrade the discovery view: `refresh` KEEPS the
+//! previous map and logs the error. Replacing the map with an empty
+//! one on a transient Valkey blip would make every service vanish
+//! fleet-wide (callers see "ACME not resolved"-style outages) until
+//! the next successful scan - observed live when a Valkey error during
+//! an ACME self-heal window wiped auth's discovery map and stranded
+//! on-demand TLS cert fetches. An intentionally empty registry is
+//! indistinguishable from a failed scan at the KEYS layer, so the
+//! empty result is treated as suspect too: an empty scan result is
+//! REJECTED when the previous map is non-empty (the platform never
+//! runs with zero registered services), and accepted only when the
+//! previous map was already empty.
+//!
 //! ## Usage
 //!
 //! ```text
@@ -354,20 +370,50 @@ impl ServiceDiscovery {
 /// Scan all `captain:svc:*` hashes from Valkey, parse the JSON blobs, and
 /// update the in-memory map. Only `Active` instances with fresh health
 /// checks are kept.
+/// Total instances across a discovery map (the suspect-empty guard's
+/// input).
+fn total_instances(map: &HashMap<String, Vec<ServiceInstance>>) -> usize {
+    map.values().map(|v| v.len()).sum()
+}
+
+/// The suspect-empty decision (refresh failure semantics): an empty
+/// scan result is accepted ONLY when the previous view was already
+/// empty - a non-empty view going empty means the scan failed or was
+/// partitioned, and the previous map must be kept.
+fn should_reject_empty_scan(scan_empty: bool, previous_empty: bool) -> bool {
+    scan_empty && !previous_empty
+}
+
 async fn refresh(
     client: &glide::GlideClient,
     inner: &Arc<RwLock<HashMap<String, Vec<ServiceInstance>>>>,
 ) {
     use glide::AsyncCommands as _;
-    let keys: Vec<String> = client
-        .keys(SENTIN8_CAPTAIN_SVC_GLOB)
-        .await
-        .unwrap_or_default();
+    let keys: Vec<String> = match client.keys(SENTIN8_CAPTAIN_SVC_GLOB).await {
+        Ok(k) => k,
+        Err(e) => {
+            // Refresh-failure semantics: a failed scan KEEPS the
+            // previous map. Wiping it on a transient Valkey error would
+            // make every service vanish from discovery fleet-wide
+            // (the live incident: auth's map wiped during an ACME
+            // self-heal window stranded on-demand cert fetches).
+            tracing::error!(error = ?e, "service-discovery: scan failed - keeping previous view");
+            return;
+        }
+    };
 
     let mut new_map: HashMap<String, Vec<ServiceInstance>> = HashMap::new();
 
     for key in keys {
-        let entries: Vec<(String, String)> = client.hgetall(&key).await.unwrap_or_default();
+        let entries: Vec<(String, String)> = match client.hgetall(&key).await {
+            Ok(e) => e,
+            Err(err) => {
+                // One unreadable hash must not wipe the whole view
+                // either - skip the hash, keep scanning the rest.
+                tracing::error!(key = %key, error = ?err, "service-discovery: hash read failed - skipping hash");
+                continue;
+            }
+        };
         for (_field, json) in entries {
             if let Ok(inst) = serde_json::from_str::<ServiceInstance>(&json) {
                 new_map
@@ -376,6 +422,22 @@ async fn refresh(
                     .push(inst);
             }
         }
+    }
+
+    // An EMPTY scan result is suspect: the platform never runs with
+    // zero registered services, and an empty KEYS result is
+    // indistinguishable from a partitioned/expired scan. Reject it
+    // when the previous map is non-empty; accept only when the map
+    // was already empty (a genuinely fresh boot with nothing
+    // registered yet).
+    let was_empty = inner
+        .read()
+        .map(|m| total_instances(&*m) == 0)
+        .unwrap_or(true);
+    let now_empty = total_instances(&new_map) == 0;
+    if should_reject_empty_scan(now_empty, was_empty) {
+        tracing::error!("service-discovery: scan returned zero instances - keeping previous view (suspect)");
+        return;
     }
 
     // Sort each service type's instances by load score for quick access.
@@ -406,7 +468,16 @@ async fn refresh_one(
 ) {
     use glide::AsyncCommands as _;
     let key = format!("{SENTIN8_CAPTAIN_SVC_PREFIX}{service_type}");
-    let entries: Vec<(String, String)> = client.hgetall(&key).await.unwrap_or_default();
+    let entries: Vec<(String, String)> = match client.hgetall(&key).await {
+        Ok(e) => e,
+        Err(err) => {
+            // Same failure semantics as the full scan: a failed read
+            // KEEPS the current view for this type - a transient
+            // Valkey error must not unregister a live service type.
+            tracing::error!(service_type = %service_type, error = ?err, "service-discovery: targeted refresh failed - keeping previous view");
+            return;
+        }
+    };
     let mut fresh: Vec<ServiceInstance> = Vec::new();
     for (_field, json) in entries {
         if let Ok(inst) = serde_json::from_str::<ServiceInstance>(&json) {
@@ -478,6 +549,31 @@ mod tests {
     fn url_is_https_ip_port() {
         let i = inst("auth", "10.0.0.5", 3101, "Active", 0.0, 0.0, 0.0, Some(5));
         assert_eq!(i.url(), "https://10.0.0.5:3101");
+    }
+
+    #[test]
+    fn empty_scan_rejected_when_view_nonempty() {
+        // A populated view must NEVER go empty from one scan result -
+        // that is the fleet-wide wipe signature.
+        assert!(should_reject_empty_scan(true, false));
+        // A populated view stays for a non-empty scan.
+        assert!(!should_reject_empty_scan(false, false));
+        // An already-empty view may legitimately stay empty (fresh boot
+        // with nothing registered yet).
+        assert!(!should_reject_empty_scan(true, true));
+        assert!(!should_reject_empty_scan(false, true));
+    }
+
+    #[test]
+    fn total_counts_across_types() {
+        let a = inst("auth", "10.0.0.5", 3101, "Active", 0.0, 0.0, 0.0, Some(5));
+        let b = inst("bus", "10.0.0.5", 3102, "Active", 0.0, 0.0, 0.0, Some(5));
+        let mut map: HashMap<String, Vec<ServiceInstance>> = HashMap::new();
+        map.entry(a.service_type.clone()).or_default().push(a);
+        map.entry(b.service_type.clone()).or_default().push(b);
+        assert_eq!(total_instances(&map), 2);
+        map.clear();
+        assert_eq!(total_instances(&map), 0);
     }
 
     #[test]

@@ -164,8 +164,8 @@ mod tests {
 
     #[test]
     fn csp_with_extra_connect_src_appends_origins() {
-        let p = csp_with_extra_connect_src(&["https://analytics.sentin8.local"]);
-        assert!(p.contains("connect-src 'self' https://analytics.sentin8.local"));
+        let p = csp_with_extra_connect_src(&["https://analytics.local.sentin8.dev"]);
+        assert!(p.contains("connect-src 'self' https://analytics.local.sentin8.dev"));
     }
 
     #[test]

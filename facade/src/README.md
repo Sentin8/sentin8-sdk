@@ -19,7 +19,7 @@ sentin8 = { path = "sdk/rust/sentin8" }
 use sentin8::{ClientBuilder, Bank8:LedgerClient};
 
 # async fn run() -> Result<(), sentin8::Error> {
-let ledger = Bank8:LedgerClient::new("https://ledger.sentin8.local")
+let ledger = Bank8:LedgerClient::new("https://ledger.local.sentin8.dev")
     .with_token("m2m-token")
     .build();
 

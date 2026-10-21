@@ -286,7 +286,7 @@ fn parse_asn1_time(generalized: bool, body: &[u8]) -> Option<chrono::DateTime<ch
 /// callers resolve the exact endpoint.
 fn acme_base_url(sentin8_auth_base_url: &str) -> String {
     let _ = sentin8_auth_base_url; // symmetric argument for future overrides
-    let domain = std::env::var("SENTIN8_DOMAIN").unwrap_or_else(|_| "sentin8.local".into());
+    let domain = std::env::var("SENTIN8_DOMAIN").unwrap_or_else(|_| "local.sentin8.dev".into());
     let base = format!("https://acme.ops.sys.{domain}");
     match std::env::var("SENTIN8_ACME_PORT")
         .ok()
