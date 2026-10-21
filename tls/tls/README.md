@@ -210,9 +210,13 @@ Components:
   survives the handshake abort, always clears/certifies `pending` and
   records `failed` on error, and waiters poll the maps against a hard
   deadline. `resolve()` itself never blocks on the Acme round trip -
-  it installs the wait and returns `None` (the first handshake for an
-  unknown SNI fails; the fetch lands for the follow-ups, and the
-  client/BFF retry loop covers the initial reset).
+  the SPAWNING handshake arms the fetch, then polls the same wait loop
+  (FIRST-TOUCH HOLD, up to 15 s): a no-retry client (the OIDF suite's
+  Java client, single-shot fetches) previously received `access_denied`
+  for the ~100 ms the fetch takes and reported a spurious failure after
+  every service restart. On failure the handshake returns `None`
+  (next handshake re-arms post-backoff); concurrent handshakes use the
+  already-pending branch unchanged.
 
 ## 7. Unresolved Questions / Future Designs
 

@@ -304,9 +304,31 @@ impl ResolvesServerCert for WildcardCertResolver {
                 // (tls README §6 "waiters never starve the negative cache").
                 pending.write().remove(&hostname);
             });
-        }
 
-        None
+            // FIRST-TOUCH HOLD (tls README §6): the spawning handshake does
+            // not reject - it waits for the fetch it just armed (same poll
+            // loop as the already-pending branch). A no-retry client (the
+            // OIDF suite's Java client, single-shot HTTP fetches) otherwise
+            // receives access_denied for the ~100 ms the fetch takes and
+            // reports a spurious failure - every conformance run after a
+            // service restart tripped this. The wait shares the same
+            // negative-cache exit as the pending branch (failure → None,
+            // next handshake re-arms post-backoff).
+            let hostname = sni.to_string();
+            let exact = self.exact.clone();
+            let failed = self.failed.clone();
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+            while std::time::Instant::now() < deadline {
+                if let Some(key) = exact.read().get(&hostname) {
+                    return Some(key.clone());
+                }
+                if failed.read().contains_key(&hostname) {
+                    return None;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            return None;
+        }
     }
 }
 
