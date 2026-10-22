@@ -140,6 +140,14 @@ impl TlsListener {
                 &[]
             }
 
+            // OPTIONAL client auth (the CA posture's
+            // `allow_unauthenticated` semantics): handshakes WITHOUT a
+            // client certificate keep working - only the RFC 8705
+            // application decision reads a presented cert's identity.
+            fn client_auth_mandatory(&self) -> bool {
+                false
+            }
+
             fn verify_client_cert(
                 &self,
                 _end_entity: &rustls::pki_types::CertificateDer<'_>,
