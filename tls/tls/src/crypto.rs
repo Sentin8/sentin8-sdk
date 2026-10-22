@@ -71,16 +71,21 @@ fn cipher_profile(base: CryptoProvider) -> CryptoProvider {
         return base;
     }
     let mut suites = base.cipher_suites;
+    // FAPI1-ADV 8.5 (the suite's FAPITLSClient FAPI_TLS_1_2_CIPHERS =
+    // DHE_RSA_AES_128/256 + ECDHE_RSA_AES_128/256 - no ECDHE_ECDSA at
+    // TLS 1.2: FAPI1 has no ECDSA-certificate plane) + TLS 1.3 limited
+    // to AES_256_GCM + CHACHA20. FAPI2 SP (TLS 1.3-only deployments)
+    // keeps the same two 1.3 suites. DHE (finite-field) suites are not
+    // implemented by the graviola provider - the JRE falls back to the
+    // ECDHE_RSA members it offers.
     suites.retain(|s| {
         use rustls::CipherSuite;
         matches!(
             s.suite(),
             CipherSuite::TLS13_AES_256_GCM_SHA384
                 | CipherSuite::TLS13_CHACHA20_POLY1305_SHA256
-                | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
-                | CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+                | CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
                 | CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
-                | CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
         )
     });
     CryptoProvider {
