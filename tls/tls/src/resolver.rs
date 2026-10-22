@@ -69,6 +69,18 @@ impl Sentin8Tls {
         if let Some(ca_path) = &self.config.client_ca_pem_path {
             let ca_pem = std::fs::read(ca_path)
                 .map_err(|e| format!("read SENTIN8_TLS_CLIENT_CA_PEM ({ca_path}): {e}"))?;
+            // The trust posture (DESIGN 9a.12): `self_signed` accepts ANY
+            // presented client cert at the handshake (the RFC 8705 trust
+            // decision moves to the application layer); the default `ca`
+            // verifies against the CA PEM.
+            if self.config.client_auth_posture == crate::config::ClientAuthPosture::SelfSigned {
+                tracing::info!("sentin8-tls: optional mTLS client auth (self_signed posture - trust decided by the application)");
+                return crate::acceptor::TlsListener::bind_with_client_auth_allow_self_signed(
+                    addr,
+                    self.cert_resolver.clone(),
+                )
+                .await;
+            }
             tracing::info!(ca_path, "sentin8-tls: optional mTLS client auth enabled");
             return crate::acceptor::TlsListener::bind_with_client_auth(
                 addr,

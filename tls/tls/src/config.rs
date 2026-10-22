@@ -33,6 +33,27 @@ pub struct Sentin8TlsConfig {
     /// still accepted.
     /// Read from `SENTIN8_TLS_CLIENT_CA_PEM` (path to the CA file).
     pub client_ca_pem_path: Option<String>,
+    /// The client-certificate TRUST posture for the listener when
+    /// `client_ca_pem_path` is set (DESIGN 9a.12 - RFC 8705):
+    /// - `ca` (default): presented certs are verified against the CA PEM at
+    ///   the handshake; self-signed certs REJECT (alert 46).
+    /// - `self_signed`: presented certs are accepted at the handshake
+    ///   WITHOUT CA verification - the RFC 8705 trust decision moves to the
+    ///   application (the RFC 8705 registered-thumbprint / DN comparison);
+    ///   an unregistered cert authenticates nothing.
+    /// Read from `SENTIN8_TLS_CLIENT_AUTH`.
+    pub client_auth_posture: ClientAuthPosture,
+}
+
+/// The client-certificate trust posture (DESIGN 9a.12).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ClientAuthPosture {
+    /// Verify presented client certs against the CA PEM (default).
+    #[default]
+    Ca,
+    /// Accept any presented client cert at the handshake - trust decision
+    /// delegated to the application (RFC 8705 self_signed surface).
+    SelfSigned,
 }
 
 /// How the listener terminates TLS.
@@ -98,12 +119,22 @@ impl Sentin8TlsConfig {
             .ok()
             .filter(|s| !s.is_empty());
 
+        let client_auth_posture = match env::var("SENTIN8_TLS_CLIENT_AUTH")
+            .unwrap_or_else(|_| "ca".to_string())
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "self_signed" | "self-signed" => ClientAuthPosture::SelfSigned,
+            _ => ClientAuthPosture::Ca,
+        };
+
         Self {
             service_identity,
             acme_directory_url,
             sentin8_domain,
             tls_mode,
             client_ca_pem_path,
+            client_auth_posture,
         }
     }
 }

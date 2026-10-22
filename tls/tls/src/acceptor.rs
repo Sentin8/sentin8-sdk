@@ -109,6 +109,104 @@ impl TlsListener {
         self.tcp_listener.local_addr().ok()
     }
 
+    /// Bind a TLS listener that REQUESTS a client certificate and accepts
+    /// ANY presented certificate WITHOUT CA verification (the
+    /// `allow_self_signed` posture - DESIGN §9a.12).
+    ///
+    /// SECURITY: this posture NEVER makes a presented certificate trusted -
+    /// it only carries the cert through the handshake so the application
+    /// layer (Sentin8:Auth's RFC 8705 client-auth decision) can bind the
+    /// thumbprint against the registration row. Unregistered certs
+    /// authenticate nothing. Use it ONLY on surfaces whose client-auth
+    /// decision is made by the application (the conformance rig's
+    /// self_signed_tls_client_auth variants).
+    ///
+    /// The peer certificate is retrievable via [`TlsStreamExt::peer_cert_der`]
+    /// exactly as in the CA-verified posture.
+    pub async fn bind_with_client_auth_allow_self_signed(
+        addr: &str,
+        cert_resolver: Arc<WildcardCertResolver>,
+    ) -> Result<Self, String> {
+        // An accept-anything client verifier: client cert chain validation
+        // is DELEGATED to the application (auth compares the RFC 8705
+        // thumbprint against the registration row - a row that does not
+        // carry the thumbprint never authenticates). This type exists ONLY
+        // to let a self-signed client complete the handshake.
+        #[derive(Debug)]
+        struct AcceptAnyClientCert;
+
+        impl rustls::server::danger::ClientCertVerifier for AcceptAnyClientCert {
+            fn root_hint_subjects(&self) -> &[rustls::DistinguishedName] {
+                &[]
+            }
+
+            fn verify_client_cert(
+                &self,
+                _end_entity: &rustls::pki_types::CertificateDer<'_>,
+                _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+                _now: rustls::pki_types::UnixTime,
+            ) -> Result<rustls::server::danger::ClientCertVerified, rustls::Error>
+            {
+                // Accept the presented cert - trust is the application's
+                // decision (DESIGN §9a.12).
+                Ok(rustls::server::danger::ClientCertVerified::assertion())
+            }
+
+            fn verify_tls12_signature(
+                &self,
+                message: &[u8],
+                cert: &rustls::pki_types::CertificateDer<'_>,
+                dss: &rustls::DigitallySignedStruct,
+            ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+                // Accept the handshake proof-of-possession without chain
+                // validation - the cert itself is never trusted beyond this
+                // handshake (DESIGN §9a.12).
+                let _ = (message, cert, dss);
+                Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+            }
+
+            fn verify_tls13_signature(
+                &self,
+                _message: &[u8],
+                _cert: &rustls::pki_types::CertificateDer<'_>,
+                _dss: &rustls::DigitallySignedStruct,
+            ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+                Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+            }
+
+            fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+                vec![
+                    rustls::SignatureScheme::ED25519,
+                    rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
+                    rustls::SignatureScheme::RSA_PKCS1_SHA256,
+                    rustls::SignatureScheme::RSA_PSS_SHA256,
+                    rustls::SignatureScheme::RSA_PKCS1_SHA384,
+                    rustls::SignatureScheme::RSA_PKCS1_SHA512,
+                    rustls::SignatureScheme::ECDSA_NISTP384_SHA384,
+                ]
+            }
+        }
+
+        let verifier = Arc::new(AcceptAnyClientCert);
+
+        let tcp_listener = TcpListener::bind(addr)
+            .await
+            .map_err(|e| format!("failed to bind {addr}: {e}"))?;
+
+        let server_config = ServerConfig::builder_with_provider(Arc::new(sentin8_pq_provider()))
+            .with_protocol_versions(&sentin8_tls_versions())
+            .map_err(|e| format!("invalid protocol versions: {e}"))?
+            .with_client_cert_verifier(verifier)
+            .with_cert_resolver(cert_resolver);
+
+        let tls_acceptor = TlsAcceptor::from(Arc::new(server_config));
+
+        Ok(Self {
+            tcp_listener,
+            tls_acceptor,
+        })
+    }
+
     /// Accept the next raw TCP connection (TLS handshake is deferred -
     /// run it with [`Self::tls_acceptor`] inside the per-connection task).
     pub async fn accept(&self) -> Result<(tokio::net::TcpStream, SocketAddr), std::io::Error> {
