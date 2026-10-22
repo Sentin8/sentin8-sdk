@@ -35,6 +35,7 @@ fn pq_mode() -> String {
 /// - `classical`: classical groups only (no ML-KEM) - emergency rollback.
 pub fn sentin8_pq_provider() -> CryptoProvider {
     let base = rustls_graviola::default_provider();
+    let base = cipher_profile(base);
     match pq_mode().as_str() {
         "exclusive" => CryptoProvider {
             kx_groups: vec![X25519MLKEM768],
@@ -53,6 +54,38 @@ pub fn sentin8_pq_provider() -> CryptoProvider {
             kx_groups: vec![X25519MLKEM768],
             ..base
         },
+    }
+}
+
+/// Cipher-suite profile keyed off `SENTIN8_TLS_CIPHER_PROFILE`.
+///
+/// - `default` (unset): graviola's full suite list.
+/// - `fapi`: the FAPI-permitted ciphers only (FAPI1-ADV / FAPI2 SP:
+///   TLS 1.3 AES_256_GCM_SHA384 + CHACHA20_POLY1305_SHA256; TLS 1.2
+///   ECDHE with AES_256_GCM_SHA384 + CHACHA20_POLY1305_SHA256) - the
+///   AES_128_GCM suites are the FAPI-rejected weak set.
+fn cipher_profile(base: CryptoProvider) -> CryptoProvider {
+    let profile = std::env::var("SENTIN8_TLS_CIPHER_PROFILE")
+        .unwrap_or_else(|_| "default".to_string());
+    if profile != "fapi" {
+        return base;
+    }
+    let mut suites = base.cipher_suites;
+    suites.retain(|s| {
+        use rustls::CipherSuite;
+        matches!(
+            s.suite(),
+            CipherSuite::TLS13_AES_256_GCM_SHA384
+                | CipherSuite::TLS13_CHACHA20_POLY1305_SHA256
+                | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+                | CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+                | CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+                | CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+        )
+    });
+    CryptoProvider {
+        cipher_suites: suites,
+        ..base
     }
 }
 
