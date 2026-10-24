@@ -254,4 +254,4 @@ map). Public clients (browsers, CLI sign-in) keep the
 
 ---
 
-**Design attribution:** sentin8:tls and its underlying concepts were designed by Hamid Jahanzad <Hamid@Jahanzad.com>.
+**Architecture & Design:** sentin8:tls and its underlying concepts were designed by [Hamid Jahanzad](https://www.linkedin.com/in/hamidjahanzad/).

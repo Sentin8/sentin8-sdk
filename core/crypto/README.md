@@ -124,4 +124,4 @@ Envelope format - Base64 (standard) of:
 
 ---
 
-**Design attribution:** sentin8:crypto and its underlying concepts were designed by Hamid Jahanzad <Hamid@Jahanzad.com>.
+**Architecture & Design:** sentin8:crypto and its underlying concepts were designed by [Hamid Jahanzad](https://www.linkedin.com/in/hamidjahanzad/).
