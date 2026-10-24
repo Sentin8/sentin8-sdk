@@ -22,6 +22,16 @@ use rustls::sign::CertifiedKey;
 /// unreachable - every TLS handshake would otherwise trigger a fresh fetch.
 const FETCH_FAILURE_BACKOFF_S: u64 = 30;
 
+/// How long a HANDSHAKE may wait for an in-flight on-demand cert mint.
+/// The mint's own bound is 3s connect + 10s total per HTTP hop, but the
+/// observed worst case (Acme queue + issuer issuance) is ~15s; the OIDF
+/// suite's Java fetcher is single-shot, so a wait shorter than the mint
+/// turns a healthy mint into a spurious `access_denied` on first touch
+/// (VCI issuer runs: two of four modules ate this race). 45s covers 2x
+/// the observed worst case; the failure backoff still bounds retry
+/// storms independently.
+const CERT_FETCH_WAIT_S: u64 = 45;
+
 /// A SNI-aware certificate resolver that fetches certs on-the-fly from
 /// Acme when an unknown SNI arrives.
 ///
@@ -208,7 +218,7 @@ impl ResolvesServerCert for WildcardCertResolver {
                 let exact = self.exact.clone();
                 let pending = self.pending.clone();
                 let failed = self.failed.clone();
-                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(CERT_FETCH_WAIT_S);
                 while std::time::Instant::now() < deadline {
                     if let Some(key) = exact.read().get(&hostname) {
                         return Some(key.clone());
@@ -317,7 +327,7 @@ impl ResolvesServerCert for WildcardCertResolver {
             let hostname = sni.to_string();
             let exact = self.exact.clone();
             let failed = self.failed.clone();
-            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(CERT_FETCH_WAIT_S);
             while std::time::Instant::now() < deadline {
                 if let Some(key) = exact.read().get(&hostname) {
                     return Some(key.clone());

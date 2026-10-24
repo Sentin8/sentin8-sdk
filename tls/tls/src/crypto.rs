@@ -86,6 +86,15 @@ fn cipher_profile(base: CryptoProvider) -> CryptoProvider {
                 | CipherSuite::TLS13_CHACHA20_POLY1305_SHA256
                 | CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
                 | CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+                // ECDHE_ECDSA TLS1.2 members: the SERVER leaves are
+                // ECDSA (Sentin8:Acme on-demand mints) - without these
+                // arms a TLS1.2 handshake could not select ANY suite
+                // against our own cert (alert 40). Both ECDHE+AES-GCM
+                // families stay inside BCP195/FAPI's TLS1.2 compliance
+                // bounds (FAPI restricts CLIENT-side cipher LISTS, not
+                // the server's auth algorithm plane).
+                | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+                | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
         )
     });
     CryptoProvider {
@@ -104,5 +113,27 @@ pub fn sentin8_tls_versions() -> Vec<&'static rustls::SupportedProtocolVersion> 
     match pq_mode().as_str() {
         "classical" => vec![&TLS12, &TLS13],
         _ => vec![&TLS13],
+    }
+}
+
+#[cfg(test)]
+mod classical_tests {
+    use super::*;
+
+    #[test]
+    fn classical_mode_enables_tls12() {
+        std::env::set_var("SENTIN8_TLS_PQ_MODE", "classical");
+        let versions = sentin8_tls_versions();
+        assert!(versions.iter().any(|v| v.version == rustls::ProtocolVersion::TLSv1_2));
+    }
+
+    #[test]
+    fn classical_fapi_provider_keeps_ecdsa_gcm_suites() {
+        std::env::set_var("SENTIN8_TLS_PQ_MODE", "classical");
+        std::env::set_var("SENTIN8_TLS_CIPHER_PROFILE", "fapi");
+        let p = sentin8_pq_provider();
+        assert!(p.cipher_suites.iter().any(|s| s.suite()
+            == rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256));
+        assert!(!p.kx_groups.iter().any(|g| g.name() == rustls::NamedGroup::X25519MLKEM768));
     }
 }
