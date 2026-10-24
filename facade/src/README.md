@@ -1,5 +1,10 @@
 # sentin8 - Rust SDK
 
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](../../../../../LICENSE)
+[![Built with Rust](https://img.shields.io/badge/Built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
+[![Docs](https://img.shields.io/badge/docs-read-3aa757.svg)](https://sentin8.dev/docs/sdk/facade)
+[![Website](https://img.shields.io/badge/website-sentin8.dev-1a73e8.svg)](https://sentin8.dev/docs/sdk/facade)
+
 Unified, type-safe Rust client library for the Sentin8 platform. Provides
 one client per backend service, all following the same builder pattern with
 automatic correlation-ID propagation.
