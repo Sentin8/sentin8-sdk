@@ -72,12 +72,19 @@ fn cipher_profile(base: CryptoProvider) -> CryptoProvider {
     }
     let mut suites = base.cipher_suites;
     // FAPI1-ADV 8.5 (the suite's FAPITLSClient FAPI_TLS_1_2_CIPHERS =
-    // DHE_RSA_AES_128/256 + ECDHE_RSA_AES_128/256 - no ECDHE_ECDSA at
-    // TLS 1.2: FAPI1 has no ECDSA-certificate plane) + TLS 1.3 limited
-    // to AES_256_GCM + CHACHA20. FAPI2 SP (TLS 1.3-only deployments)
-    // keeps the same two 1.3 suites. DHE (finite-field) suites are not
-    // implemented by the graviola provider - the JRE falls back to the
-    // ECDHE_RSA members it offers.
+    // ECDHE_RSA_AES_128/256_GCM - IANA 0x009E/0x009F + bouncy 0xC02F/0xC030;
+    // NO ECDHE_ECDSA at TLS 1.2: FAPI has no ECDSA-cert plane at 1.2) +
+    // TLS 1.3 limited to AES_256_GCM + CHACHA20 (the suite's
+    // TLS_1_3_CIPHERS; AES_128_GCM is in the insecure-allowed set but the
+    // DisallowInsecureCipher probes agree it against the FAPI list and
+    // flag any server agreement outside it - the 8.5-1 rejection). The
+    // suite's checker (AbstractCheckInsecureCiphers$1) offers ONLY the
+    // insecure suites and requires the TLS1.2 handshake to FAIL; with an
+    // ECDSA-only leaf plane the server answers no TLS1.2 suite at all -
+    // the checker's "Server does not support TLS 1.2" green path (the
+    // prior campaigns' state). Re-adding ECDHE_ECDSA members here made
+    // the handshake COMPLETE (agreed 0xC023 = outside the FAPI list) and
+    // the 8.5-1 check FAILED - they stay OUT of this profile.
     suites.retain(|s| {
         use rustls::CipherSuite;
         matches!(
@@ -86,15 +93,6 @@ fn cipher_profile(base: CryptoProvider) -> CryptoProvider {
                 | CipherSuite::TLS13_CHACHA20_POLY1305_SHA256
                 | CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
                 | CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
-                // ECDHE_ECDSA TLS1.2 members: the SERVER leaves are
-                // ECDSA (Sentin8:Acme on-demand mints) - without these
-                // arms a TLS1.2 handshake could not select ANY suite
-                // against our own cert (alert 40). Both ECDHE+AES-GCM
-                // families stay inside BCP195/FAPI's TLS1.2 compliance
-                // bounds (FAPI restricts CLIENT-side cipher LISTS, not
-                // the server's auth algorithm plane).
-                | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
-                | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
         )
     });
     CryptoProvider {
@@ -128,11 +126,15 @@ mod classical_tests {
     }
 
     #[test]
-    fn classical_fapi_provider_keeps_ecdsa_gcm_suites() {
+    fn classical_fapi_provider_tls12_rsa_only() {
         std::env::set_var("SENTIN8_TLS_PQ_MODE", "classical");
         std::env::set_var("SENTIN8_TLS_CIPHER_PROFILE", "fapi");
         let p = sentin8_pq_provider();
+        // TLS1.2 = ECDHE_RSA ONLY (the suite's FAPI_TLS_1_2_CIPHERS; the
+        // ECDSA-GCM agreement = the DisallowInsecureCipher 8.5-1 failure).
         assert!(p.cipher_suites.iter().any(|s| s.suite()
+            == rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256));
+        assert!(!p.cipher_suites.iter().any(|s| s.suite()
             == rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256));
         assert!(!p.kx_groups.iter().any(|g| g.name() == rustls::NamedGroup::X25519MLKEM768));
     }
