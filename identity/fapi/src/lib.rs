@@ -46,7 +46,8 @@ mod types;
 
 pub use client::Client;
 pub use crypto::{
-    dpop_proof, generate_dpop_key_pem, generate_pkce_verifier, pkce_s256_challenge, url_encode,
+    ciba_request_object, dpop_proof, ec_public_jwk, generate_dpop_key_pem,
+    generate_pkce_verifier, pkce_s256_challenge, url_encode, CibaRequestObject,
 };
 pub use discovery::{DiscoveryDocument, Jwk, JwkSet, MtlsEndpointAliases, ParResponse};
 pub use error::FapiError;

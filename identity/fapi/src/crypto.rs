@@ -116,6 +116,32 @@ fn ec_public_jwk_from_pem(key_pem: &str) -> Result<jsonwebtoken::jwk::Jwk, FapiE
     })
 }
 
+/// Public JWK (sdk discovery `Jwk` shape) for an ES256 P-256 private key PEM.
+///
+/// CIBA-caller use: the client DCR-registers this JWK (inline `jwks`) so the
+/// AS can verify the client's signed request objects / private-key-JWT client
+/// assertions against it. Mirrors the DPoP embedded-`jwk` derivation - one
+/// derivation for both surfaces.
+pub fn ec_public_jwk(key_pem: &str) -> Result<Jwk, FapiError> {
+    let inner = ec_public_jwk_from_pem(key_pem)?;
+    use jsonwebtoken::jwk::AlgorithmParameters;
+    let (x, y, crv) = match &inner.algorithm {
+        AlgorithmParameters::EllipticCurve(p) => (p.x.clone(), p.y.clone(), format!("{:?}", p.curve).to_lowercase()),
+        _ => return Err(FapiError::Config("not an EC key".into())),
+    };
+    Ok(Jwk {
+        kty: "EC".into(),
+        kid: None,
+        alg: Some("ES256".into()),
+        r#use: Some("sig".into()),
+        n: None,
+        e: None,
+        crv: Some(crv.replace("p256", "P-256")),
+        x: Some(x),
+        y: Some(y),
+    })
+}
+
 /// Generate a DPoP proof JWT for the given HTTP method, URI, and optional access token.
 ///
 /// `key_pem` is a PEM-encoded PKCS#8 private key. `alg` must be one of the
@@ -283,6 +309,71 @@ fn get_param(params: &[(&str, &str)], key: &str) -> Option<String> {
         .iter()
         .find(|(k, _)| *k == key)
         .map(|(_, v)| v.to_string())
+}
+
+// ── CIBA signed request object (OpenID CIBA §7.1) ────────────────────────
+
+/// Additional params a client may carry in a backchannel request object.
+///
+/// Free-form map beside the mandatory JOSE claims (`iss`/`aud`/`exp`/`iat`
+/// /`nbf`/`jti`) — CIBA parameters (scope, login_hint, binding_message,
+/// user_code, request_mode, client_notification_token, ...) ride here, and
+/// the AS overlays them onto the request after signature verification.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CibaRequestObject {
+    /// Issuer of the object - the client ID (CIBA §7.1.1 required).
+    pub iss: String,
+    /// Audience - the authorization server issuer (required).
+    pub aud: String,
+    /// Expiry (seconds). The mandated window is (-5min, +1h) - 10 min is safe.
+    pub exp: i64,
+    /// Issued-at (seconds). Within (-1d, +5min).
+    pub iat: i64,
+    /// Not-before (seconds). Within (-10min, +5min) - `iat` + 30s is safe.
+    pub nbf: i64,
+    /// JWT ID (non-empty string).
+    pub jti: String,
+    /// The CIBA parameters (+ any additional claims): keys rendered as-is.
+    #[serde(flatten)]
+    pub params: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+/// Build and sign a CIBA backchannel request object JWT (OpenID CIBA §7.1 /
+/// RFC 9101 shape): `iss = client_id`, `aud = the AS issuer` and the CIBA
+/// parameters as additional claims. Signed with the caller's registered
+/// ES256 P-256 key (the registered `alg` policy excludes `none`/HS/RS256).
+///
+/// The `typ` header follows the request-object convention
+/// (`oauth-authz-req+jwt`, the same class the JAR helper emits). Returns the
+/// signed JWT to POST as the `request` form/JSON parameter of
+/// `POST /oauth/bc-authorize`.
+pub fn ciba_request_object(
+    params: &[(String, serde_json::Value)],
+    client_id: &str,
+    issuer: &str,
+    key_pem: &str,
+) -> Result<String, FapiError> {
+    let now = Utc::now();
+    let mut map = std::collections::BTreeMap::new();
+    for (k, v) in params {
+        map.insert(k.clone(), v.clone());
+    }
+    let claims = CibaRequestObject {
+        iss: client_id.to_string(),
+        aud: issuer.to_string(),
+        exp: (now + ChronoDuration::minutes(10)).timestamp(),
+        iat: now.timestamp(),
+        nbf: (now - ChronoDuration::seconds(30)).timestamp(),
+        jti: format!("ciba-{}", now.timestamp_millis()),
+        params: map,
+    };
+    let header = Header {
+        alg: Algorithm::ES256,
+        typ: Some("oauth-authz-req+jwt".to_string()),
+        ..Default::default()
+    };
+    let key = encoding_key(key_pem, Algorithm::ES256)?;
+    jsonwebtoken::encode(&header, &claims, &key).map_err(Into::into)
 }
 
 // ── JARM response validation ─────────────────────────────────────────────
