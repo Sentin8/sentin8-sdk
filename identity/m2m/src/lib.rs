@@ -105,6 +105,28 @@ pub async fn ensure_workload_certificate(
     })
 }
 
+/// Async load-or-mint (DPoPRS-1b): the [`ensure_workload_certificate`]
+/// alias under the caller-facing name the Shield resolver uses. Semantics
+/// identical - persisted-pair fast path, Acme mint on a miss.
+pub async fn ensure_workload_certificate_async(
+    sentin8_auth_base_url: &str,
+    workload: &str,
+    ca_cert_path: &str,
+) -> Option<PersistedPair> {
+    if let Some(p) = load_persisted_pair_blocking(workload, ca_cert_path) {
+        return Some(p);
+    }
+    let minted =
+        ensure_workload_certificate(sentin8_auth_base_url, workload, ca_cert_path)
+            .await
+            .ok()?;
+    Some(PersistedPair {
+        ca_cert_path: minted.ca_cert_path,
+        cert_path: minted.cert_path,
+        key_path: minted.key_path,
+    })
+}
+
 /// Blocking load-or-mint for sync constructors (DPoPRS-1): the fast path
 /// is [`load_persisted_pair_blocking`] (no network); on a miss the async
 /// [`ensure_workload_certificate`] mint runs via

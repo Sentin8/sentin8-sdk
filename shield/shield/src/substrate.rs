@@ -77,6 +77,15 @@ struct RoleEntry {
 pub struct RoleResolver {
     auth_base_url: String,
     http: reqwest::Client,
+    /// The identity channel's arming state (DPoPRS-1b): a service that
+    /// boots BEFORE the identity plane (Acme self-boots at tier 1 - the
+    /// `{dash}-tls` mint cannot complete while its own listener is arming)
+    /// falls back to bearer-only at construction; the first proof-required
+    /// 401 re-arms this client ONCE (bounded), and every later resolution
+    /// rides the certificate channel.
+    identity_http: ArcSwap<Option<reqwest::Client>>,
+    identity_rearmed: std::sync::atomic::AtomicBool,
+    issuer_for_rearm: String,
     ttl: Duration,
     cache: ArcSwap<HashMap<(Uuid, String), RoleEntry>>,
 }
@@ -98,10 +107,13 @@ impl RoleResolver {
     /// remains the downstream behavior).
     pub fn new(auth_base_url: impl Into<String>) -> Self {
         let base = auth_base_url.into();
-        let http = Self::build_identity_client(&base).unwrap_or_default();
+        let http = Self::build_identity_client(&base);
         Self {
-            auth_base_url: base,
-            http,
+            auth_base_url: base.clone(),
+            issuer_for_rearm: base,
+            identity_rearmed: std::sync::atomic::AtomicBool::new(http.is_none()),
+            identity_http: ArcSwap::from_pointee(http),
+            http: reqwest::Client::new(),
             ttl: Duration::from_secs(30),
             cache: ArcSwap::from_pointee(HashMap::new()),
         }
@@ -161,12 +173,100 @@ impl RoleResolver {
     /// Test/ops constructor: fixed TTL.
     pub fn with_ttl(auth_base_url: impl Into<String>, ttl: Duration) -> Self {
         let base = auth_base_url.into();
+        let http = Self::build_identity_client(&base);
         Self {
             auth_base_url: base.clone(),
-            http: Self::build_identity_client(&base).unwrap_or_default(),
+            issuer_for_rearm: base,
+            identity_rearmed: std::sync::atomic::AtomicBool::new(http.is_none()),
+            identity_http: ArcSwap::from_pointee(http.clone()),
+            http: http.unwrap_or_default(),
             ttl,
             cache: ArcSwap::from_pointee(HashMap::new()),
         }
+    }
+
+    /// Send one userinfo resolution on the CURRENT identity channel
+    /// (DPoPRS-1b): certificate client when armed, plain bearer otherwise.
+    /// On a proof-required 401 from a bearer-only process, re-arm the
+    /// certificate client ONCE (services booting ahead of the identity
+    /// plane - Acme self-boot - recover without a restart; after the single
+    /// re-arm the fail-closed surface is unchanged) and retry once on it.
+    async fn send_resolution(
+        &self,
+        url: &str,
+        access_token: &str,
+    ) -> Result<reqwest::Response, RoleError> {
+        let current = self.identity_http.load_full();
+        let client = match current.as_ref() {
+            Some(c) => c.clone(),
+            None => {
+                // Bearer-only process: one bounded re-arm attempt.
+                if self
+                    .identity_rearmed
+                    .swap(true, std::sync::atomic::Ordering::SeqCst)
+                {
+                    return self
+                        .http
+                        .get(url)
+                        .bearer_auth(access_token)
+                        .send()
+                        .await
+                        .map_err(|e| RoleError::Reqwest(e.to_string()));
+                }
+                let armed = tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::try_current().ok().and_then(|h| {
+                        h.block_on(async {
+                            tokio::time::timeout(
+                                std::time::Duration::from_secs(20),
+                                Self::mint_identity_client(&self.issuer_for_rearm),
+                            )
+                            .await
+                            .ok()
+                            .flatten()
+                        })
+                    })
+                });
+                match armed {
+                    Some(c) => {
+                        self.identity_http.store(Arc::new(Some(c.clone())));
+                        tracing::info!("shield: identity channel re-armed after proof-required 401 (dpops-1b)");
+                        c
+                    }
+                    None => {
+                        return self
+                            .http
+                            .get(url)
+                            .bearer_auth(access_token)
+                            .send()
+                            .await
+                            .map_err(|e| RoleError::Reqwest(e.to_string()));
+                    }
+                }
+            }
+        };
+        client
+            .get(url)
+            .bearer_auth(access_token)
+            .send()
+            .await
+            .map_err(|e| RoleError::Reqwest(e.to_string()))
+    }
+
+    /// The async mint half of [`Self::build_identity_client`] (shared by
+    /// the constructor's blocking wrapper and the DPoPRS-1b re-arm).
+    async fn mint_identity_client(auth_base_url: &str) -> Option<reqwest::Client> {
+        let service = sentin8_middleware::structured_logging::current_service_name()?;
+        let tls_workload = format!("{}-tls", service.replace(':', "-"));
+        let ca_path = sentin8_m2m::platform_ca_pem_path();
+        let pair =
+            sentin8_m2m::ensure_workload_certificate_async(auth_base_url, &tls_workload, &ca_path)
+                .await?;
+        let cfg = sentin8_middleware::mtls::MtlsConfig::new(
+            &pair.ca_cert_path,
+            &pair.cert_path,
+            &pair.key_path,
+        );
+        sentin8_middleware::mtls::build_mtls_client(&cfg).ok()
     }
 
     /// Resolve the caller's identity (live): role names AND the live
@@ -189,13 +289,7 @@ impl RoleResolver {
             "{}/oauth/userinfo",
             self.auth_base_url.trim_end_matches('/')
         );
-        let resp = self
-            .http
-            .get(&url)
-            .bearer_auth(access_token)
-            .send()
-            .await
-            .map_err(|e| RoleError::Reqwest(e.to_string()))?;
+        let resp = self.send_resolution(&url, access_token).await?;
         if !resp.status().is_success() {
             return Err(RoleError::Http {
                 status: resp.status().as_u16(),
