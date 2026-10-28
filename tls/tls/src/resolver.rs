@@ -356,6 +356,40 @@ impl Sentin8TlsBuilder {
             discovery.clone(),
         ));
 
+        // 2a. Pre-warm the persisted leaf cache (WARM-1, README §6.5): a
+        //     LOCAL DISK READ ONLY - no Acme/Storage dependency on the boot
+        //     path. Every previously-minted hostname serves with zero mint
+        //     round-trips after a restart or reset; expired pairs are
+        //     pruned by the scan itself; the load is capped
+        //     (`SENTIN8_TLS_CERT_CACHE_MAX`) so a client-controlled SNI key
+        //     space cannot accumulate unbounded files.
+        for leaf in crate::cert_cache::scan_cache() {
+            let (cert_pem, key_pem) =
+                match std::fs::read(&leaf.cert_path).and_then(|c| {
+                    std::fs::read(&leaf.key_path).map(|k| (c, k))
+                }) {
+                    Ok(pair) => pair,
+                    Err(_) => continue, // vanished mid-scan - load-or-mint
+                };
+            match cert_resolver.add_cert(&leaf.hostname, &cert_pem, &key_pem) {
+                Ok(()) => tracing::info!(
+                    hostname = %leaf.hostname,
+                    "sentin8-tls: pre-warmed cert from persisted cache"
+                ),
+                Err(e) => {
+                    // Corrupt pair - drop it from disk too (fail safe to
+                    // re-mint on demand).
+                    let _ = std::fs::remove_file(&leaf.cert_path);
+                    let _ = std::fs::remove_file(&leaf.key_path);
+                    tracing::warn!(
+                        hostname = %leaf.hostname,
+                        error = %e,
+                        "sentin8-tls: cached pair unparsable - pruned"
+                    );
+                }
+            }
+        }
+
         // 2b. Pre-load bootstrap certs (e.g. acme's self-issued cert).
         //     These are registered directly in the resolver - no ACME fetch
         //     is needed for these hostnames.

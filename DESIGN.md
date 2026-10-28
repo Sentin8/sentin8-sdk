@@ -315,6 +315,17 @@ flowchart TD
   VDC-2 vertical gate; revocation = `enabled=false`, observed within the
   cache TTL. JWTs remain for user/delegated flows; DCR remains for
   interactive + out-of-band tenant clients.
+- **WARM-1 (tls → cert cache)**: minted server leaves are caller-custodied
+  artifacts exactly like the workload client pairs - persisted under
+  `{SENTIN8_SECRETS_DIR}/tls-certs/` (0700/0600) and pre-warmed at boot with
+  expiry pruning and a hostname cap (`SENTIN8_TLS_CERT_CACHE_MAX`, default
+  256; the SNI key space is client-controlled). The on-demand Acme mint
+  remains the fallback for genuinely new hostnames; the prewarm path is a
+  LOCAL DISK READ ONLY (no new boot-time cross-service edge - runtime
+  dependency discipline). Revocation is honored at natural expiry/re-mint
+  (dev posture; the Storage-backed revocation-list seam is the production
+  path). The `acme` crate gains the matching reuse-before-mint rule at
+  finalize (acme DESIGN §4.0) so re-requests are idempotent.
 - No `unsafe` in the SDK plane (`facade` forbids it; membus uses only
   safe RESP APIs).
 - Rejected: durable Streams for telemetry (imposes retry/DLQ semantics on

@@ -53,6 +53,7 @@
 
 pub mod acceptor;
 pub mod cache;
+pub mod cert_cache;
 pub mod certs;
 pub mod config;
 pub mod context;

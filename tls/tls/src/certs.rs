@@ -279,6 +279,16 @@ impl ResolvesServerCert for WildcardCertResolver {
                             Ok(ck) => {
                                 exact.write().insert(hostname.clone(), Arc::new(ck));
                                 failed.write().remove(&hostname);
+                                // WARM-1 (README §6.5): persist the minted pair
+                                // so the NEXT process boot pre-warms this
+                                // hostname with zero mint round-trips.
+                                // Best-effort by contract - an unwritable cache
+                                // dir never fails the in-memory registration.
+                                crate::cert_cache::persist_leaf_pair(
+                                    &hostname,
+                                    &cert_pem,
+                                    &key_pem,
+                                );
                                 tracing::info!(hostname = %hostname, "sentin8-tls: cert registered on-demand");
                             }
                             Err(e) => {

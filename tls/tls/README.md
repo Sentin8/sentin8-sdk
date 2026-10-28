@@ -28,6 +28,10 @@ STARTTLS and implicit-TLS operation.
   fallback, per the platform TLS policy.
 - **Zero-touch certificates.** Services must not ship static certs; certs are
   issued on demand from Sentin8:Acme at first handshake for a hostname.
+- **Restart-transparent certificates.** A minted leaf must outlive the
+  process: the first browser touch after any restart/reset must answer
+  instantly, not stall behind a full Acme order round-trip (the 45 s
+  first-touch stall class, WARM-1).
 
 ## 3. Architecture & High-Level Design
 
@@ -52,7 +56,9 @@ Components:
 - **`WildcardCertResolver`** - implements `rustls::ResolvesServerCert`.
   Serves exact-match and wildcard (`*.parent`) certificates from memory;
   on an unknown SNI it fetches the certificate from Sentin8:Acme
-  synchronously (blocking the handshake, see §5) and caches it.
+  synchronously (blocking the handshake, see §5), caches it in memory, and
+  persists it to the leaf cache dir (§7) so the next process boot pre-warms
+  it without a mint.
 - **`HostContextResolver` + `MappingCache`** - hostname → `Mapping`
   resolution. The cache is an in-memory layer consulted first; the
   authoritative path is Sentin8:Sys's owner API
@@ -143,6 +149,42 @@ Components:
   (or test) to pin explicit hostnames ahead of DB deduction; misses fall
   through to the authoritative DB path.
 
+## 6.5 The persisted leaf cache (WARM-1)
+
+Minted server leaves persist to `{SENTIN8_SECRETS_DIR}/tls-certs/`
+(`{hostname}.crt` + `{hostname}.key`, 0700 dir / 0600 files - the same
+credential-custody discipline as the m2m workload pairs in
+`.run/secrets/m2m-credentials/`; the caller-custody half of Acme's
+`client_cert.issue` contract, applied to server leaves).
+
+```mermaid
+flowchart TD
+    BOOT["process boot"] --> SCAN["scan tls-certs/ dir"]
+    SCAN --> LOAD{"pair unexpired?"}
+    LOAD -->|yes| ADD["add_cert → exact/wildcard map"]
+    LOAD -->|no| DEL["delete expired pair (prune)"]
+    ADD --> SERVE["handshakes served with zero mint"]
+    SERVE --> MISS{"unknown SNI?"}
+    MISS -->|yes| MINT["on-demand Acme fetch (§5 unchanged)"]
+    MINT --> PERSIST["persist pair to tls-certs/ (0600)"]
+    PERSIST --> SERVE
+```
+
+- **Load-or-mint, never load-only.** Expired, corrupt, or missing pairs
+  never break serving: prewarm skips (and prunes) them, and the on-demand
+  path re-mints exactly as before the cache existed.
+- **Revocation posture (dev trade-off, documented).** A persisted leaf is
+  honored until its natural expiry; an Acme-side revoke does not reach the
+  file cache. The production posture (revocation list consulted at load
+  time) is the scale-out path via a Sentin8:Storage-backed cache - it is
+  deliberately NOT wired now because it would add an Acme/Storage
+  dependency to the boot path (runtime dependency discipline: prewarm is a
+  local disk read only).
+- **Bounded disk cache (CR-TLS-2 discipline on disk).** The SNI key space
+  is client-controlled; prewarm loads at most `SENTIN8_TLS_CERT_CACHE_MAX`
+  hostnames (default 256, newest-mtime first) and deletes expired pairs on
+  load, so a public listener cannot accumulate unbounded files.
+
 ## 6. Internal Implementation & Invariants (Private Design)
 
 - **Transaction-local tenant context.** `sentin8_set_tenant_context()` uses
@@ -225,6 +267,9 @@ Components:
 
 ## 7. Unresolved Questions / Future Designs
 
+- **Leaf revocation propagation (WARM-1 follow-up):** the persisted leaf
+  cache honors a leaf until natural expiry; a Storage-backed cache with a
+  revocation list consulted at load time is the production posture seam.
 - The mapping-notify channel configuration exists but no LISTEN/NOTIFY loop
   consumes it; prefer the MemBus path (proxy lifecycle changes already ride
   it).
