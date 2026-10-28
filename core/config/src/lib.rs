@@ -1532,7 +1532,10 @@ mod tests {
         assert_eq!(org, "org1.local.sentin8.dev");
         assert_eq!(c.org_auth_domain(&org), "auth.ops.org1.local.sentin8.dev");
         assert_eq!(c.org_dash_domain(&org), "dash.ops.org1.local.sentin8.dev");
-        assert_eq!(c.org_sentin8_bff_domain(&org), "bff.ops.org1.local.sentin8.dev");
+        assert_eq!(
+            c.org_sentin8_bff_domain(&org),
+            "bff.ops.org1.local.sentin8.dev"
+        );
         assert_eq!(
             c.org_sentin8_storage_domain(&org),
             "storage.ops.org1.local.sentin8.dev"
@@ -1559,7 +1562,10 @@ mod tests {
         let env = c.env_domain("qa1", &org);
         let app = c.app_domain("ebank", &env);
         assert_eq!(app, "ebank.qa1.org1.local.sentin8.dev");
-        assert_eq!(c.app_bff_domain(&app), "bff.ebank.qa1.org1.local.sentin8.dev");
+        assert_eq!(
+            c.app_bff_domain(&app),
+            "bff.ebank.qa1.org1.local.sentin8.dev"
+        );
     }
 
     #[test]
@@ -1701,21 +1707,51 @@ mod tests {
         assert_eq!(org.as_str(), "org1.local.sentin8.dev");
         assert_eq!(org.auth_subdomain(), "auth.ops.org1.local.sentin8.dev");
         assert_eq!(org.dash_subdomain(), "dash.ops.org1.local.sentin8.dev");
-        assert_eq!(org.sentin8_bff_subdomain(), "bff.ops.org1.local.sentin8.dev");
+        assert_eq!(
+            org.sentin8_bff_subdomain(),
+            "bff.ops.org1.local.sentin8.dev"
+        );
         assert_eq!(
             org.sentin8_storage_subdomain(),
             "storage.ops.org1.local.sentin8.dev"
         );
-        assert_eq!(org.sentin8_app_subdomain(), "app.ops.org1.local.sentin8.dev");
+        assert_eq!(
+            org.sentin8_app_subdomain(),
+            "app.ops.org1.local.sentin8.dev"
+        );
         assert_eq!(org.sentin8_db_subdomain(), "db.ops.org1.local.sentin8.dev");
-        assert_eq!(org.sentin8_bus_subdomain(), "bus.ops.org1.local.sentin8.dev");
-        assert_eq!(org.sentin8_tls_subdomain(), "tls.ops.org1.local.sentin8.dev");
-        assert_eq!(org.sentin8_stat_subdomain(), "stat.ops.org1.local.sentin8.dev");
-        assert_eq!(org.sentin8_log_subdomain(), "log.ops.org1.local.sentin8.dev");
-        assert_eq!(org.sentin8_func_subdomain(), "func.ops.org1.local.sentin8.dev");
-        assert_eq!(org.sentin8_cron_subdomain(), "cron.ops.org1.local.sentin8.dev");
-        assert_eq!(org.sentin8_flow_subdomain(), "flow.ops.org1.local.sentin8.dev");
-        assert_eq!(org.sentin8_sys_subdomain(), "sys.ops.org1.local.sentin8.dev");
+        assert_eq!(
+            org.sentin8_bus_subdomain(),
+            "bus.ops.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            org.sentin8_tls_subdomain(),
+            "tls.ops.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            org.sentin8_stat_subdomain(),
+            "stat.ops.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            org.sentin8_log_subdomain(),
+            "log.ops.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            org.sentin8_func_subdomain(),
+            "func.ops.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            org.sentin8_cron_subdomain(),
+            "cron.ops.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            org.sentin8_flow_subdomain(),
+            "flow.ops.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            org.sentin8_sys_subdomain(),
+            "sys.ops.org1.local.sentin8.dev"
+        );
     }
 
     #[test]
@@ -1726,21 +1762,51 @@ mod tests {
         assert_eq!(env.as_str(), "qa1.org1.local.sentin8.dev");
         assert_eq!(env.auth_subdomain(), "auth.qa1.org1.local.sentin8.dev");
         assert_eq!(env.dash_subdomain(), "dash.qa1.org1.local.sentin8.dev");
-        assert_eq!(env.sentin8_bff_subdomain(), "bff.qa1.org1.local.sentin8.dev");
+        assert_eq!(
+            env.sentin8_bff_subdomain(),
+            "bff.qa1.org1.local.sentin8.dev"
+        );
         assert_eq!(
             env.sentin8_storage_subdomain(),
             "storage.qa1.org1.local.sentin8.dev"
         );
-        assert_eq!(env.sentin8_app_subdomain(), "app.qa1.org1.local.sentin8.dev");
+        assert_eq!(
+            env.sentin8_app_subdomain(),
+            "app.qa1.org1.local.sentin8.dev"
+        );
         assert_eq!(env.sentin8_db_subdomain(), "db.qa1.org1.local.sentin8.dev");
-        assert_eq!(env.sentin8_bus_subdomain(), "bus.qa1.org1.local.sentin8.dev");
-        assert_eq!(env.sentin8_tls_subdomain(), "tls.qa1.org1.local.sentin8.dev");
-        assert_eq!(env.sentin8_stat_subdomain(), "stat.qa1.org1.local.sentin8.dev");
-        assert_eq!(env.sentin8_log_subdomain(), "log.qa1.org1.local.sentin8.dev");
-        assert_eq!(env.sentin8_func_subdomain(), "func.qa1.org1.local.sentin8.dev");
-        assert_eq!(env.sentin8_cron_subdomain(), "cron.qa1.org1.local.sentin8.dev");
-        assert_eq!(env.sentin8_flow_subdomain(), "flow.qa1.org1.local.sentin8.dev");
-        assert_eq!(env.sentin8_sys_subdomain(), "sys.qa1.org1.local.sentin8.dev");
+        assert_eq!(
+            env.sentin8_bus_subdomain(),
+            "bus.qa1.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            env.sentin8_tls_subdomain(),
+            "tls.qa1.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            env.sentin8_stat_subdomain(),
+            "stat.qa1.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            env.sentin8_log_subdomain(),
+            "log.qa1.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            env.sentin8_func_subdomain(),
+            "func.qa1.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            env.sentin8_cron_subdomain(),
+            "cron.qa1.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            env.sentin8_flow_subdomain(),
+            "flow.qa1.org1.local.sentin8.dev"
+        );
+        assert_eq!(
+            env.sentin8_sys_subdomain(),
+            "sys.qa1.org1.local.sentin8.dev"
+        );
     }
 
     #[test]

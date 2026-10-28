@@ -28,8 +28,8 @@ const DEFAULT_CACHE_MAX: usize = 256;
 /// The leaf-cache dir: `{SENTIN8_SECRETS_DIR}/tls-certs/`. Mirrors the
 /// m2m-credentials derivation (0700 dir holding private keys).
 pub fn tls_cert_cache_dir() -> PathBuf {
-    let secrets = std::env::var("SENTIN8_SECRETS_DIR")
-        .unwrap_or_else(|_| "../.run/secrets".to_string());
+    let secrets =
+        std::env::var("SENTIN8_SECRETS_DIR").unwrap_or_else(|_| "../.run/secrets".to_string());
     PathBuf::from(secrets).join("tls-certs")
 }
 
@@ -187,7 +187,11 @@ fn uncache_file_stem(stem: &str) -> String {
     let parts: Vec<&str> = stem.split('.').collect();
     if let Some(first) = parts.first() {
         if let Some(rest) = first.strip_prefix('_') {
-            if rest.chars().next().is_some_and(|c| c.is_ascii_alphanumeric()) {
+            if rest
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphanumeric())
+            {
                 let mut out = format!("*.{rest}");
                 for p in &parts[1..] {
                     out.push('.');
@@ -266,7 +270,9 @@ fn der_not_after(der: &[u8]) -> Option<chrono::DateTime<chrono::Utc>> {
             return parse_asn1_time(b.1, body);
         }
     }
-    times.first().and_then(|t| parse_asn1_time(t.1, &der[t.0 + 2..t.0 + 2 + t.2]))
+    times
+        .first()
+        .and_then(|t| parse_asn1_time(t.1, &der[t.0 + 2..t.0 + 2 + t.2]))
 }
 
 /// Parse a UTCTime (`17`) or GeneralizedTime (`18`) body.
@@ -320,13 +326,22 @@ mod tests {
         let dir = temp_dir("roundtrip");
         std::env::set_var("SENTIN8_SECRETS_DIR", &dir);
         persist_leaf_pair("dash.ops.sys.local.sentin8.dev", b"cert", b"key");
-        assert!(tls_cert_cache_dir().join("dash.ops.sys.local.sentin8.dev.crt").exists());
-        assert!(tls_cert_cache_dir().join("dash.ops.sys.local.sentin8.dev.key").exists());
+        assert!(tls_cert_cache_dir()
+            .join("dash.ops.sys.local.sentin8.dev.crt")
+            .exists());
+        assert!(tls_cert_cache_dir()
+            .join("dash.ops.sys.local.sentin8.dev.key")
+            .exists());
         // .crt without expiry metadata → scan prunes (fail safe to re-mint),
         // so the scan result is empty but the DIR survives the prune.
         let found = scan_cache();
-        assert!(found.is_empty(), "unparsable pairs must be pruned, got {found:?}");
-        assert!(!tls_cert_cache_dir().join("dash.ops.sys.local.sentin8.dev.crt").exists());
+        assert!(
+            found.is_empty(),
+            "unparsable pairs must be pruned, got {found:?}"
+        );
+        assert!(!tls_cert_cache_dir()
+            .join("dash.ops.sys.local.sentin8.dev.crt")
+            .exists());
         let _ = std::fs::remove_dir_all(&dir);
         std::env::remove_var("SENTIN8_SECRETS_DIR");
     }
@@ -362,7 +377,11 @@ mod tests {
         std::env::set_var("SENTIN8_TLS_CERT_CACHE_MAX", "1");
         assert_eq!(tls_cert_cache_max(), 1);
         std::env::set_var("SENTIN8_TLS_CERT_CACHE_MAX", "0");
-        assert_eq!(tls_cert_cache_max(), DEFAULT_CACHE_MAX, "0/invalid → default");
+        assert_eq!(
+            tls_cert_cache_max(),
+            DEFAULT_CACHE_MAX,
+            "0/invalid → default"
+        );
         std::env::remove_var("SENTIN8_TLS_CERT_CACHE_MAX");
         std::env::remove_var("SENTIN8_SECRETS_DIR");
         let _ = std::fs::remove_dir_all(&dir);

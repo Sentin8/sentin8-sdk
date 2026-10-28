@@ -364,13 +364,12 @@ impl Sentin8TlsBuilder {
         //     (`SENTIN8_TLS_CERT_CACHE_MAX`) so a client-controlled SNI key
         //     space cannot accumulate unbounded files.
         for leaf in crate::cert_cache::scan_cache() {
-            let (cert_pem, key_pem) =
-                match std::fs::read(&leaf.cert_path).and_then(|c| {
-                    std::fs::read(&leaf.key_path).map(|k| (c, k))
-                }) {
-                    Ok(pair) => pair,
-                    Err(_) => continue, // vanished mid-scan - load-or-mint
-                };
+            let (cert_pem, key_pem) = match std::fs::read(&leaf.cert_path)
+                .and_then(|c| std::fs::read(&leaf.key_path).map(|k| (c, k)))
+            {
+                Ok(pair) => pair,
+                Err(_) => continue, // vanished mid-scan - load-or-mint
+            };
             match cert_resolver.add_cert(&leaf.hostname, &cert_pem, &key_pem) {
                 Ok(()) => tracing::info!(
                     hostname = %leaf.hostname,

@@ -229,7 +229,9 @@ impl RoleResolver {
                 match armed {
                     Some(c) => {
                         self.identity_http.store(Arc::new(Some(c.clone())));
-                        tracing::info!("shield: identity channel re-armed after proof-required 401 (dpops-1b)");
+                        tracing::info!(
+                            "shield: identity channel re-armed after proof-required 401 (dpops-1b)"
+                        );
                         c
                     }
                     None => {

@@ -218,7 +218,8 @@ impl ResolvesServerCert for WildcardCertResolver {
                 let exact = self.exact.clone();
                 let pending = self.pending.clone();
                 let failed = self.failed.clone();
-                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(CERT_FETCH_WAIT_S);
+                let deadline =
+                    std::time::Instant::now() + std::time::Duration::from_secs(CERT_FETCH_WAIT_S);
                 while std::time::Instant::now() < deadline {
                     if let Some(key) = exact.read().get(&hostname) {
                         return Some(key.clone());
@@ -285,9 +286,7 @@ impl ResolvesServerCert for WildcardCertResolver {
                                 // Best-effort by contract - an unwritable cache
                                 // dir never fails the in-memory registration.
                                 crate::cert_cache::persist_leaf_pair(
-                                    &hostname,
-                                    &cert_pem,
-                                    &key_pem,
+                                    &hostname, &cert_pem, &key_pem,
                                 );
                                 tracing::info!(hostname = %hostname, "sentin8-tls: cert registered on-demand");
                             }
@@ -337,7 +336,8 @@ impl ResolvesServerCert for WildcardCertResolver {
             let hostname = sni.to_string();
             let exact = self.exact.clone();
             let failed = self.failed.clone();
-            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(CERT_FETCH_WAIT_S);
+            let deadline =
+                std::time::Instant::now() + std::time::Duration::from_secs(CERT_FETCH_WAIT_S);
             while std::time::Instant::now() < deadline {
                 if let Some(key) = exact.read().get(&hostname) {
                     return Some(key.clone());

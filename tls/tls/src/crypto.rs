@@ -65,8 +65,8 @@ pub fn sentin8_pq_provider() -> CryptoProvider {
 ///   ECDHE with AES_256_GCM_SHA384 + CHACHA20_POLY1305_SHA256) - the
 ///   AES_128_GCM suites are the FAPI-rejected weak set.
 fn cipher_profile(base: CryptoProvider) -> CryptoProvider {
-    let profile = std::env::var("SENTIN8_TLS_CIPHER_PROFILE")
-        .unwrap_or_else(|_| "default".to_string());
+    let profile =
+        std::env::var("SENTIN8_TLS_CIPHER_PROFILE").unwrap_or_else(|_| "default".to_string());
     if profile != "fapi" {
         return base;
     }
@@ -122,7 +122,9 @@ mod classical_tests {
     fn classical_mode_enables_tls12() {
         std::env::set_var("SENTIN8_TLS_PQ_MODE", "classical");
         let versions = sentin8_tls_versions();
-        assert!(versions.iter().any(|v| v.version == rustls::ProtocolVersion::TLSv1_2));
+        assert!(versions
+            .iter()
+            .any(|v| v.version == rustls::ProtocolVersion::TLSv1_2));
     }
 
     #[test]
@@ -132,10 +134,17 @@ mod classical_tests {
         let p = sentin8_pq_provider();
         // TLS1.2 = ECDHE_RSA ONLY (the suite's FAPI_TLS_1_2_CIPHERS; the
         // ECDSA-GCM agreement = the DisallowInsecureCipher 8.5-1 failure).
-        assert!(p.cipher_suites.iter().any(|s| s.suite()
-            == rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256));
-        assert!(!p.cipher_suites.iter().any(|s| s.suite()
-            == rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256));
-        assert!(!p.kx_groups.iter().any(|g| g.name() == rustls::NamedGroup::X25519MLKEM768));
+        assert!(p
+            .cipher_suites
+            .iter()
+            .any(|s| s.suite() == rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256));
+        assert!(!p
+            .cipher_suites
+            .iter()
+            .any(|s| s.suite() == rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256));
+        assert!(!p
+            .kx_groups
+            .iter()
+            .any(|g| g.name() == rustls::NamedGroup::X25519MLKEM768));
     }
 }

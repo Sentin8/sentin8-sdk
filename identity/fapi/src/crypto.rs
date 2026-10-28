@@ -126,7 +126,11 @@ pub fn ec_public_jwk(key_pem: &str) -> Result<Jwk, FapiError> {
     let inner = ec_public_jwk_from_pem(key_pem)?;
     use jsonwebtoken::jwk::AlgorithmParameters;
     let (x, y, crv) = match &inner.algorithm {
-        AlgorithmParameters::EllipticCurve(p) => (p.x.clone(), p.y.clone(), format!("{:?}", p.curve).to_lowercase()),
+        AlgorithmParameters::EllipticCurve(p) => (
+            p.x.clone(),
+            p.y.clone(),
+            format!("{:?}", p.curve).to_lowercase(),
+        ),
         _ => return Err(FapiError::Config("not an EC key".into())),
     };
     Ok(Jwk {

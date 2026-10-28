@@ -153,8 +153,7 @@ impl TlsListener {
                 _end_entity: &rustls::pki_types::CertificateDer<'_>,
                 _intermediates: &[rustls::pki_types::CertificateDer<'_>],
                 _now: rustls::pki_types::UnixTime,
-            ) -> Result<rustls::server::danger::ClientCertVerified, rustls::Error>
-            {
+            ) -> Result<rustls::server::danger::ClientCertVerified, rustls::Error> {
                 // Accept the presented cert - trust is the application's
                 // decision (DESIGN §9a.12).
                 Ok(rustls::server::danger::ClientCertVerified::assertion())
@@ -165,7 +164,8 @@ impl TlsListener {
                 message: &[u8],
                 cert: &rustls::pki_types::CertificateDer<'_>,
                 dss: &rustls::DigitallySignedStruct,
-            ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+            ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error>
+            {
                 // Accept the handshake proof-of-possession without chain
                 // validation - the cert itself is never trusted beyond this
                 // handshake (DESIGN §9a.12).
@@ -178,7 +178,8 @@ impl TlsListener {
                 _message: &[u8],
                 _cert: &rustls::pki_types::CertificateDer<'_>,
                 _dss: &rustls::DigitallySignedStruct,
-            ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+            ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error>
+            {
                 Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
             }
 

@@ -116,10 +116,9 @@ pub async fn ensure_workload_certificate_async(
     if let Some(p) = load_persisted_pair_blocking(workload, ca_cert_path) {
         return Some(p);
     }
-    let minted =
-        ensure_workload_certificate(sentin8_auth_base_url, workload, ca_cert_path)
-            .await
-            .ok()?;
+    let minted = ensure_workload_certificate(sentin8_auth_base_url, workload, ca_cert_path)
+        .await
+        .ok()?;
     Some(PersistedPair {
         ca_cert_path: minted.ca_cert_path,
         cert_path: minted.cert_path,
@@ -144,15 +143,13 @@ pub fn ensure_workload_certificate_blocking(
     }
     // Mint path: requires a multithreaded runtime context.
     let minted = tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::try_current()
-            .ok()
-            .and_then(|h| {
-                h.block_on(async {
-                    ensure_workload_certificate(sentin8_auth_base_url, workload, ca_cert_path)
-                        .await
-                        .ok()
-                })
+        tokio::runtime::Handle::try_current().ok().and_then(|h| {
+            h.block_on(async {
+                ensure_workload_certificate(sentin8_auth_base_url, workload, ca_cert_path)
+                    .await
+                    .ok()
             })
+        })
     })?;
     Some(PersistedPair {
         ca_cert_path: minted.ca_cert_path,
