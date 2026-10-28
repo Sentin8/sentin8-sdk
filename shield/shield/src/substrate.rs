@@ -84,12 +84,57 @@ pub struct RoleResolver {
 impl RoleResolver {
     /// Build a resolver against Sentin8:Auth's base URL (issuer). The HTTP
     /// client uses the platform's post-quantum TLS provider.
+    ///
+    /// When the embedding service declares its certificate workload
+    /// identity (`SENTIN8_TLS_SERVICE_IDENTITY`), the userinfo call
+    /// presents that `{leaf}-tls` workload CERTIFICATE - auth's userinfo
+    /// gate admits a CA-verified platform-workload caller as the
+    /// sender-constraint carrier for forwarded DPoP-bound tokens
+    /// (RFC 8705 §3: the certificate IS the sender constraint; DPoPRS-1).
+    /// The identity pair is the SAME m2m-credentials cache every other
+    /// channel uses (0700/0600, load-or-mint) - it must exist at first
+    /// boot; a missing pair falls back to the plain client and the
+    /// resolver logs why resolution will demand proofs (fail-closed
+    /// remains the downstream behavior).
     pub fn new(auth_base_url: impl Into<String>) -> Self {
+        let http = Self::build_identity_client().unwrap_or_default();
         Self {
             auth_base_url: auth_base_url.into(),
-            http: reqwest::Client::new(),
+            http,
             ttl: Duration::from_secs(30),
             cache: ArcSwap::from_pointee(HashMap::new()),
+        }
+    }
+
+    /// Build the certificate-presenting userinfo client from the
+    /// embedding service's declared workload identity. `None` when no
+    /// identity is declared or the pair cannot be loaded - callers fall
+    /// back to the plain client. Local-disk-only (no mint, no network) -
+    /// the `{leaf}-tls` pair is minted by the service's own boot pass
+    /// (sentin8-tls's resolver / sentin8-m2m ensure) before Shield
+    /// evaluation begins.
+    fn build_identity_client() -> Option<reqwest::Client> {
+        let workload = sentin8_middleware::structured_logging::current_service_name()?.to_string();
+        // The `{leaf}-tls` workload pair: the service's own TLS resolver
+        // workload (the m2m-credentials cache names it `{leaf}-tls`,
+        // 0600 files, expiry-checked).
+        let tls_workload = format!("{workload}-tls");
+        let ca_path = sentin8_m2m::platform_ca_pem_path();
+        let pair = sentin8_m2m::load_persisted_pair_blocking(&tls_workload, &ca_path)?;
+        let cfg = sentin8_middleware::mtls::MtlsConfig::new(
+            &pair.ca_cert_path,
+            &pair.cert_path,
+            &pair.key_path,
+        );
+        match sentin8_middleware::mtls::build_mtls_client(&cfg) {
+            Ok(c) => {
+                tracing::info!(workload = %tls_workload, "shield: role resolver presents its workload certificate on identity resolution (dpops-1)");
+                Some(c)
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "shield: mTLS identity client build failed - resolver falls back to bearer-only");
+                None
+            }
         }
     }
 
@@ -97,7 +142,7 @@ impl RoleResolver {
     pub fn with_ttl(auth_base_url: impl Into<String>, ttl: Duration) -> Self {
         Self {
             auth_base_url: auth_base_url.into(),
-            http: reqwest::Client::new(),
+            http: Self::build_identity_client().unwrap_or_default(),
             ttl,
             cache: ArcSwap::from_pointee(HashMap::new()),
         }

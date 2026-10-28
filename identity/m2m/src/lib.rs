@@ -498,6 +498,64 @@ pub fn persist_cert_files(cert_pem: &str, key_pem: &str, workload: &str) -> (Str
     )
 }
 
+/// Blocking, LOCAL-DISK-ONLY load of a workload's persisted pair paths
+/// (DPoPRS-1). The sync counterpart of the [`load_cert_pair`] fast path:
+/// reads `{identity_dir}/{workload}.crt/.key` and verifies expiry - no
+/// Acme network, no mint. `None` when the pair is absent, corrupt, or
+/// expiring (the caller falls back and a later async
+/// [`ensure_workload_certificate`] pass mints).
+///
+/// Built for sync constructors that must NOT touch a network (the Shield
+/// role resolver's per-process build) - the same fail-closed cache
+/// discipline as the async path.
+pub struct PersistedPair {
+    /// The PEM CA chain path (the m2m plane's platform CA).
+    pub ca_cert_path: String,
+    /// The leaf chain PEM path.
+    pub cert_path: String,
+    /// The private key PEM path.
+    pub key_path: String,
+}
+
+/// Blocking, LOCAL-DISK-ONLY load of a workload's persisted pair paths
+/// (DPoPRS-1). The sync counterpart of the [`load_cert_pair`] fast path:
+/// reads `{identity_dir}/{workload}.crt/.key` and verifies expiry - no
+/// Acme network, no mint. Returns `None` when the pair is absent, corrupt,
+/// or expiring (the caller falls back; a later async
+/// [`ensure_workload_certificate`] pass mints).
+///
+/// Built for sync constructors that must NOT touch a network (the Shield
+/// role resolver's per-process build) - the same fail-closed cache
+/// discipline as the async path.
+pub fn load_persisted_pair_blocking(workload: &str, ca_cert_path: &str) -> Option<PersistedPair> {
+    let dir = identity_dir();
+    let base = workload.replace(['/', ':'], "_");
+    let cert_path = std::path::Path::new(&dir).join(format!("{base}.crt"));
+    let key_path = std::path::Path::new(&dir).join(format!("{base}.key"));
+    let cert_pem = std::fs::read_to_string(&cert_path).ok()?;
+    let key_pem = std::fs::read_to_string(&key_path).ok()?;
+    // Expiry hygiene identical to the async load path: an expired or
+    // expiring pair must not ride as a verification identity.
+    match cert_pem_not_after(&cert_pem) {
+        Some(not_after) => {
+            let now = chrono::Utc::now();
+            if now >= not_after {
+                tracing::warn!(workload = %workload, "M2M: persisted certificate EXPIRED (blocking load) - pair rejected");
+                return None;
+            }
+        }
+        None => return None, // unparsable - fail safe
+    }
+    if key_pem.trim().is_empty() {
+        return None;
+    }
+    Some(PersistedPair {
+        ca_cert_path: ca_cert_path.to_string(),
+        cert_path: cert_path.display().to_string(),
+        key_path: key_path.display().to_string(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
