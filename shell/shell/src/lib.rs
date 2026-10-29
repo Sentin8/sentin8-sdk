@@ -928,7 +928,7 @@ where
         sentin8_middleware::traffic_counter::set_process_gauge(counter.in_flight_arc());
     }
 
-    ///(design/sentin8-vertical-data-plane-contract.md
+    // (design/sentin8-vertical-data-plane-contract.md
     // §VDC.7): the TLS library is DATABASE-FREE - hostname resolution on
     // cache miss rides Sys's owner API (`GET /v1/resolve/hostname`) with
     // this service's cert-bound `{dash}-tls` M2M workload. No SQL pool, no
