@@ -35,7 +35,7 @@ http = "1"
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-# Database-free hostname resolution (TLS-RLS-4, design/
+# Database-free hostname resolution (design/
 # sentin8-vertical-data-plane-contract.md §VDC.7): cache miss → Sys
 # `GET /v1/resolve/hostname` with the embedding service's cert-bound
 # `{dash}-tls` M2M workload. NO sqlx - the library never opens a SQL

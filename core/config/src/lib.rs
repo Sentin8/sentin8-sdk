@@ -1003,7 +1003,7 @@ pub fn expected_database_name(service_identity: &str) -> String {
 }
 
 /// Derive a service's PostgreSQL DSN from its service identity
-/// (DSNDERIVE-1, group DESIGN.md §3.2).
+/// (group DESIGN.md §3.2).
 ///
 /// Under certificate identity a DSN is PURE STRUCTURE - the connecting
 /// role, the host, and the database; no secret component exists (the
@@ -1092,7 +1092,7 @@ pub fn dsn_database_name(dsn: &str) -> Option<String> {
 }
 
 /// Derive the platform Valkey URL from the plane's coordinates
-/// (VALKEYDERIVE-1, group DESIGN.md §3.1).
+/// (group DESIGN.md §3.1).
 ///
 /// Under certificate identity a Valkey URL is PURE STRUCTURE (scheme,
 /// host, and port); the client certificate authenticates and the

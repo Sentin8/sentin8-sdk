@@ -61,7 +61,7 @@ const SENTIN8_HEADERS: &[&str] = &[
 /// match first, then a static platform-plane pattern, then the Sys owner
 /// API (`GET /v1/resolve/hostname`) for tenant hostnames.
 ///
-/// TLS-RLS-4 (design/sentin8-vertical-data-plane-contract.md §VDC.7): the
+/// (design/sentin8-vertical-data-plane-contract.md §VDC.7): the
 /// resolver is DATABASE-FREE. The library never opens a SQL connection -
 /// a vertical service embedding it must not gain any platform-database
 /// access (no DSN, no role, no grants), and platform services no longer
@@ -263,7 +263,7 @@ impl HostContextResolver {
         // Bounded (BOUNDED-OUTBOUND): the miss path runs INSIDE the request
         // handler's TLS handshake - an unbounded resolve would hang the
         // handshake indefinitely. The miss path itself is the cache-seed
-        // exception to the per-request rule (TLS-RLS-4: resolve on miss).
+        // exception to the per-request rule (resolve on miss).
         let ca_pem = std::fs::read(&cert.ca_cert_path).map_err(|e| format!("read CA cert: {e}"))?;
         let ca_cert_obj =
             reqwest::Certificate::from_pem(&ca_pem).map_err(|e| format!("parse CA cert: {e}"))?;
@@ -287,7 +287,7 @@ impl HostContextResolver {
     }
 }
 
-/// The platform-plane static hostname pattern (TLS-RLS-4): map
+/// The platform-plane static hostname pattern : map
 /// `{label}.ops.sys.{sentin8_domain}` to its service + the System org/env
 /// with ZERO lookups.
 ///

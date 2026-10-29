@@ -305,7 +305,7 @@ pub fn policy_page(service_type: &str, page: &str) -> Option<AdminPage> {
     }
 }
 
-// ── Shared admin-data response types (OAPEC-9 typed bodies) ─────────────
+// ── Shared admin-data response types (typed bodies) ─────────────
 
 /// The `GET /v1/admin/{resource}` rows payload: the per-resource row
 /// documents the RFW DataTable renders (row cells and per-resource

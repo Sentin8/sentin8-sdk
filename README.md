@@ -164,12 +164,12 @@ kind.
 
 ## Internal Implementation & Invariants (Private Design)
 
-- **SDD-1** - crate placement by shared-plane linkage, not naming.
+- **** - crate placement by shared-plane linkage, not naming.
   `auth-client` stays (shell/shield link it); `bus-client`/`outbox`/
   `bus-contracts` stay (shell links them). If a future shared-plane crate
   needs a service client, that is a design defect - publish a domain
   event or MemBus frame instead.
-- **SDD-6** - the facade never re-exports a mini-facade (would invert the
+- **** - the facade never re-exports a mini-facade (would invert the
   DAG - the SDK repo would pin service repos).
 - **Envelope discipline** (membus): tenant identity is a property of the
   key (`mbus:{env}:…` / `mchan:{env}:…`), never of the payload.

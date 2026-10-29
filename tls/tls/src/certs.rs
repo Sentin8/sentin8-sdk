@@ -280,7 +280,7 @@ impl ResolvesServerCert for WildcardCertResolver {
                             Ok(ck) => {
                                 exact.write().insert(hostname.clone(), Arc::new(ck));
                                 failed.write().remove(&hostname);
-                                // WARM-1 (README §6.5): persist the minted pair
+                                // (README §6.5): persist the minted pair
                                 // so the NEXT process boot pre-warms this
                                 // hostname with zero mint round-trips.
                                 // Best-effort by contract - an unwritable cache
@@ -298,7 +298,7 @@ impl ResolvesServerCert for WildcardCertResolver {
                                 // backoff before storing the new one - the SNI
                                 // key space is client-controlled and must never
                                 // accumulate unpruned for the process lifetime
-                                // (tls README §5, CR-TLS-2).
+                                // (tls README §5,).
                                 let now = std::time::Instant::now();
                                 failed.retain(|_, fail_time| {
                                     now.duration_since(*fail_time) < backoff
@@ -311,7 +311,7 @@ impl ResolvesServerCert for WildcardCertResolver {
                         tracing::warn!(hostname = %hostname, error = %e, "sentin8-tls: ACME cert request failed");
                         let mut failed = failed.write();
                         // Same eviction bound as the failure branch above
-                        // (tls README §5, CR-TLS-2).
+                        // (tls README §5,).
                         let now = std::time::Instant::now();
                         failed.retain(|_, fail_time| now.duration_since(*fail_time) < backoff);
                         failed.insert(hostname.clone(), now);

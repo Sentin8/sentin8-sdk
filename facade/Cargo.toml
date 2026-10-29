@@ -22,7 +22,7 @@ sentin8-fapiclient = { workspace = true }
 # shared-plane crate is reachable as `sentin8::{leaf}` /
 # `sentin8::{domain}::{kind}`. Service SDK crates are NOT re-exported:
 # they live in their owner repos behind `sentin8-{svc}-sdk` mini-facades
-# (SDD §2.2 - the facade never pins a service repo, SDD-6).
+# (SDD §2.2 - the facade never pins a service repo,).
 sentin8-audit = { workspace = true }
 sentin8-auth-client = { workspace = true }
 sentin8-build-info = { workspace = true }

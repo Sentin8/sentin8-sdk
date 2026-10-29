@@ -287,7 +287,7 @@ mod tests {
     }
 }
 
-// ── Liveness payload (OAPEC-9 typed bodies) ─────────────────────────────
+// ── Liveness payload (typed bodies) ─────────────────────────────
 
 /// The `GET /v1/health` liveness payload every service returns: the
 /// status string, the serving service's short name, build identity, and

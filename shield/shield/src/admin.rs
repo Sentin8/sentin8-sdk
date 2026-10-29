@@ -1527,7 +1527,7 @@ where
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ── Typed admin responses (OAPEC-9: no free-form bodies) ────────────────
+// ── Typed admin responses (no free-form bodies) ────────────────
 
 /// One policy set in the list view (the RFW row shape).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

@@ -631,7 +631,7 @@ async fn push_to_bus(
         publisher_subject: row.publisher_subject.clone(),
         ..Default::default()
     };
-    // BUSRELAY-1: one connection-level retry on the single-row path too
+    // one connection-level retry on the single-row path too
     // (same contract as `push_batch_to_bus` - idempotency_key dedupes a
     // re-send; HTTP-status errors pass through unchanged).
     match bus.produce(&req).await {
@@ -671,7 +671,7 @@ async fn push_batch_to_bus(
             ..Default::default()
         })
         .collect();
-    // BUSRELAY-1: a CONNECTION-level failure (never an HTTP status) is
+    // a CONNECTION-level failure (never an HTTP status) is
     // retried once with a fresh call. The relay's reqwest transport reuses
     // pooled connections routed through the proxy's L4 pipe - a Bus
     // restart mid-pool kills the piped socket and the next produce rides

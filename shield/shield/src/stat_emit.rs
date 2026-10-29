@@ -13,7 +13,7 @@
 //! Transport is MemBus Pub/Sub (`stat.telemetry` family, ephemeral
 //! newest-wins class), consumed by Sentin8:Stat's worker. No
 //! service-scoped HTTP client, no M2M DCR workload - the shared plane
-//! links no service SDK crate (SDD-1). The publish handle is built once
+//! links no service SDK crate . The publish handle is built once
 //! per process at boot; every path degrades to log-only on failure.
 
 use std::sync::Arc;

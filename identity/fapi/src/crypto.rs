@@ -320,7 +320,7 @@ fn get_param(params: &[(&str, &str)], key: &str) -> Option<String> {
 /// Additional params a client may carry in a backchannel request object.
 ///
 /// Free-form map beside the mandatory JOSE claims (`iss`/`aud`/`exp`/`iat`
-/// /`nbf`/`jti`) — CIBA parameters (scope, login_hint, binding_message,
+/// /`nbf`/`jti`) - CIBA parameters (scope, login_hint, binding_message,
 /// user_code, request_mode, client_notification_token, ...) ride here, and
 /// the AS overlays them onto the request after signature verification.
 #[derive(Debug, Serialize, Deserialize)]

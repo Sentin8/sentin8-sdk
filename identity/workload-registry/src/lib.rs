@@ -66,10 +66,10 @@ pub enum RegistryError {
 /// `auth.m2m_scope_grants`' row for the token-free plane.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WorkloadRecord {
-    /// The vertical this workload belongs to (VDC-2 - Bus's event-ownership
+    /// The vertical this workload belongs to (- Bus's event-ownership
     /// gate: `bank8` workloads may not produce `sentin8:*` events).
     pub vertical: String,
-    /// The service_type the workload performs work FOR (VDC-4 - Sys's
+    /// The service_type the workload performs work FOR (- Sys's
     /// tenant-snapshot scoped discovery).
     pub service_type: String,
     /// The closed scope set this workload may exercise (Shield input).
@@ -173,7 +173,7 @@ impl WorkloadMap {
         }
     }
 
-    /// The vertical claim source for Bus's VDC-2 event-ownership gate.
+    /// The vertical claim source for Bus's event-ownership gate.
     /// `None` for unknown/disabled workloads (produce refuses them).
     pub async fn vertical(&self, workload: &str) -> Option<String> {
         match self.get(workload).await {

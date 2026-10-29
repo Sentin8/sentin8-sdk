@@ -1089,14 +1089,14 @@ pub struct VerifiedClaims {
     /// `sub` of a delegated token is the DELEGATOR's client_id, not a user).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<serde_json::Value>,
-    /// The vertical this M2M workload belongs to (VDC-2, design/
+    /// The vertical this M2M workload belongs to (design/
     /// sentin8-vertical-data-plane-contract.md §VDC.4). Stamped by Auth from
     /// the `auth.m2m_scope_grants.vertical` row; consumed by Bus's
     /// event-ownership gate (the event_type's first colon segment must equal
     /// it). Absent on user/delegated tokens.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vertical: Option<String>,
-    /// The service this M2M workload performs work FOR (VDC-4, §VDC.5) -
+    /// The service this M2M workload performs work FOR (§VDC.5) -
     /// stamped from the same enroll row; Sys's tenant-snapshot scoped
     /// discovery uses it (the caller sees only envs where its own service
     /// is enabled). Absent on user/delegated tokens.
@@ -1238,10 +1238,10 @@ pub struct WorkloadIdentity {
     pub workload: String,
     /// The map-granted scopes (empty when missing/disabled - fail-closed).
     pub scopes: Vec<String>,
-    /// The map-stamped vertical (VDC-2 gate input; `None` when
+    /// The map-stamped vertical (gate input; `None` when
     /// missing/disabled - produce refuses).
     pub vertical: Option<String>,
-    /// The service_type the workload performs work FOR (VDC-4 - Sys's
+    /// The service_type the workload performs work FOR (- Sys's
     /// tenant-snapshot scoped discovery keys on this claim; `None` when
     /// the map row carries no value).
     pub service_type: Option<String>,
@@ -1294,7 +1294,7 @@ impl AuthContext {
         }
     }
 
-    /// The caller's vertical for the VDC-2 event-ownership gate - the
+    /// The caller's vertical for the event-ownership gate - the
     /// map-stamped vertical on the certificate path, the JWT claim on
     /// the bearer path.
     pub fn effective_vertical(&self) -> Option<String> {

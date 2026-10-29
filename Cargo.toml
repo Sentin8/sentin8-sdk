@@ -12,7 +12,7 @@
 #
 #     sentin8 = { git = "...", tag = "sdk-v0.2.0" }
 #
-# Internal path deps are INTRA-REPO (allowed - RS-5 bans only cross-repo
+# Internal path deps are INTRA-REPO (allowed - bans only cross-repo
 # path deps). All shared dependency versions are centralized here.
 
 [workspace]

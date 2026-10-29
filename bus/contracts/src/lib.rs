@@ -56,7 +56,7 @@ pub struct Message {
     /// Extracted `sub` claim from the publisher token - for audit/indexing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publisher_subject: Option<String>,
-    /// The verified producer's vertical claim (VDC-2, design/
+    /// The verified producer's vertical claim (design/
     /// sentin8-vertical-data-plane-contract.md §VDC.4) - recorded by Bus at
     /// produce from the M2M token. Consumers assert it against the
     /// event_type's first colon segment via `require_publisher` before

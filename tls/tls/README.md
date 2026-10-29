@@ -31,7 +31,7 @@ STARTTLS and implicit-TLS operation.
 - **Restart-transparent certificates.** A minted leaf must outlive the
   process: the first browser touch after any restart/reset must answer
   instantly, not stall behind a full Acme order round-trip (the 45 s
-  first-touch stall class, WARM-1).
+  first-touch stall class,).
 
 ## 3. Architecture & High-Level Design
 
@@ -62,7 +62,7 @@ Components:
 - **`HostContextResolver` + `MappingCache`** - hostname → `Mapping`
   resolution. The cache is an in-memory layer consulted first; the
   authoritative path is Sentin8:Sys's owner API
-  (`GET /v1/resolve/hostname`, TLS-RLS-4) presented with the embedding
+  (`GET /v1/resolve/hostname`,) presented with the embedding
   service's cert-bound `{dash}-tls` M2M workload - the library holds NO
   SQL pool, so no service (platform or vertical) gains platform-database
   access by embedding it.
@@ -93,7 +93,7 @@ Components:
   `peer_cert_der()`: the client leaf certificate from an optional-mTLS
   handshake, consumed for the client-cert context headers.
 - **`HostContextResolver`** - cache-first, Sys-owner-API-fallback hostname
-  resolver producing a `Mapping` (TLS-RLS-4: database-free).
+  resolver producing a `Mapping` (database-free).
 - **`Mapping`** (in `tls-contracts`) - the resolved context: `hostname`,
   `service`, `org_id`, `env_id`, optional `application_id` +
   `backend_url` (app-instance hostnames; `backend_url` is developer-provided
@@ -149,7 +149,7 @@ Components:
   (or test) to pin explicit hostnames ahead of DB deduction; misses fall
   through to the authoritative DB path.
 
-## 6.5 The persisted leaf cache (WARM-1)
+## 6.5 The persisted leaf cache
 
 Minted server leaves persist to `{SENTIN8_SECRETS_DIR}/tls-certs/`
 (`{hostname}.crt` + `{hostname}.key`, 0700 dir / 0600 files - the same
@@ -180,7 +180,7 @@ flowchart TD
   deliberately NOT wired now because it would add an Acme/Storage
   dependency to the boot path (runtime dependency discipline: prewarm is a
   local disk read only).
-- **Bounded disk cache (CR-TLS-2 discipline on disk).** The SNI key space
+- **Bounded disk cache (discipline on disk).** The SNI key space
   is client-controlled; prewarm loads at most `SENTIN8_TLS_CERT_CACHE_MAX`
   hostnames (default 256, newest-mtime first) and deletes expired pairs on
   load, so a public listener cannot accumulate unbounded files.
@@ -267,7 +267,7 @@ flowchart TD
 
 ## 7. Unresolved Questions / Future Designs
 
-- **Leaf revocation propagation (WARM-1 follow-up):** the persisted leaf
+- **Leaf revocation propagation (follow-up): ** the persisted leaf
   cache honors a leaf until natural expiry; a Storage-backed cache with a
   revocation list consulted at load time is the production posture seam.
 - The mapping-notify channel configuration exists but no LISTEN/NOTIFY loop
@@ -278,7 +278,7 @@ flowchart TD
 - `TlsMode::Acme` is exercised via the acme service's upstream mode (DNS-01
   scoped, per-service clients) - the integration seam is the mode's config
   surface.
-- **Client-certificate revocation (CERTFREE-2, filed):** the optional
+- **Client-certificate revocation (filed): ** the optional
   client-auth verifier trusts any Acme-CA chain to expiry - no CRL/OCSP
   feed exists. A stolen workload certificate remains handshake-valid until
   its natural expiry (revocation today = the `m2m:workloads` registry
@@ -286,7 +286,7 @@ flowchart TD
   Target: Acme publishes a signed CRL; the `WebPkiClientVerifier` path
   consumes it.
 
-### Token-free platform M2M identity (CERTFREE-1)
+### Token-free platform M2M identity
 
 The optional-client-auth + header-injection surface is not just the
 RFC 8705 `cnf` feed - for platform service→service calls it is **the entire

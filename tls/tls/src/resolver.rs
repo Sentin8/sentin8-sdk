@@ -256,7 +256,7 @@ pub struct Sentin8TlsBuilder {
     /// The embedding service's identity (e.g. `bank8:ledger`). Defaults
     /// from `SENTIN8_TLS_SERVICE_IDENTITY`; names the cert-bound
     /// `{dash}-tls` M2M workload the database-free resolver presents to
-    /// Sys's resolve endpoint (TLS-RLS-4).
+    /// Sys's resolve endpoint .
     service_identity: String,
     /// Certs to pre-load into the resolver at build time (hostname, cert_pem, key_pem).
     /// Used by bootstrap services (e.g. acme) that need their own cert
@@ -268,7 +268,7 @@ impl Sentin8TlsBuilder {
     /// Set the embedding service's identity (e.g. `bank8:ledger`,
     /// `sentin8:auth`) - names the cert-bound `{dash}-tls` M2M workload
     /// the database-free resolver uses for Sys `GET /v1/resolve/hostname`
-    /// (TLS-RLS-4, design/sentin8-vertical-data-plane-contract.md §VDC.7).
+    /// (design/sentin8-vertical-data-plane-contract.md §VDC.7).
     /// No database URL exists on the builder anymore: the library holds
     /// NO SQL pool, so no service (platform or vertical) gains
     /// platform-database access by embedding sentin8-tls.
@@ -317,7 +317,7 @@ impl Sentin8TlsBuilder {
     /// This seeds the mapping cache, starts the cert resolver (empty -
     /// certs are fetched on-the-fly from Acme when a TLS ClientHello
     /// arrives with an unknown SNI), and wires the database-free
-    /// host-context resolver (TLS-RLS-4: cache → Sys owner API; the
+    /// host-context resolver (cache → Sys owner API; the
     /// library opens NO SQL connection).
     pub async fn build(self) -> anyhow::Result<Sentin8Tls> {
         let config = self.config;
@@ -356,7 +356,7 @@ impl Sentin8TlsBuilder {
             discovery.clone(),
         ));
 
-        // 2a. Pre-warm the persisted leaf cache (WARM-1, README §6.5): a
+        // 2a. Pre-warm the persisted leaf cache (README §6.5): a
         //     LOCAL DISK READ ONLY - no Acme/Storage dependency on the boot
         //     path. Every previously-minted hostname serves with zero mint
         //     round-trips after a restart or reset; expired pairs are
@@ -403,7 +403,7 @@ impl Sentin8TlsBuilder {
             }
         }
 
-        // 3. Build the host-context resolver - DATABASE-FREE (TLS-RLS-4):
+        // 3. Build the host-context resolver - DATABASE-FREE :
         //    cache miss → Sys `GET /v1/resolve/hostname` with this
         //    service's cert-bound `{dash}-tls` M2M workload.
         let host_context_resolver = HostContextResolver::new(cache.clone(), &self.service_identity);

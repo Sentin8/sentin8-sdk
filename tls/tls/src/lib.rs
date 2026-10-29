@@ -21,7 +21,7 @@
 //!                                      - inject X-Sentin8-* headers
 //! ```
 //!
-//! ## Hostname resolution is DATABASE-FREE (TLS-RLS-4)
+//! ## Hostname resolution is DATABASE-FREE
 //!
 //! The `HostContextResolver` holds no SQL pool. A cache miss resolves via
 //! Sentin8:Sys's owner API - `GET /v1/resolve/hostname` - presented with

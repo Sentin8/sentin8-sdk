@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:SDK
 // SPDX-License-Identifier: Apache-2.0
 
-//! Persisted server-leaf cache (WARM-1, DESIGN §6.5 of the crate README).
+//! Persisted server-leaf cache (DESIGN §6.5 of the crate README).
 //!
 //! Minted leaves are caller-custodied artifacts exactly like the workload
 //! client pairs in `.run/secrets/m2m-credentials/`: the resolver persists
@@ -14,7 +14,7 @@
 //! round-trips. The on-demand Acme fetch remains the fallback for
 //! genuinely new hostnames.
 //!
-//! Bounded-disk discipline (CR-TLS-2 applied to disk): the SNI key space
+//! Bounded-disk discipline (applied to disk): the SNI key space
 //! is client-controlled, so prewarm loads at most
 //! `SENTIN8_TLS_CERT_CACHE_MAX` hostnames (newest-mtime first) and prunes
 //! expired pairs on load - a public listener cannot accumulate unbounded
@@ -299,7 +299,7 @@ fn parse_asn1_time(tag: u8, body: &[u8]) -> Option<chrono::DateTime<chrono::Utc>
 
 #[cfg(test)]
 mod tests {
-    //! WARM-1 (README §6.5): the persisted leaf cache's load-or-mint
+    //! (README §6.5): the persisted leaf cache's load-or-mint
     //! contract - persist → scan → prune → cap - all against a temp dir
     //! (the cache dir is env-derived, so each test pins it).
 

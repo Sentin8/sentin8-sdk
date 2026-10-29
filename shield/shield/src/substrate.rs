@@ -124,7 +124,7 @@ impl RoleResolver {
     /// identity is declared or the pair cannot be minted - callers fall
     /// back to the plain client.
     ///
-    /// Naming (TLS-RLS-4): the enrolled `{dash}-tls` workload -
+    /// Naming : the enrolled `{dash}-tls` workload -
     /// `sentin8:sys` → `sentin8-sys-tls`, matching the registration's
     /// declared m2m grant and the Valkey workload registry. The pair rides
     /// the SAME m2m-credentials cache every other channel uses

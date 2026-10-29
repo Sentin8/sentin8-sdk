@@ -62,7 +62,7 @@ pub enum ValkeyError {
 /// The URL's logical-DB suffix (`…/{N}`) is ACCEPTED-BUT-INERT:
 /// `parse_host_port` discards the number and GLIDE connects at its
 /// default DB 0 - isolation is entirely the per-workload ACL key
-/// namespaces (`~{ns}:*`), never the logical DB (VALKEYDERIVE-1,
+/// namespaces (`~{ns}: *`), never the logical DB (
 /// group DESIGN.md §3.1).
 ///
 /// # Errors

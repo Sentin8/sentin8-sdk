@@ -71,7 +71,7 @@ use serde::Deserialize;
 const SENTIN8_CAPTAIN_CHANGED_CHANNEL: &str = "captain:changed";
 /// Glob matching one hash per service type: `captain:svc:{service_type}`.
 const SENTIN8_CAPTAIN_SVC_GLOB: &str = "captain:svc:*";
-/// Hash-key prefix for one service type's registry hash (FIREHOSE-1's
+/// Hash-key prefix for one service type's registry hash ('s
 /// targeted refresh builds `{prefix}{service_type}` from the notification
 /// payload).
 const SENTIN8_CAPTAIN_SVC_PREFIX: &str = "captain:svc:";
@@ -332,7 +332,7 @@ impl ServiceDiscovery {
                 }
                 let refresh_due = last_refresh.elapsed() >= safety;
 
-                // FIREHOSE-1: a message payload names the service type
+                // a message payload names the service type
                 // that changed - refresh ONLY that type's hash (1
                 // HGETALL) instead of a full registry scan.
                 // `captain:changed` broadcasts to every subscriber; a
@@ -340,7 +340,7 @@ impl ServiceDiscovery {
                 // msg rate ~= 13,000 HGETALL/s fleet-wide - the root
                 // cause of the fleet-wide idle CPU (~20%/service) and
                 // RSS drift (heaptrack: ~5,000 TLS-decrypt allocations/s
-                // per idle service; MTALEAK-1). A payload that is not a
+                // per idle service;). A payload that is not a
                 // known service type (or the "alert" marker) falls back
                 // to the coalesced full scan. The due check forces the
                 // full scan on the safety cadence - this is the only
@@ -507,7 +507,7 @@ async fn refresh(
 }
 
 /// Refresh ONE service type's instances from its registry hash - the
-/// FIREHOSE-1 targeted path. `captain:changed` messages name the changed
+/// targeted path. `captain: changed` messages name the changed
 /// service type in the payload, so a notification for a single type costs
 /// one HGETALL (not a full KEYS + 63-HGETALL scan). Unknown types insert an
 /// empty list (the type's hash vanished - every instance stopped), matching

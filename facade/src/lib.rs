@@ -11,7 +11,7 @@
 //! (`{svc}-client`/`{svc}-contracts`) are **not** re-exported here - each
 //! lives in its owning service repo behind a per-service mini-facade
 //! (`sentin8-{svc}-sdk`), because the shared plane links no service SDK
-//! crate (SDD-1) and the facade never pins a service repo (SDD-6).
+//! crate and the facade never pins a service repo .
 //!
 //! # Modules
 //!

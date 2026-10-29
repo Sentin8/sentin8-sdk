@@ -72,7 +72,7 @@ impl BusClient {
     /// workload's Acme-issued identity) on every call and trusts only
     /// `ca_cert_path` - Bus's TLS layer CA-verifies the presented
     /// certificate and injects the `X-Sentin8-Client-Cert-*` headers that
-    /// drive its authorization (scopes from the registry map, the VDC-2
+    /// drive its authorization (scopes from the registry map, the
     /// vertical gate). No token is fetched, cached, or attached.
     ///
     /// # Errors
@@ -446,7 +446,7 @@ impl BusClient {
         msg.publisher_id_token.as_deref()
     }
 
-    /// VDC-2 consumer-side defense-in-depth: assert a consumed message's
+    /// consumer-side defense-in-depth: assert a consumed message's
     /// recorded `publisher_vertical` matches the event_type's owning
     /// vertical (its first colon segment) - design/
     /// sentin8-vertical-data-plane-contract.md §VDC.4.
@@ -472,7 +472,7 @@ impl BusClient {
         let prefix = msg.event_type.split(':').next().unwrap_or("");
         if prefix.is_empty() {
             return Err(format!(
-                "event_type '{}' is malformed - no vertical prefix (VDC-2)",
+ "event_type '{}' is malformed - no vertical prefix ",
                 msg.event_type
             ));
         }
@@ -483,7 +483,7 @@ impl BusClient {
         Err(format!(
             "publisher provenance mismatch: event_type '{}' belongs to vertical \
              '{prefix}' but the message records publisher_vertical '{recorded}' \
-             (VDC-2 - treating message as untrusted)",
+ ( - treating message as untrusted)",
             msg.event_type
         ))
     }
@@ -701,7 +701,7 @@ mod tests {
         );
     }
 
-    // ── VDC-2 require_publisher (design/sentin8-vertical-data-plane-
+    // ── require_publisher (design/sentin8-vertical-data-plane-
     // contract.md §VDC.4) ─────────────────────────────────────────────
 
     fn msg(event_type: &str, publisher_vertical: Option<&str>) -> sentin8_bus_contracts::Message {

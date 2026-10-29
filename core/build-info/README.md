@@ -66,15 +66,15 @@ the SAME shell line as the cargo command - a single-space env-prefix
 like `SENTIN8_GIT_SHA=$$(git rev-parse --short HEAD) $(CARGO) build …`.
 Make runs each recipe LINE in its own shell, so any
 `export …` line issued before the cargo line evaporates before cargo
-starts (the BUILDID-1 delivery shipped as a standalone multi-line
+starts (the delivery shipped as a standalone multi-line
 `define` whose exports never reached a single build - every binary in
-the fleet rendered `0.1.0 (build unknown)` until STATUSID-1). The
+the fleet rendered `0.1.0 (build unknown)` until). The
 shell-side `$$()` substitution (not make's `$(shell)`) keeps the
 resolution working inside recipe loops. The hash resolves via PLAIN
 `git rev-parse` from the shell's cwd - the prefix expands AFTER the
 recipe's `cd` into the repo being built, so a repo-relative `git -C
 {repo}` would resolve from INSIDE the repo and miss (the first
-STATUSID-1 iteration did exactly that, stamping every binary EMPTY -
+iteration did exactly that, stamping every binary EMPTY -
 the empty stamp is treated as unstamped by `version()`, and the CLI
 banner renders `unknown`, never a blank). Every cargo invocation
 through a group Makefile - builds, `test`, and the `cargo run`

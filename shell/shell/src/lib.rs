@@ -100,9 +100,9 @@
 
 use std::sync::Arc;
 
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 // Config
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 
 /// Per-service shell configuration from env (captain-injected vars).
 ///
@@ -144,7 +144,7 @@ impl ShellConfig {
             })
             .parse()
             .unwrap_or_else(|_| panic!("{service_env}_PORT must be a valid u16"));
-        // DSN resolution (DSNDERIVE-1, group DESIGN.md §3.2): an explicit
+        // DSN resolution (group DESIGN.md §3.2): an explicit
         // {SERVICE}_DATABASE_URL env var OVERRIDES (custom topologies -
         // replicas, non-local hosts - keep the env-var channel; captain's
         // catalog-declared `database_env_vars` propagation feeds it).
@@ -176,7 +176,7 @@ impl ShellConfig {
             std::env::var("SENTIN8_AUTH_ISSUER").unwrap_or_else(|_| cfg.sentin8_auth_issuer());
         let sentin8_bus_url =
             std::env::var("SENTIN8_BUS_URL").unwrap_or_else(|_| cfg.sentin8_bus_url());
-        // Valkey URL resolution (VALKEYDERIVE-1, group DESIGN.md §3.1): an
+        // Valkey URL resolution (group DESIGN.md §3.1): an
         // explicit VALKEY_URL env var OVERRIDES (custom topologies); else
         // the URL DERIVES from the plane's coordinates - pure structure
         // under certificate identity (the client certificate authenticates;
@@ -202,9 +202,9 @@ impl ShellConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 // ServiceCore (shared AppState)
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 
 /// The common application state: config + capped DB pool.
 ///
@@ -229,9 +229,9 @@ impl sentin8_shield::admin::HasPolicyAdmin for AppState {
     }
 }
 
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 // The SHELL boots policy for every service in boot step 8 and exposes
 // the engine as `ServiceCore::admin.policy`. Value-state services (bank8/
 // hotel8 convention, whose `AppState` is NOT `ServiceCore`) copy that Arc
@@ -271,9 +271,9 @@ pub mod policy {
     }
 }
 
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 // Shared policy-admin mount for value-state services
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 
 /// Newtype so the generic `HasPolicyAdmin` handlers can run against a
 /// service's admin surface without the service depending on the trait impl
@@ -406,9 +406,9 @@ pub fn err_db<E>(_e: E) -> (axum::http::StatusCode, String) {
     )
 }
 
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 // Handlers
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 
 /// Standard liveness endpoint factory (captain `use_http_health`). Mounted
 /// by the shell unless the service opts for its own via
@@ -431,7 +431,7 @@ where
     S: Clone + Send + Sync + 'static,
 {
     move || async move {
-        // BUILDID-1: `version` is the binary's full identity - the crate
+        // `version` is the binary's full identity - the crate
         // version joined with the git short hash stamped at build time.
         // The identity comes from the build-info stamp, NOT from this
         // shell crate's own CARGO_PKG_VERSION (the shell is a shared
@@ -449,7 +449,7 @@ where
             // build_hash (previously captain's own, since the payload carried
             // no `build` key) made `make status` show `{version}.{build_hash}`
             // as a duplicated version (`0.1.0.0.1.0`) until the first probe.
-            // BUILDID-1: `build` carries the raw hash WITHOUT the .d marker -
+            // `build` carries the raw hash WITHOUT the .d marker -
             // the profile is a display concern, and keeping the field a pure
             // hash preserves captain's `build_hash == version` collapse rule.
             "build": sentin8_build_info::build_hash(),
@@ -461,9 +461,9 @@ where
     }
 }
 
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 // Builder
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 
 /// State constructor: takes the shell-provided `ServiceCore` and builds the
 /// service's axum state asynchronously.
@@ -653,9 +653,9 @@ where
     }
 }
 
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 // Serve
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 
 /// Boot the service: registration flag → PQ provider → config → capped
 /// pool → PG18 check → state build → router + middleware → PQ-TLS serve.
@@ -770,7 +770,7 @@ where
             std::env::var("RUST_LOG").ok().as_deref().unwrap_or("info"),
         );
         sentin8_middleware::error_metrics::spawn_publisher(
-            // VALKEYDERIVE-1 (group DESIGN.md §3.1): override → else the
+            // (group DESIGN.md §3.1): override → else the
             // plane-derived URL (the metrics publisher tolerates the
             // empty string as "no publisher" - the derived URL is always
             // a valid best-effort target in dev and deployment alike).
@@ -786,7 +786,7 @@ where
     let config = Arc::new(ShellConfig::from_env(shell.service_type, shell.service_env));
     tracing::info!(
         service = shell.service_type,
-        // BUILDID-1: the identity is the binary's {version}+{hash}[.d] -
+        // the identity is the binary's {version}+{hash}[.d] -
         // not this shell crate's own crate version (meaningless to the
         // operator; the shell is a shared library).
         version = %sentin8_build_info::id(),
@@ -900,7 +900,7 @@ where
     if shell.metrics {
         sentin8_middleware::spawn_flush_loop(
             counter.clone(),
-            // VALKEYDERIVE-1: override → else the plane-derived URL.
+            // override → else the plane-derived URL.
             std::env::var("VALKEY_URL")
                 .ok()
                 .filter(|s| !s.trim().is_empty())
@@ -928,7 +928,7 @@ where
         sentin8_middleware::traffic_counter::set_process_gauge(counter.in_flight_arc());
     }
 
-    // VDC-7/TLS-RLS-4 (design/sentin8-vertical-data-plane-contract.md
+    ///(design/sentin8-vertical-data-plane-contract.md
     // §VDC.7): the TLS library is DATABASE-FREE - hostname resolution on
     // cache miss rides Sys's owner API (`GET /v1/resolve/hostname`) with
     // this service's cert-bound `{dash}-tls` M2M workload. No SQL pool, no
@@ -1060,7 +1060,7 @@ mod tests {
         // spinning the router (keeps the crate dep-light). The payload carries
         // BOTH `version` and `build` (CAPTAIN-10) so captain's monitor
         // captures the full `{version}.{build}` display pair in one probe.
-        // BUILDID-1: `version` is the joined identity, `build` the raw hash.
+        // `version` is the joined identity, `build` the raw hash.
         let payload = serde_json::json!({
             "status": "ok",
             "service": "sentin8-test",
@@ -1104,9 +1104,9 @@ mod tests {
     }
 }
 
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 // Sentin8:Policy - shared admin mount
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 
 /// Mount the shared policy-admin surface (policy sets / relations /
 /// attributes + dry-run check) onto a `Router<Arc<AppState>>`. Every
