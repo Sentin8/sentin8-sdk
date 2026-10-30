@@ -866,15 +866,22 @@ impl Sentin8Config {
     }
 
     /// Default database URL for local dev:
-    /// `postgres://sentin8_app@localhost:5432/sentin8`.
+    /// `postgres://sentin8_app@{pg_host}:5432/sentin8` (host from
+    /// `SENTIN8_PG_HOST`, default `localhost`).
     ///
     /// Uses the `sentin8_app` role so that RLS policies are enforced at
     /// runtime. The `sentin8` superuser role is only used for
     /// migrations/init scripts. PostgreSQL certificate identity
     /// (group DESIGN.md §3.2): the connection presents the `sentin8_app`
     /// workload pair - there is no password component.
-    pub fn default_database_url() -> &'static str {
-        "postgres://sentin8_app@localhost:5432/sentin8"
+    ///
+    /// The `SENTIN8_PG_HOST` knob (the same one `service_database_url`
+    /// honors) lets the core appliance (group DESIGN.md §3.3) point the
+    /// platform-plane default at its compose postgres; the loopback
+    /// default stays the single-machine shape.
+    pub fn default_database_url() -> String {
+        let host = std::env::var("SENTIN8_PG_HOST").unwrap_or_else(|_| "localhost".to_string());
+        format!("postgres://sentin8_app@{host}:5432/sentin8")
     }
 
     /// Default PostgreSQL superuser URL (for migrations/init only).
