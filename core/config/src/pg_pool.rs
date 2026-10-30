@@ -55,17 +55,27 @@ pub const DEFAULT_MAX_CONNECTIONS: u32 = 3;
 ///
 /// - `max_connections`: `SENTIN8_PG_POOL_MAX` env var, default
 ///   [`DEFAULT_MAX_CONNECTIONS`] (3).
-/// - `acquire_timeout`: 8s - long enough to ride out a brief connection
-///   spike, short enough to surface a real stall quickly.
+/// - `acquire_timeout`: `SENTIN8_PG_ACQUIRE_TIMEOUT_S` env var, default
+///   8s - long enough to ride out a brief connection spike, short enough
+///   to surface a real stall quickly. A fleet's BOOT STORM (respawn wave:
+///   N services building main + policy pools at once) can exceed the
+///   default even with every handshake healthy - the core appliance
+///   (group DESIGN.md §3.3) sets 60s so a respawn wave converges inside
+///   one spawn instead of parking on give-up and re-storming 300s later.
 pub fn options() -> PgPoolOptions {
     let max = std::env::var("SENTIN8_PG_POOL_MAX")
         .ok()
         .and_then(|v| v.parse::<u32>().ok())
         .filter(|&v| v > 0)
         .unwrap_or(DEFAULT_MAX_CONNECTIONS);
+    let acquire_s = std::env::var("SENTIN8_PG_ACQUIRE_TIMEOUT_S")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|&v| v > 0)
+        .unwrap_or(8);
     PgPoolOptions::new()
         .max_connections(max)
-        .acquire_timeout(Duration::from_secs(8))
+        .acquire_timeout(Duration::from_secs(acquire_s))
 }
 
 /// Connect to PostgreSQL using the Sentin8-standard pool sizing and the
