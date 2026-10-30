@@ -879,40 +879,7 @@ impl Sentin8Config {
     /// honors) lets the core appliance (group DESIGN.md §3.3) point the
     /// platform-plane default at its compose postgres; the loopback
     /// default stays the single-machine shape.
-    /// Remap an absolute path between the HOST tree and the LOCAL
-/// (in-container) tree (the core appliance - group DESIGN.md §3.3).
-///
-/// Registry rows and app-dir keys carry the WRITER's absolute paths;
-/// a reader in another plane (the appliance container mounts the same
-/// trees elsewhere) resolves them locally:
-/// `SENTIN8_APP_DIR_HOST_PREFIX` (the writer's tree root) -> when the
-/// path starts with it, the prefix is swapped for
-/// `SENTIN8_APP_DIR_LOCAL_PREFIX`. Either var unset or a non-matching
-/// path returns the input unchanged (the single-machine shape).
-///
-/// # Examples
-///
-/// ```
-/// std::env::set_var("SENTIN8_APP_DIR_HOST_PREFIX", "/home/dev/new/sentin8");
-/// std::env::set_var("SENTIN8_APP_DIR_LOCAL_PREFIX", "/opt/sentin8");
-/// assert_eq!(
-///     sentin8_config::remap_app_dir("/home/dev/new/sentin8/sentin8-dash/b/web").as_deref(),
-///     Some("/opt/sentin8/sentin8-dash/b/web")
-/// );
-/// assert_eq!(sentin8_config::remap_app_dir("/other/place").as_deref(), None);
-/// ```
-pub fn remap_app_dir(path: &str) -> Option<String> {
-    let host = std::env::var("SENTIN8_APP_DIR_HOST_PREFIX").ok()?;
-    let local = std::env::var("SENTIN8_APP_DIR_LOCAL_PREFIX").ok()?;
-    if host.is_empty() || local.is_empty() {
-        return None;
-    }
-    let p = path.trim_end_matches('/');
-    let h = host.trim_end_matches('/');
-    p.strip_prefix(h).map(|rest| format!("{local}{rest}"))
-}
-
-pub fn default_database_url() -> String {
+    pub fn default_database_url() -> String {
         let host = std::env::var("SENTIN8_PG_HOST").unwrap_or_else(|_| "localhost".to_string());
         format!("postgres://sentin8_app@{host}:5432/sentin8")
     }
@@ -1016,6 +983,39 @@ pub fn default_database_url() -> String {
             Err(_) => vec![LogDestination::LogUdp],
         }
     }
+}
+
+/// Remap an absolute path between the HOST tree and the LOCAL
+/// (in-container) tree (the core appliance - group DESIGN.md §3.3).
+///
+/// Registry rows and app-dir keys carry the WRITER's absolute paths;
+/// a reader in another plane (the appliance container mounts the same
+/// trees elsewhere) resolves them locally:
+/// `SENTIN8_APP_DIR_HOST_PREFIX` (the writer's tree root) -> when the
+/// path starts with it, the prefix is swapped for
+/// `SENTIN8_APP_DIR_LOCAL_PREFIX`. Either var unset or a non-matching
+/// path returns the input unchanged (the single-machine shape).
+///
+/// # Examples
+///
+/// ```
+/// std::env::set_var("SENTIN8_APP_DIR_HOST_PREFIX", "/home/dev/new/sentin8");
+/// std::env::set_var("SENTIN8_APP_DIR_LOCAL_PREFIX", "/opt/sentin8");
+/// assert_eq!(
+///     sentin8_config::remap_app_dir("/home/dev/new/sentin8/sentin8-dash/b/web").as_deref(),
+///     Some("/opt/sentin8/sentin8-dash/b/web")
+/// );
+/// assert_eq!(sentin8_config::remap_app_dir("/other/place").as_deref(), None);
+/// ```
+pub fn remap_app_dir(path: &str) -> Option<String> {
+    let host = std::env::var("SENTIN8_APP_DIR_HOST_PREFIX").ok()?;
+    let local = std::env::var("SENTIN8_APP_DIR_LOCAL_PREFIX").ok()?;
+    if host.is_empty() || local.is_empty() {
+    return None;
+    }
+    let p = path.trim_end_matches('/');
+    let h = host.trim_end_matches('/');
+    p.strip_prefix(h).map(|rest| format!("{local}{rest}"))
 }
 
 /// The database name a service identity owns (VDC §VDC.3, DSN integrity).
