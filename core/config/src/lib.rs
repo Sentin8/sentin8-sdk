@@ -164,6 +164,62 @@ pub fn tls_dir() -> String {
     format!("{}/tls", state_dir())
 }
 
+/// The active TLS post-quantum posture (PQCA-1, group DESIGN - the CA and
+/// every leaf-bearing surface are namespaced by it).
+///
+/// Reads `SENTIN8_TLS_PQ_MODE` (the same knob `sentin8-tls`'s crypto
+/// provider reads). The value is one of `classical`, `hybrid`, or
+/// `exclusive`; anything else (including unset) resolves to `exclusive` -
+/// the same default the crypto provider pins. Every consumer derives its
+/// mode-scoped path FROM THIS fn so the whole process agrees on one
+/// posture.
+///
+/// # Examples
+///
+/// ```
+/// std::env::set_var("SENTIN8_TLS_PQ_MODE", "classical");
+/// assert_eq!(sentin8_config::pq_mode(), "classical");
+/// assert_eq!(sentin8_config::acme_data_dir_mode("/acme"), "/acme/classical");
+/// std::env::remove_var("SENTIN8_TLS_PQ_MODE");
+/// assert_eq!(sentin8_config::pq_mode(), "exclusive");
+/// ```
+pub fn pq_mode() -> String {
+    let m = std::env::var("SENTIN8_TLS_PQ_MODE").unwrap_or_default();
+    match m.as_str() {
+        "classical" | "hybrid" | "exclusive" => m,
+        _ => "exclusive".to_string(),
+    }
+}
+
+/// The acme data dir for the ACTIVE pq mode - `{base}/{pq_mode()}`
+/// (PQCA-1: the CA hierarchy, accounts, orders, and certificates all live
+/// under the mode's own directory; a mode flip populates the other
+/// directory from scratch and can never reuse a leaf minted for another
+/// posture). The caller passes the operator-configured base
+/// (`SENTIN8_ACME_DATA_DIR` or the `tls_dir()` fallback).
+///
+/// # Examples
+///
+/// ```
+/// std::env::set_var("SENTIN8_TLS_PQ_MODE", "hybrid");
+/// assert_eq!(
+///     sentin8_config::acme_data_dir_mode("/var/lib/sentin8/tls"),
+///     "/var/lib/sentin8/tls/hybrid"
+/// );
+/// ```
+pub fn acme_data_dir_mode(base: &str) -> String {
+    format!("{}/{}", base.trim_end_matches('/'), pq_mode())
+}
+
+/// The sentin8-tls leaf-cache dir for the ACTIVE pq mode -
+/// `{base}/{pq_mode()}` (PQCA-1: the on-demand server-leaf cache holds
+/// leaves minted under the active transport posture; a stale leaf of a
+/// different family is unreachable by construction). The caller passes
+/// the cache base (`{SENTIN8_SECRETS_DIR}/tls-certs`).
+pub fn tls_cert_cache_dir_mode(base: &str) -> String {
+    format!("{}/{}", base.trim_end_matches('/'), pq_mode())
+}
+
 /// Sentin8:Storage local-FS adapter root - `{state_dir()}/storage`.
 pub fn storage_dir() -> String {
     format!("{}/storage", state_dir())

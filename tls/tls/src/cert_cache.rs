@@ -25,12 +25,18 @@ use std::path::PathBuf;
 /// Default cap on pre-warmed hostnames (see [`tls_cert_cache_max`]).
 const DEFAULT_CACHE_MAX: usize = 256;
 
-/// The leaf-cache dir: `{SENTIN8_SECRETS_DIR}/tls-certs/`. Mirrors the
+/// The leaf-cache dir: `{SENTIN8_SECRETS_DIR}/tls-certs/{pq_mode}/`
+/// (PQCA-1: per-mode namespacing - the cache holds leaves minted under the
+/// ACTIVE transport posture; a leaf of a different family lives in a
+/// different directory and is unreachable by construction). Mirrors the
 /// m2m-credentials derivation (0700 dir holding private keys).
 pub fn tls_cert_cache_dir() -> PathBuf {
     let secrets =
         std::env::var("SENTIN8_SECRETS_DIR").unwrap_or_else(|_| "../.run/secrets".to_string());
-    PathBuf::from(secrets).join("tls-certs")
+    let base = PathBuf::from(secrets).join("tls-certs");
+    PathBuf::from(sentin8_config::tls_cert_cache_dir_mode(
+        &base.to_string_lossy(),
+    ))
 }
 
 /// How many hostnames prewarm may load (newest-mtime first).

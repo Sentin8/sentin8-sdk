@@ -58,6 +58,7 @@ pub mod certs;
 pub mod config;
 pub mod context;
 pub mod crypto;
+pub mod pq_sign;
 pub mod resolver;
 pub mod tcp;
 

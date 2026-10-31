@@ -4327,6 +4327,7 @@ dependencies = [
  "http 1.5.0",
  "hyper",
  "hyper-util",
+ "ml-dsa",
  "parking_lot",
  "rcgen",
  "reqwest 0.12.28",

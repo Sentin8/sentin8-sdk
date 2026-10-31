@@ -686,8 +686,16 @@ where
         };
     }
 
-    // 2. PQ crypto provider before any HTTPS call.
-    let _ = sentin8_tls::crypto::sentin8_pq_provider().install_default();
+    // 2. PQ crypto provider before any HTTPS call. The PQ key provider
+    // wraps the graviola provider's key provider (PQCA-2): the classical
+    // key types fall through unchanged, and an ML-DSA-65 PKCS#8 key (the
+    // PQ cert families) loads through the ml-dsa crate - the service TLS
+    // resolver and every reqwest mTLS client share this install.
+    let mut provider = sentin8_tls::crypto::sentin8_pq_provider();
+    provider.key_provider = Box::leak(Box::new(sentin8_tls::pq_sign::PqKeyProvider::wrap(
+        provider.key_provider,
+    )));
+    let _ = provider.install_default();
 
     // 3. dotenv.
     let _ = dotenvy::dotenv();

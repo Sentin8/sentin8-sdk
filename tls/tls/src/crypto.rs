@@ -23,9 +23,13 @@ use rustls::crypto::CryptoProvider;
 use rustls::version::{TLS12, TLS13};
 use rustls_graviola::kx::X25519MLKEM768;
 
-/// Reads `SENTIN8_TLS_PQ_MODE` (default: `exclusive`).
+/// Reads `SENTIN8_TLS_PQ_MODE` - delegated to `sentin8_config::pq_mode`
+/// (PQCA-1: ONE resolution for the whole process - the crypto provider,
+/// the CA store, and the leaf cache all agree on the posture). Same
+/// semantics as before the unification: `classical`/`hybrid`/`exclusive`,
+/// anything else resolves to `exclusive`.
 fn pq_mode() -> String {
-    std::env::var("SENTIN8_TLS_PQ_MODE").unwrap_or_else(|_| "exclusive".to_string())
+    sentin8_config::pq_mode()
 }
 
 /// Sentin8's CryptoProvider, keyed off `SENTIN8_TLS_PQ_MODE`.
