@@ -59,6 +59,7 @@ pub mod config;
 pub mod context;
 pub mod crypto;
 pub mod pq_sign;
+pub mod pq_verify;
 pub mod resolver;
 pub mod tcp;
 

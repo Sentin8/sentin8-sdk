@@ -27,6 +27,17 @@ rcgen = "0.13"
 # (compatible_sigscheme_for_suites: algorithm() == None => tls13 suites);
 # the SigningKey/Signer traits are implemented in this crate's pq_sign.rs.
 ml-dsa = { version = "0.1", features = ["getrandom", "pkcs8", "zeroize"] }
+# The OS-entropy source for the test-only PQ key generators.
+getrandom = "0.3"
+# The RNG trait surface the slh-dsa generator consumes (the same
+# rand_core 0.10 the acme `generate_slh_root_key` adapter implements).
+rand_core = { version = "0.10", default-features = false }
+# PQCLIENT-1: SLH-DSA-SHA2-128s certificate VERIFICATION (the PQ root
+# CA's signature family) - the pure-Rust verifier in pq_verify.rs. Same
+# RustCrypto family and version the acme service mints the root with
+# (`alloc` for the key/signature types; verification itself needs no
+# RNG - the test generator uses the local getrandom adapter).
+slh-dsa = { version = "0.2.0-rc.5", features = ["alloc"] }
 
 # HTTP / async runtime
 axum = { workspace = true }

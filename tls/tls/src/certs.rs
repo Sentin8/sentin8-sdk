@@ -246,13 +246,38 @@ impl ResolvesServerCert for WildcardCertResolver {
                 return None;
             }
 
-            // No fetch in progress - spawn the fetch as a DETACHED task.
-            // It must NOT run inline on the handshake task: when the peer
+            // No fetch in progress - arm the fetch as a DETACHED task on the
+            // BLOCKING pool (WAITSTARVE-1, observed live 2026-11-01). It
+            // must NOT run inline on the handshake task: when the peer
             // resets mid-handshake, the handshake future is dropped and an
             // inline fetch dies with it (Acme receives new-account then
             // silence, the pending marker leaks, and backoff plus
             // client-gave-up suppress re-issuance for minutes - tls README
             // §6 "the cert fetch is owned by a DETACHED task").
+            //
+            // WAITSTARVE-1: it must ALSO not be `tokio::spawn`-ed. resolve()
+            // runs inside the per-connection handshake task ON A RUNTIME
+            // WORKER; a plain tokio::spawn lands the fetch in that SAME
+            // worker's LIFO slot, which is worker-private (not stealable).
+            // The FIRST-TOUCH HOLD below then parks the same worker in its
+            // std::thread::sleep poll - the armed fetch is never polled
+            // until the hold expires. Observed live: EVERY first-touch
+            // mint took exactly CERT_FETCH_WAIT_S from spawn to the first
+            // Acme request (the mint itself is ~100 ms), and five
+            // concurrent DCR retries (ebank install in bank8 e2e
+            // globalSetup) parked five sentin8:auth workers for 45 s each
+            // until the proxy's registry view lapsed ("no Active
+            // instances") and POST /v1/app/setup 500ed. spawn_blocking
+            // queues on the UNPROTECTED blocking-pool queue instead: any
+            // blocking thread can take it, the fetch runs concurrently
+            // with the hold, the mint lands inside the wait, and the
+            // handshake completes with the cert.
+            //
+            // The result handling (parse, register, persist, negative-cache
+            // arming, pending clear) rides INSIDE the same blocking task:
+            // spawning it separately as a tokio::spawn would put the
+            // registry insert into the parking worker's LIFO slot and
+            // re-starve the waiter for the full hold window.
             self.pending.write().insert(sni.to_string(), ());
             let hostname = sni.to_string();
             let acme_url = acme_endpoint.0.clone();
@@ -264,12 +289,14 @@ impl ResolvesServerCert for WildcardCertResolver {
             let backoff = std::time::Duration::from_secs(FETCH_FAILURE_BACKOFF_S);
 
             tracing::info!(hostname = %hostname, "sentin8-tls: fetching cert on-demand");
-            tokio::spawn(async move {
+            let fetch_hostname = hostname.clone();
+            tokio::task::spawn_blocking(move || {
                 // The detached fetch inherits hard per-request deadlines from
                 // `request_cert_from_acme` (3 s connect / 10 s total) - a
                 // hung Acme cannot hold a worker thread.
-                let fetched =
-                    request_cert_from_acme(&acme_url, &acme_sni, acme_addr, &hostname).await;
+                let fetched = tokio::runtime::Handle::current().block_on(async move {
+                    request_cert_from_acme(&acme_url, &acme_sni, acme_addr, &fetch_hostname).await
+                });
                 match fetched {
                     Ok((cert_pem, key_pem)) => {
                         match parse_certified_key(
@@ -319,7 +346,7 @@ impl ResolvesServerCert for WildcardCertResolver {
                 }
                 // Ownership ends here in EVERY branch - a detached task that
                 // exits without clearing `pending` would latch the entry and
-                // make every follow-up handshake eat the 15 s dead wait
+                // make every follow-up handshake eat the dead wait
                 // (tls README §6 "waiters never starve the negative cache").
                 pending.write().remove(&hostname);
             });

@@ -217,9 +217,10 @@ fn read_workload_pair(workload: &str) -> Result<(String, String), ValkeyError> {
 /// intermediate-signed, so a root-only trust file cannot chain them).
 /// Same resolution order the m2m crate uses
 /// (`SENTIN8_TLS_CA_PEM` → `SENTIN8_TLS_CLIENT_CA_PEM` → the conventional
-/// `{acme_data_dir}/ca/root-ca.crt`), duplicated here because
+/// `{acme_data_dir}/{pq_mode}/ca/root-ca.crt`), duplicated here because
 /// `sentin8-m2m` depends on THIS crate (the dependency edge cannot be
-/// inverted).
+/// inverted). PQCA-1: the Acme stores are per-PQ-mode; the legacy
+/// `{acme_data_dir}/ca/root-ca.crt` path is dead since the split.
 fn platform_ca_path() -> String {
     for var in ["SENTIN8_TLS_CA_PEM", "SENTIN8_TLS_CLIENT_CA_PEM"] {
         if let Ok(p) = std::env::var(var) {
@@ -239,7 +240,10 @@ fn platform_ca_path() -> String {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
         format!("{home}/.sentin8/acme")
     });
-    format!("{acme_dir}/ca/root-ca.crt")
+    // PQCA-1: the CA store is per-PQ-mode (`{acme_dir}/{pq_mode}/ca/`) -
+    // the legacy `{acme_dir}/ca/root-ca.crt` path is dead since the split.
+    let mode_dir = sentin8_config::acme_data_dir_mode(&acme_dir);
+    format!("{mode_dir}/ca/root-ca.crt")
 }
 
 #[cfg(test)]

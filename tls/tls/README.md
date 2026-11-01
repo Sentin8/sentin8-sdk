@@ -102,6 +102,25 @@ Components:
   the mTLS peer certificate DER into `context_middleware`.
 - **`TlsInfo`** - negotiated protocol version, cipher suite, and peer chain
   for `Received:`-header fragments and DANE TLSA verification input.
+- **`TlsConfigBuilder`** (`config.rs`) - builds the `rustls::ClientConfig`
+  the SDK's outbound clients (mTLS service calls, auth fetches) present:
+  the CA chain, the `{leaf}-tls` client pair, and the PQ-aware provider.
+- **`MlDsa65SigningKey` / `PqKeyProvider`** (`pq_sign.rs`, PQCA-2) - ML-DSA-65
+  handshake signing: the wrapper probes a PKCS#8 blob for the ML-DSA-65
+  OID and resolves it to the pure-Rust signer; classical keys fall through
+  to the wrapped (graviola) provider unchanged.
+- **`MlDsa65Verify` / `SlhDsaSha2_128sVerify`** (`pq_verify.rs`, PQCLIENT-1) -
+  the pure-Rust ML-DSA-65 / SLH-DSA-SHA2-128s `SignatureVerificationAlgorithm`
+  impls. Graviola ships classical verification only; these extend its
+  `WebPkiSupportedAlgorithms` (the `sentin8_pq_provider()` assembly merges
+  them + the `SignatureScheme::ML_DSA_65` mapping) so the entire
+  rustls plane - leaf cert chain validation, handshake
+  `CertificateVerify`, and the `WebPkiServerVerifier`/
+  `WebPkiClientVerifier` paths reqwest, the acceptor, and glide build -
+  verifies PQ-signed certificates with no C in the verification path.
+  The sqlx PostgreSQL transport is native-tls (system OpenSSL 3.5.x,
+  PQ-capable on its own, outside the rustls process default - group
+  DESIGN.md §3.2).
 - **`Sentin8TlsConfig` / `TlsMode`** - env-derived configuration
   (`SENTIN8_TLS_MODE`, `SENTIN8_TLS_CLIENT_CA_PEM`, `SENTIN8_DOMAIN`,
   `SENTIN8_ACME_DIRECTORY_URL` / `SENTIN8_ACME_PORT`,
@@ -220,7 +239,7 @@ flowchart TD
   TLV scan (no full X.509 parser) and may be absent.
 - **`block_in_place` requirement.** The on-demand cert fetch bridges the
   sync `ResolvesServerCert::resolve` into async ACME via
-  `tokio::task::block_in_place` + `Handle::block_on`; services must run the
+  `spawn_blocking` + `Handle::block_on`; services must run the
   multi-threaded tokio runtime (the shell default).
 - **Bounded inbound connections.** The serve path sets an HTTP/1 header
   read timeout (with a `TokioTimer` - hyper's timeout needs a timer) so a
@@ -233,15 +252,30 @@ flowchart TD
   under keep-alive pools (BFF, captain probes) that hold connections
   indefinitely.
 - **Waiters never starve the negative cache.** Handshakes racing an
-  in-flight ACME fetch poll the cert map for up to 15 s; when the fetch
+  in-flight ACME fetch poll the cert map for up to 45 s; when the fetch
   eventually fails (transient Acme / proxy cold-start), a waiter that
   timed out must ALSO record the failure in the `failed` negative cache
   and clear `pending` - a waiter that exits without recording leaves
   `pending` stuck (the waiter before it owns the entry) and every
-  subsequent handshake eats the full 15 s wait + `None` until a lucky
+  subsequent handshake eats the full dead wait + `None` until a lucky
   post-backoff retry lands, turning one transient ACME hiccup into a
   ~3 min service-wide TLS outage for that hostname (observed: BFF→fdx
   502s across a whole e2e flow, recovery only via a later handshake).
+- **WAITSTARVE-1 - the armed fetch must never park on the runtime.**
+  `resolve()` runs inside the per-connection handshake task on a runtime
+  worker. A `tokio::spawn`-ed fetch lands in the SAME worker's LIFO slot
+  (worker-private, not stealable), and the first-touch hold's inline
+  `std::thread::sleep`-poll then parks that worker - the armed fetch
+  is not polled until the hold expires. Observed live: EVERY first-touch
+  mint stalled exactly the 45 s hold window (mint itself ~100 ms), and
+  five concurrent DCR retries parked five auth workers long enough for
+  the proxy to see "no Active instances" for sentin8:auth and a bank8 e2e
+  globalSetup app install to 500. The fix is placement: the fetch (with
+  its result handling - parse, register, persist, negative-cache arming,
+  `pending` clear) runs as ONE `spawn_blocking` + `Handle::block_on`
+  task on the BLOCKING pool, so it executes concurrently with the inline
+  hold loops; the mint lands inside the wait and the handshake completes
+  with the cert.
 - **The cert fetch is owned by a DETACHED task, not the handshake.**
   `resolve()` runs inside the per-connection handshake task - when the
   peer resets (client gave up, probe timeout), the handshake future is
@@ -258,7 +292,7 @@ flowchart TD
   records `failed` on error, and waiters poll the maps against a hard
   deadline. `resolve()` itself never blocks on the Acme round trip -
   the SPAWNING handshake arms the fetch, then polls the same wait loop
-  (FIRST-TOUCH HOLD, up to 15 s): a no-retry client (the OIDF suite's
+  (FIRST-TOUCH HOLD, up to 45 s): a no-retry client (the OIDF suite's
   Java client, single-shot fetches) previously received `access_denied`
   for the ~100 ms the fetch takes and reported a spurious failure after
   every service restart. On failure the handshake returns `None`

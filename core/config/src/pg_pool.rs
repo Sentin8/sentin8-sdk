@@ -241,11 +241,14 @@ fn platform_ca_path() -> String {
             return chain.display().to_string();
         }
     }
+    // Last resort: the ACTIVE mode's CA store (PQCA-1's per-mode layout) -
+    // the legacy `{acme_dir}/ca/root-ca.crt` path is dead since the split.
     let acme_dir = std::env::var("SENTIN8_ACME_DATA_DIR").unwrap_or_else(|_| {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
         format!("{home}/.sentin8/acme")
     });
-    Path::new(&acme_dir)
+    let mode_dir = crate::acme_data_dir_mode(&acme_dir);
+    Path::new(&mode_dir)
         .join("ca/root-ca.crt")
         .display()
         .to_string()

@@ -86,7 +86,13 @@ tracing-futures = "0.2"
 once_cell = "1"
 
 # ── Database ──
-sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid", "chrono", "json", "macros"] }
+# TLS transport: native-tls (system OpenSSL 3.5.x) - sqlx 0.8's rustls
+# features hardcode their crypto provider (ring/aws-lc-rs) with no public
+# injection API, and ring cannot parse ML-DSA-65 client keys, so a rustls
+# sqlx transport cannot serve the exclusive posture. The system OpenSSL
+# parses and presents ML-DSA keys and verifies ML-DSA chains (group
+# DESIGN.md §3.2 "SQLX transport", PQCLIENT-2).
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-native-tls", "postgres", "uuid", "chrono", "json", "macros"] }
 # Valkey GLIDE - the platform's mandated client engine (group DESIGN.md §3.1):
 # glide-core owns TLS, reconnection, and backoff natively.
 valkey-glide = "0.9.0"

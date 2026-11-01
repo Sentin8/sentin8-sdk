@@ -37,9 +37,28 @@ fn pq_mode() -> String {
 /// - `exclusive`: only X25519MLKEM768 - no classical fallback.
 /// - `hybrid`: Graviola default (X25519MLKEM768 first, classical fallback).
 /// - `classical`: classical groups only (no ML-KEM) - emergency rollback.
+///
+/// PQCLIENT-1: every mode's provider carries the PQ VERIFICATION
+/// algorithms (ML-DSA-65 + SLH-DSA-SHA2-128s, [`crate::pq_verify`])
+/// grafted onto Graviola's classical set. `classical` includes them
+/// too - verification capability is not mode-dependent (an anchor or
+/// presented cert of the PQ family must fail closed only because it
+/// is UNTRUSTED, never because the verifier cannot parse it), and the
+/// extension never offers PQ schemes that were not already offered.
 pub fn sentin8_pq_provider() -> CryptoProvider {
     let base = rustls_graviola::default_provider();
     let base = cipher_profile(base);
+    // PQ verification graft (PQCLIENT-1): pure-Rust ML-DSA/SLH-DSA chain
+    // + handshake verification over the RustCrypto crates - the service
+    // plane verifies PQ-signed certs everywhere the provider reaches
+    // (webpki verifiers, reqwest's get_default() path, the acceptor's
+    // client verifier).
+    let base = CryptoProvider {
+        signature_verification_algorithms: crate::pq_verify::merge_pq_verify_algs(
+            base.signature_verification_algorithms,
+        ),
+        ..base
+    };
     match pq_mode().as_str() {
         "exclusive" => CryptoProvider {
             kx_groups: vec![X25519MLKEM768],
@@ -116,6 +135,46 @@ pub fn sentin8_tls_versions() -> Vec<&'static rustls::SupportedProtocolVersion> 
         "classical" => vec![&TLS12, &TLS13],
         _ => vec![&TLS13],
     }
+}
+
+/// Assemble + install the platform's TLS CryptoProvider as the process
+/// default - ONE call for every binary that talks platform TLS (the
+/// service shell, captain, the CLI, the offline acme modes).
+///
+/// The installed provider is [`sentin8_pq_provider`] with the
+/// **PQ-aware key provider** wrapped in (PQCA-2 + PQCLIENT-1 + PQCLIENT-2
+/// in one identity):
+/// - X25519MLKEM768 key exchange (mode-profiled),
+/// - ML-DSA-65 handshake signing - an ML-DSA-65 PKCS#8 private key loads
+///   through the pure-Rust `ml-dsa` crate (classical keys fall through
+///   unchanged),
+/// - ML-DSA-65 / SLH-DSA-SHA2-128s certificate chain verification
+///   (graviola's classical verification preserved),
+/// - and, through the patched sqlx (see the workspace `[patch.crates-io]`
+///   + `vendor/sqlx-core`), the PostgreSQL data-plane connection inherits
+///   it too: sqlx consults the process default before its feature-selected
+///   backend.
+///
+/// Idempotent: the first install wins (rustls keeps the incumbent
+/// provider); a second call is a harmless no-op - binaries whose
+/// subcommands may install twice do not need to guard.
+///
+/// # Examples
+///
+/// ```
+/// // The one-liner every entry point runs before any TLS traffic:
+/// sentin8_tls::crypto::install_platform_provider();
+/// // ... then reqwest, sentin8-tls listeners, and glide all verify
+/// // and present the platform's PQ material. The sqlx PostgreSQL
+/// // transport is native-tls (system OpenSSL) - PQ-capable on its
+/// // own, outside the rustls process default (group DESIGN.md §3.2).
+/// ```
+pub fn install_platform_provider() {
+    let mut provider = sentin8_pq_provider();
+    provider.key_provider = Box::leak(Box::new(crate::pq_sign::PqKeyProvider::wrap(
+        provider.key_provider,
+    )));
+    let _ = provider.install_default();
 }
 
 #[cfg(test)]
