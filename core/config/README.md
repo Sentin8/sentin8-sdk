@@ -99,13 +99,13 @@ Components:
 - **The registry fallback is always DNS-valid.** The fallback for a
   service identity that the registry query could not see (RLS-scoped
   connection, brand-new vertical before enroll converges) must be the
-  **dash form** of the identity (`bank8:fdx` → `bank8-fdx`), never the raw
+  **dash form** of the identity (`openfin8:ca` → `openfin8-ca`), never the raw
   colon form. A colon in a hostname is not a valid DNS label: browsers
-  reject `location.href = "https://bank8:fdx.…"` outright (SyntaxError -
+  reject `location.href = "https://openfin8:ca.…"` outright (SyntaxError -
   the colon parses as a port separator in the authority), TLS SNI cannot
   match it, and the proxy has no route for it. The class-defining failure
   this rule prevents: an OAuth `redirect_uri` built from the fallback
-  (`https://bank8:fdx.prod.{org}.…/fdx/consents/callback`) is registered
+  (`https://openfin8-ca.prod.{org}.…/fdx/consents/callback`) is registered
   at DCR, survives the whole PAR/authorize flow, and only detonates
   client-side at the consent page's final navigation - unreachable from
   any server-side log except the browser console. Observed live (auth-ui

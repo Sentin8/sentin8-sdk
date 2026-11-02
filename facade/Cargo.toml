@@ -10,7 +10,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Sentin8 Rust SDK - unified client library for all Sentin8 services (Sentin8:Auth, Bank8:Ledger, Bank8:Payments, Bank8:FDX, Sentin8:DB, Sentin8:Storage, Sentin8:Bus)."
+description = "Sentin8 Rust SDK - unified client library for all Sentin8 services (Sentin8:Auth, Bank8:Ledger, Bank8:Payments, OpenFin8, Sentin8:DB, Sentin8:Storage, Sentin8:Bus)."
 
 [dependencies]
 serde = { workspace = true }

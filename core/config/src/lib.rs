@@ -479,10 +479,10 @@ impl Sentin8Config {
         .flatten()
         // The fallback must be DNS-valid (config README §5): under a
         // tenant-scoped RLS context the SYSTEM-scoped registry row is
-        // invisible, and the raw colon identity (`bank8:fdx`) is not a
-        // hostname - a URL built from it (`https://bank8:fdx.…`) cannot be
+        // invisible, and the raw colon identity (`openfin8:ca`) is not a
+        // hostname - a URL built from it (`https://openfin8:ca.…`) cannot be
         // navigated by any browser (colon = authority/port separator) nor
-        // matched by TLS SNI. The dash form (`bank8-fdx`) is the registry's
+        // matched by TLS SNI. The dash form (`openfin8-ca`) is the registry's
         // own convention for vertical services, so the fallback matches it
         // by construction.
         .unwrap_or_else(|| service_dash_form(&canonical))
@@ -1602,7 +1602,7 @@ mod tests {
         assert_eq!(service_scope_namespace("sentin8:auth"), "sentin8:auth:");
         assert_eq!(service_scope_namespace("sentin8:app"), "sentin8:app:");
         assert_eq!(service_scope_namespace("bank8:ledger"), "bank8:ledger:");
-        assert_eq!(service_scope_namespace("bank8:fdx"), "bank8:fdx:");
+        assert_eq!(service_scope_namespace("openfin8:ca"), "openfin8:ca:");
         // Workers resolve to the base namespace.
         assert_eq!(
             service_scope_namespace("bank8:payments:worker"),

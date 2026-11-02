@@ -284,7 +284,7 @@ flowchart TD
   `pending` marker leaks until a waiter timeout clears it, and every
   retry re-enters via the 30 s negative-cache gate - one peer abort
   suppresses cert issuance for that hostname for minutes (observed:
-  `bank8-fdx.prod.{org}` fetched at 02:15:42, no `new-order` ever
+  `openfin8-ca.prod.{org}` fetched at 02:15:42, no `new-order` ever
   arrived, recovery only at 02:18:56 when an unrelated handshake
   re-triggered the fetch → BFF→fdx 502 across the whole consent flow).
   The owner task must therefore be `tokio::spawn`-ed DETACHED: it
