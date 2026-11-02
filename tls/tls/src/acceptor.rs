@@ -184,7 +184,18 @@ impl TlsListener {
             }
 
             fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+                // PQCLIENT-3 (observed live 2026-11-01): the list must
+                // offer ML_DSA_65 or an ML-DSA client cannot produce its
+                // CertificateVerify - the client sends its certificate
+                // UNSIGNED, the handshake degrades to anonymous, and every
+                // certificate-identity call 401s with "no client
+                // certificate" (bank8 e2e: bus SSE consumers stuck in a
+                // 401 retry loop after the PQ CA reseed). The proof of
+                // possession is accepted without chain validation in every
+                // branch, so adding the PQ scheme here changes only the
+                // OFFER, not the trust decision.
                 vec![
+                    rustls::SignatureScheme::ML_DSA_65,
                     rustls::SignatureScheme::ED25519,
                     rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
                     rustls::SignatureScheme::RSA_PKCS1_SHA256,
