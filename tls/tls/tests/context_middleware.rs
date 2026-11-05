@@ -415,3 +415,54 @@ async fn platform_mapping_does_not_inject_app_id() {
     let headers = echo_headers(response).await;
     assert!(headers.iter().all(|(k, _)| k != "x-sentin8-app-id"));
 }
+
+/// A tenant-plane cache entry older than the TTL is
+/// EVICTED (not served), and the eviction is permanent - the next lookup
+/// misses so the caller's miss path re-resolves. A fresh entry is
+/// served; `Duration::ZERO` disables expiry.
+#[test]
+fn cache_entries_expire_after_the_ttl() {
+    use std::time::Duration;
+
+    let cache = MappingCache::new();
+    cache.set("ebank.prod.ibank22475123.local.sentin8.dev", app_mapping("ebank", "prod"));
+
+    // Zero TTL: never expires.
+    assert!(
+        cache
+            .get_with_ttl("ebank.prod.ibank22475123.local.sentin8.dev", Some(Duration::ZERO))
+            .is_some()
+    );
+    // Fresh entry within a generous TTL is served.
+    assert!(
+        cache
+            .get_with_ttl(
+                "ebank.prod.ibank22475123.local.sentin8.dev",
+                Some(Duration::from_secs(3600)),
+            )
+            .is_some()
+    );
+    // An elapsed TTL larger than the entry's age evicts it: the lookup
+    // misses AND the entry is gone (never resurrects on a later read).
+    assert!(
+        cache
+            .get_with_ttl(
+                "ebank.prod.ibank22475123.local.sentin8.dev",
+                Some(Duration::from_nanos(1)),
+            )
+            .is_none()
+    );
+    assert!(
+        cache
+            .get("ebank.prod.ibank22475123.local.sentin8.dev")
+            .is_none(),
+        "evicted entry must not resurrect via the no-TTL lookup"
+    );
+    // None: expiry disabled entirely.
+    cache.set("ebank.prod.ibank22475123.local.sentin8.dev", app_mapping("ebank", "prod"));
+    assert!(
+        cache
+            .get_with_ttl("ebank.prod.ibank22475123.local.sentin8.dev", None)
+            .is_some()
+    );
+}

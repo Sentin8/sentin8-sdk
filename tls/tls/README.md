@@ -65,7 +65,19 @@ Components:
   (`GET /v1/resolve/hostname`,) presented with the embedding
   service's cert-bound `{dash}-tls` M2M workload - the library holds NO
   SQL pool, so no service (platform or vertical) gains platform-database
-  access by embedding it.
+  access by embedding it. **Tenant-plane entries are TTL-bounded**
+  (§6): a Sys-resolved mapping is served from the cache
+  for at most `SENTIN8_TLS_HOST_CONTEXT_TTL_SECONDS` (default 30 s)
+  before the next request re-resolves - a first touch that raced an env
+  provisioning (TLS warm-up before the env row existed) cannot poison
+  the tenant's context for the process lifetime. PLATFORM-plane static
+  entries (`{label}.ops.sys.{domain}`, resolved with zero lookups by
+  construction) are exempt: their constants are compile-time-stable and
+  TTL-evicting them would only add churn. The TTL is the BOUNDED-STALE
+  compromise: invalidation events (the bus `identity:updated` sweep)
+  remain the fleet-wide channel, but a resolver that never re-checks
+  would make every env creation, custom-domain attach, or app-instance
+  registration invisible until a service restart.
 - **`context_middleware`** - axum layer performing the strip → resolve →
   inject pipeline (§6).
 - **`TlsListener` / `RawTcpListener`** - TLS accept loops: axum-oriented
@@ -206,6 +218,22 @@ flowchart TD
 
 ## 6. Internal Implementation & Invariants (Private Design)
 
+- **Tenant-plane cache entries expire.** Every
+  Sys-resolved mapping is stored with an insert timestamp
+  (`MappingCache::set_at`) and `get` refuses entries older than the TTL
+  (`SENTIN8_TLS_HOST_CONTEXT_TTL_SECONDS`, default 30 s, `0` = never
+  expires for tests). The refused entry is deleted (lazy eviction - a
+  stale entry never resurrects). The `context_middleware` miss path
+  then re-resolves through Sys and re-caches, so an env created AFTER a
+  service's first touch of its hostname is picked up within one TTL
+  window without a restart. The platform-plane static pattern
+  (`static_platform_mapping`) bypasses the cache entirely when its entry
+  has aged out - the pattern itself is the source of truth (the system
+  org/env are constants), so an expired platform entry is re-derived,
+  not re-fetched. Boot-order safety is unchanged: the pattern needs no
+  network, and a tenant miss whose Sys call fails keeps returning `None`
+  (never a placeholder env) - see the Sys-side fail-closed contract
+  (`sentin8-sys/DESIGN.md` §8).
 - **Transaction-local tenant context.** `sentin8_set_tenant_context()` uses
   `set_config(..., true)` - the context evaporates at statement commit. The
   resolver opens ONE transaction, sets the SYSTEM tenant context on it, runs

@@ -28,6 +28,23 @@ use uuid::Uuid;
 
 use crate::cache::MappingCache;
 
+/// The tenant-plane host-context TTL: a Sys-resolved
+/// mapping is served from the cache for at most this long before the
+/// next request re-resolves. Bounds the first-resolution-wins window
+/// (a pre-provisioning TLS warm-up no longer pins a tenant hostname to
+/// the SYSTEM placeholder for the process lifetime). `0` disables
+/// expiry (tests that pin time).
+fn host_context_ttl() -> Option<std::time::Duration> {
+    let secs: u64 = std::env::var("SENTIN8_TLS_HOST_CONTEXT_TTL_SECONDS")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(30);
+    if secs == 0 {
+        return None;
+    }
+    Some(std::time::Duration::from_secs(secs))
+}
+
 // Standard X-Sentin8-* header names.
 const HEADER_ENV_ID: &str = "x-sentin8-env-id";
 const HEADER_APP_ID: &str = "x-sentin8-app-id";
@@ -130,12 +147,18 @@ impl HostContextResolver {
     ///    a genuine 404 (unresolvable hostname) returns `None` without
     ///    caching.
     pub async fn resolve(&self, hostname: &str) -> Option<Arc<Mapping>> {
-        // 1. Exact match in the cache.
-        if let Some(m) = self.cache.get(hostname) {
+        // 1. Exact match in the cache under the tenant-plane TTL:
+        //    an aged-out entry is evicted here (lazy)
+        //    so the miss path below re-resolves it fresh.
+        if let Some(m) = self.cache.get_with_ttl(hostname, host_context_ttl()) {
             return Some(m);
         }
 
         // 2. Platform-plane static pattern (no network, no Sys dependency).
+        //    The pattern IS the source of truth for the platform plane, so
+        //    it re-derives even when an aged-out cache entry exists - and it
+        //    re-caches with a fresh timestamp (no churn: the constants are
+        //    compile-time-stable).
         if let Some(m) = static_platform_mapping(hostname) {
             self.cache.set(hostname, m.clone());
             return Some(Arc::new(m));
