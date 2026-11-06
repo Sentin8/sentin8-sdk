@@ -275,6 +275,66 @@ async fn client_supplied_cert_headers_stripped() {
         .all(|(k, _)| k != "x-sentin8-client-cert-thumbprint"));
 }
 
+/// Repeated header lines survive the strip → inject pipeline (HAIPFIX-1):
+/// the RFC 9449 §4.1 two-line `DPoP` proof shape is the OIDF suite's
+/// forged-request negative - the handler must SEE both lines to reject
+/// the request, so the rebuilt map APPENDS (insert() would collapse the
+/// duplicates to the last value and silently bless the forged shape).
+/// The echo router only returns `x-sentin8-*` pairs, so this test rides
+/// a dedicated router that echoes the DPoP values verbatim.
+#[tokio::test]
+async fn repeated_header_lines_are_preserved() {
+    let cache = MappingCache::new();
+    cache.set("auth.ops.sys.local.sentin8.dev", platform_mapping("auth"));
+    let state = ContextMiddlewareState {
+        resolver: HostContextResolver::new(cache, "sentin8:test-svc"),
+    };
+    let app = Router::new()
+        .route(
+            "/v1/echo",
+            get(|req: axum::extract::Request| async move {
+                let dpop: Vec<String> = req
+                    .headers()
+                    .get_all("dpop")
+                    .iter()
+                    .map(|v| String::from_utf8_lossy(v.as_bytes()).to_string())
+                    .collect();
+                axum::Json(serde_json::json!({ "dpop": dpop }))
+            }),
+        )
+        .layer(from_fn_with_state(state, context_middleware));
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/echo")
+                .header("host", "auth.ops.sys.local.sentin8.dev")
+                .header("dpop", "proof-one")
+                .header("dpop", "proof-two")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let dpop: Vec<String> = json["dpop"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(
+        dpop,
+        vec!["proof-one".to_string(), "proof-two".to_string()],
+        "both DPoP header lines must reach the handler"
+    );
+}
+
 /// When the accept loop places a `PeerClientCert` extension, the
 /// middleware computes and injects the `X-Sentin8-Client-Cert-*` headers
 /// from it.

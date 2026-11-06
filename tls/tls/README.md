@@ -244,6 +244,18 @@ flowchart TD
   from client requests before any injection. The only legitimate source of
   client-cert headers is the `PeerClientCert` extension placed by the local
   TLS accept loop.
+- **Repeated header lines are load-bearing (HAIPFIX-1).** The strip →
+  inject pipeline rebuilds the header map with `append()` for every
+  preserved header - a request may lawfully carry REPEATED header lines
+  (the two-line `DPoP` proof shape is the RFC 9449 §4.1 forged-request
+  negative the OIDF suite drives: the recipient MUST reject it with
+  400/401, which requires the handler to SEE both lines). `insert()`
+  collapses duplicates to the last value, silently blessing the forged
+  shape as one valid proof (the live-found HAIP conformance gap: the
+  credential endpoint answered 200). The proxy hop preserves the same
+  contract (`sentin8-proxy` appends + logs a multi-DPoP warning) - the
+  whole path suite → proxy → TLS middleware → handler is
+  duplicate-transparent.
 - **Health-endpoint bypass.** Captain health probes hit the service directly
   on `IP:port`, where the `Host` header is not a registered domain. Requests
   to `/health` / `/v1/health` skip host resolution (correlation ID only);

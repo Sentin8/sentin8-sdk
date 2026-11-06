@@ -473,13 +473,19 @@ pub async fn context_middleware(
     };
 
     // 3. Strip client-supplied X-Sentin8-* headers and inject our own.
+    // APPEND (never insert) the preserved headers: a request may lawfully
+    // carry REPEATED header lines (the RFC 9449 4.1 two-line DPoP proof
+    // is the OIDF suite's forged-request negative - the recipient MUST
+    // reject it, which requires the handler to see BOTH lines). insert()
+    // collapses duplicates to the last value, silently blessing the forged
+    // shape as one valid proof (the live-found HAIP conformance gap).
     let mut new_headers = HeaderMap::new();
     for (name, value) in headers.iter() {
         let name_str = name.as_str().to_ascii_lowercase();
         if SENTIN8_HEADERS.contains(&name_str.as_str()) {
             continue;
         }
-        new_headers.insert(name.clone(), value.clone());
+        new_headers.append(name.clone(), value.clone());
     }
 
     // 4. Inject the resolved context headers.
