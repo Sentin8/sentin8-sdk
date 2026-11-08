@@ -111,7 +111,15 @@ impl RoleResolver {
         Self {
             auth_base_url: base.clone(),
             issuer_for_rearm: base,
-            identity_rearmed: std::sync::atomic::AtomicBool::new(http.is_none()),
+            // DPoPRS-1b self-heal availability: a constructor-time mint
+            // failure (a cold start racing Acme/proxy warm-up) leaves the
+            // resolver bearer-only - the ONE-SHOT re-arm must stay
+            // AVAILABLE in exactly that state, or the boot race permanently
+            // locks the channel to bearer-only and every delegated-token
+            // evaluation fail-closes with empty live scopes (the
+            // invitation-403 class). The flag is consumed only when a
+            // re-arm actually happens.
+            identity_rearmed: std::sync::atomic::AtomicBool::new(false),
             identity_http: ArcSwap::from_pointee(http),
             http: reqwest::Client::new(),
             ttl: Duration::from_secs(30),
@@ -177,7 +185,8 @@ impl RoleResolver {
         Self {
             auth_base_url: base.clone(),
             issuer_for_rearm: base,
-            identity_rearmed: std::sync::atomic::AtomicBool::new(http.is_none()),
+            // Same DPoPRS-1b availability rule as `new` (see above).
+            identity_rearmed: std::sync::atomic::AtomicBool::new(false),
             identity_http: ArcSwap::from_pointee(http.clone()),
             http: http.unwrap_or_default(),
             ttl,

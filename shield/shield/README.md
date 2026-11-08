@@ -107,7 +107,13 @@ Components:
 - **`RoleResolver`** - live role lookup with TTL cache; entries older
   than the TTL are pruned on insert so the per-`(env, subject)` cache is
   bounded; events (`sentin8:sys:identity:updated`, role/membership
-  changes) sweep the cache so fresh access is visible immediately.
+  changes) sweep the cache so fresh access is visible immediately. The
+  userinfo call rides the `{service}-tls` workload certificate (DPoPRS-1):
+  the mint at boot is one-shot and MAY fail on a cold start (Acme/proxy
+  still warming), so the resolver starts bearer-only with the DPoPRS-1b
+  re-arm AVAILABLE - the first resolution that needs the certificate
+  channel mints it (Acme is up by then; steady-state requests are never
+  a boot race) and arms the channel for the process lifetime.
 - **`PolicyError`** - parse/schema/validation/db/record/not-found failures.
 
 ## 5. Rationale, Trade-offs, and Alternatives
@@ -177,6 +183,14 @@ Components:
     another service is an invalid record (error, not silently skipped).
   - The live scope set on a full evaluation is EMPTY on resolution
     failure - scope-gated rules then deny (fail-closed), never fall open.
+  - **A boot-time certificate mint failure never permanently disarms the
+    identity channel.** The resolver's single DPoPRS-1b re-arm stays
+    available when the constructor's mint failed (bearer-only start);
+    only a SUCCESSFUL construction consumes nothing and only a mint that
+    ARMS the channel sets the one-shot flag. An armed-at-boot resolver
+    never re-mints (the persisted pair is load-only offline); a
+    bearer-only-at-boot resolver heals exactly once on the first
+    resolution that requires the certificate.
   - Relation objects referenced by hierarchy edges are materialized as
     bare entities; a malformed uid skips the edge, which can only deny.
   - Principal attr eval failure falls back to a bare entity WITH hierarchy
