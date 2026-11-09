@@ -280,10 +280,24 @@ impl BusClient {
         consumer_group: &str,
         message_id: &str,
     ) -> Result<(), BusError> {
+        self.ack_env(stream_family, consumer_group, message_id, None).await
+    }
+
+    /// Acknowledge a message delivered from a DECLARED tenant stream
+    /// (the consume env contract): the ack names the same stream the
+    /// delivery came from - `None` keeps the caller's token env.
+    pub async fn ack_env(
+        &self,
+        stream_family: &str,
+        consumer_group: &str,
+        message_id: &str,
+        env_id: Option<uuid::Uuid>,
+    ) -> Result<(), BusError> {
         let body = serde_json::json!({
             "stream_family": stream_family,
             "consumer_group": consumer_group,
             "message_id": message_id,
+            "env_id": env_id,
         });
         let resp = self
             .http
