@@ -157,7 +157,24 @@ impl BusClient {
         stream_family: &str,
         consumer_group: &str,
     ) -> Result<reqwest::Response, BusError> {
-        let url = self.sse_consume_url(stream_family, consumer_group).await?;
+        self.sse_consume_env(stream_family, consumer_group, None).await
+    }
+
+    /// Open an SSE consumer stream for a DECLARED tenant env (the consume
+    /// env contract - the produce env contract's consume twin): an M2M
+    /// workload consumer names the tenant stream it reads
+    /// (`bus:{env_id}:{family}`); `None` keeps the caller's token env.
+    /// USER tokens cannot declare (bus enforces the strict check).
+    pub async fn sse_consume_env(
+        &self,
+        stream_family: &str,
+        consumer_group: &str,
+        env_id: Option<uuid::Uuid>,
+    ) -> Result<reqwest::Response, BusError> {
+        let mut url = self.sse_consume_url(stream_family, consumer_group).await?;
+        if let Some(env) = env_id {
+            url.push_str(&format!("&env_id={env}"));
+        }
         // Use the streaming client (no total request timeout) so the
         // long-lived SSE body stream isn't aborted after 30s.
         let resp = self
