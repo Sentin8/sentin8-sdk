@@ -566,7 +566,11 @@ mod tests {
         assert_ne!((a, "s".to_string()), (b, "s".to_string()));
     }
 
-    #[tokio::test]
+    // multi_thread flavor: the bearer-only re-arm path drives a mint
+    // through tokio::task::block_in_place, which requires the
+    // multi-threaded runtime (`can call blocking only when running on
+    // the multi-threaded runtime` under the default current-thread one).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn resolver_fails_closed_on_auth_unreachable() {
         // reqwest panics with "No provider set" without the PQ provider
         // (workspace reqwest uses rustls-tls-native-roots-no-provider).
