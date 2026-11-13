@@ -280,7 +280,7 @@ mod tests {
     /// same crates the acme mints with must verify under this impl.
     #[test]
     fn ml_dsa_round_trip() {
-        use ml_dsa::signature::{Keypair, Signer, Verifier as _};
+        use ml_dsa::signature::{Keypair, Signer};
         use ml_dsa::Generate;
 
         let key = ml_dsa::SigningKey::<ml_dsa::MlDsa65>::generate();
@@ -300,7 +300,7 @@ mod tests {
     /// (the root-anchor signature family).
     #[test]
     fn slh_dsa_round_trip() {
-        use slh_dsa::signature::{Keypair, Signer, Verifier as _};
+        use slh_dsa::signature::{Keypair, Signer};
         // slh-dsa generates through a rand_core 0.10 TryRng - the acme
         // adapter's `generate_slh_root_key` pattern, verbatim.
         struct OsRng;
