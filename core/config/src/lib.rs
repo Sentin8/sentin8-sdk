@@ -1067,7 +1067,7 @@ pub fn remap_app_dir(path: &str) -> Option<String> {
     let host = std::env::var("SENTIN8_APP_DIR_HOST_PREFIX").ok()?;
     let local = std::env::var("SENTIN8_APP_DIR_LOCAL_PREFIX").ok()?;
     if host.is_empty() || local.is_empty() {
-    return None;
+        return None;
     }
     let p = path.trim_end_matches('/');
     let h = host.trim_end_matches('/');

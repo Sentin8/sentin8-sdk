@@ -154,8 +154,7 @@ impl SignatureVerificationAlgorithm for SlhDsaSha2_128sVerify {
 
 /// The PQ verification algorithms (ML-DSA-65 + SLH-DSA-SHA2-128s) as a
 /// static slice - the graft point for a provider's algorithm set.
-pub const PQ_VERIFY_ALGS: &[&dyn SignatureVerificationAlgorithm] =
-    &[ML_DSA_65, SLH_DSA_SHA2_128S];
+pub const PQ_VERIFY_ALGS: &[&dyn SignatureVerificationAlgorithm] = &[ML_DSA_65, SLH_DSA_SHA2_128S];
 
 /// Graft the PQ verification algorithms onto a provider's
 /// `WebPkiSupportedAlgorithms` (PQCLIENT-1).
@@ -201,9 +200,7 @@ pub fn merge_pq_verify_algs(
         &'static [&'static dyn SignatureVerificationAlgorithm],
     )> = mapping
         .into_iter()
-        .map(|(scheme, algs)| {
-            (scheme, Box::leak(algs.into_boxed_slice()) as &[_])
-        })
+        .map(|(scheme, algs)| (scheme, Box::leak(algs.into_boxed_slice()) as &[_]))
         .collect();
     rustls::crypto::WebPkiSupportedAlgorithms {
         all: Box::leak(all.into_boxed_slice()),
@@ -234,7 +231,10 @@ mod tests {
         // The bare-OID DER form: 06 09 + the 9 content bytes (the two
         // arcs 2.16 fold into 0x60).
         assert_eq!(SLH_DSA_SHA2_128S_DER[0], 0x06);
-        assert_eq!(SLH_DSA_SHA2_128S_DER[1] as usize, SLH_DSA_SHA2_128S_DER.len() - 2);
+        assert_eq!(
+            SLH_DSA_SHA2_128S_DER[1] as usize,
+            SLH_DSA_SHA2_128S_DER.len() - 2
+        );
         assert_eq!(
             &SLH_DSA_SHA2_128S_DER[2..],
             &[0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03, 0x14]
@@ -244,9 +244,15 @@ mod tests {
         // (0x12 for id-ml-dsa-65 vs 0x14 for id-slh-dsa-sha2-128s) -
         // same form, same length, one arc apart.
         let ml = rustls::pki_types::alg_id::ML_DSA_65.as_ref();
-        assert_eq!(ml, &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03, 0x12]);
+        assert_eq!(
+            ml,
+            &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03, 0x12]
+        );
         assert_eq!(ml.len(), SLH_DSA_SHA2_128S_DER.len());
-        assert_eq!(&ml[..ml.len() - 1], &SLH_DSA_SHA2_128S_DER[..SLH_DSA_SHA2_128S_DER.len() - 1]);
+        assert_eq!(
+            &ml[..ml.len() - 1],
+            &SLH_DSA_SHA2_128S_DER[..SLH_DSA_SHA2_128S_DER.len() - 1]
+        );
         assert_eq!(ml[ml.len() - 1], 0x12);
         assert_eq!(SLH_DSA_SHA2_128S_DER[SLH_DSA_SHA2_128S_DER.len() - 1], 0x14);
     }
@@ -263,10 +269,7 @@ mod tests {
         };
         let merged = merge_pq_verify_algs(base);
         assert!(merged.all.iter().any(|a| same_alg(*a, ML_DSA_65)));
-        assert!(merged
-            .all
-            .iter()
-            .any(|a| same_alg(*a, SLH_DSA_SHA2_128S)));
+        assert!(merged.all.iter().any(|a| same_alg(*a, SLH_DSA_SHA2_128S)));
         assert!(merged
             .mapping
             .iter()

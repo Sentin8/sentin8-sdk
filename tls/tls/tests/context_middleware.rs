@@ -485,33 +485,33 @@ fn cache_entries_expire_after_the_ttl() {
     use std::time::Duration;
 
     let cache = MappingCache::new();
-    cache.set("ebank.prod.ibank22475123.local.sentin8.dev", app_mapping("ebank", "prod"));
+    cache.set(
+        "ebank.prod.ibank22475123.local.sentin8.dev",
+        app_mapping("ebank", "prod"),
+    );
 
     // Zero TTL: never expires.
-    assert!(
-        cache
-            .get_with_ttl("ebank.prod.ibank22475123.local.sentin8.dev", Some(Duration::ZERO))
-            .is_some()
-    );
+    assert!(cache
+        .get_with_ttl(
+            "ebank.prod.ibank22475123.local.sentin8.dev",
+            Some(Duration::ZERO)
+        )
+        .is_some());
     // Fresh entry within a generous TTL is served.
-    assert!(
-        cache
-            .get_with_ttl(
-                "ebank.prod.ibank22475123.local.sentin8.dev",
-                Some(Duration::from_secs(3600)),
-            )
-            .is_some()
-    );
+    assert!(cache
+        .get_with_ttl(
+            "ebank.prod.ibank22475123.local.sentin8.dev",
+            Some(Duration::from_secs(3600)),
+        )
+        .is_some());
     // An elapsed TTL larger than the entry's age evicts it: the lookup
     // misses AND the entry is gone (never resurrects on a later read).
-    assert!(
-        cache
-            .get_with_ttl(
-                "ebank.prod.ibank22475123.local.sentin8.dev",
-                Some(Duration::from_nanos(1)),
-            )
-            .is_none()
-    );
+    assert!(cache
+        .get_with_ttl(
+            "ebank.prod.ibank22475123.local.sentin8.dev",
+            Some(Duration::from_nanos(1)),
+        )
+        .is_none());
     assert!(
         cache
             .get("ebank.prod.ibank22475123.local.sentin8.dev")
@@ -519,10 +519,11 @@ fn cache_entries_expire_after_the_ttl() {
         "evicted entry must not resurrect via the no-TTL lookup"
     );
     // None: expiry disabled entirely.
-    cache.set("ebank.prod.ibank22475123.local.sentin8.dev", app_mapping("ebank", "prod"));
-    assert!(
-        cache
-            .get_with_ttl("ebank.prod.ibank22475123.local.sentin8.dev", None)
-            .is_some()
+    cache.set(
+        "ebank.prod.ibank22475123.local.sentin8.dev",
+        app_mapping("ebank", "prod"),
     );
+    assert!(cache
+        .get_with_ttl("ebank.prod.ibank22475123.local.sentin8.dev", None)
+        .is_some());
 }

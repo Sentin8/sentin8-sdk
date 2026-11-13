@@ -157,7 +157,8 @@ impl BusClient {
         stream_family: &str,
         consumer_group: &str,
     ) -> Result<reqwest::Response, BusError> {
-        self.sse_consume_env(stream_family, consumer_group, None).await
+        self.sse_consume_env(stream_family, consumer_group, None)
+            .await
     }
 
     /// Open an SSE consumer stream for a DECLARED tenant env (the consume
@@ -280,7 +281,8 @@ impl BusClient {
         consumer_group: &str,
         message_id: &str,
     ) -> Result<(), BusError> {
-        self.ack_env(stream_family, consumer_group, message_id, None).await
+        self.ack_env(stream_family, consumer_group, message_id, None)
+            .await
     }
 
     /// Acknowledge a message delivered from a DECLARED tenant stream
@@ -503,7 +505,7 @@ impl BusClient {
         let prefix = msg.event_type.split(':').next().unwrap_or("");
         if prefix.is_empty() {
             return Err(format!(
- "event_type '{}' is malformed - no vertical prefix ",
+                "event_type '{}' is malformed - no vertical prefix ",
                 msg.event_type
             ));
         }

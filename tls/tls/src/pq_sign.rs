@@ -74,9 +74,8 @@ impl MlDsa65SigningKey {
     /// Returns a string describing the parse failure on malformed DER.
     pub fn from_pkcs8_der(der: &[u8]) -> Result<Self, String> {
         use ml_dsa::pkcs8::DecodePrivateKey;
-        let sk =
-            ml_dsa::SigningKey::<ml_dsa::MlDsa65>::from_pkcs8_der(der)
-                .map_err(|e| format!("parse ML-DSA-65 PKCS#8 key: {e}"))?;
+        let sk = ml_dsa::SigningKey::<ml_dsa::MlDsa65>::from_pkcs8_der(der)
+            .map_err(|e| format!("parse ML-DSA-65 PKCS#8 key: {e}"))?;
         Ok(Self { key: sk })
     }
 
@@ -189,7 +188,10 @@ impl std::fmt::Debug for PqKeyProvider {
 }
 
 impl KeyProvider for PqKeyProvider {
-    fn load_private_key(&self, key_der: PrivateKeyDer<'static>) -> Result<std::sync::Arc<dyn SigningKey>, rustls::Error> {
+    fn load_private_key(
+        &self,
+        key_der: PrivateKeyDer<'static>,
+    ) -> Result<std::sync::Arc<dyn SigningKey>, rustls::Error> {
         // Only the PKCS#8 form can carry an ML-DSA seed - the SEC1/PKCS#1
         // (EC/RSA) forms are classical by construction.
         if let PrivateKeyDer::Pkcs8(pkcs8) = &key_der {
