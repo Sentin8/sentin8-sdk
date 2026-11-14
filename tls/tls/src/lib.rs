@@ -71,3 +71,9 @@ pub use config::Sentin8TlsConfig;
 pub use context::{context_middleware, ContextMiddlewareState, HostContextResolver};
 pub use resolver::Sentin8Tls;
 pub use tcp::{RawTcpListener, TlsInfo};
+
+/// Process-wide test-env mutex (cfg(test)): every test that mutates process
+/// env acquires it - parallel env mutations race and poisoned the
+/// cert_cache asserts in CI.
+#[cfg(test)]
+pub(crate) static TEST_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

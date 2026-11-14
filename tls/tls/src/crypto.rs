@@ -183,18 +183,25 @@ mod classical_tests {
 
     #[test]
     fn classical_mode_enables_tls12() {
+        let _g = crate::TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("SENTIN8_TLS_PQ_MODE", "classical");
         let versions = sentin8_tls_versions();
         assert!(versions
             .iter()
             .any(|v| v.version == rustls::ProtocolVersion::TLSv1_2));
+        std::env::remove_var("SENTIN8_TLS_PQ_MODE");
     }
 
     #[test]
     fn classical_fapi_provider_tls12_rsa_only() {
+        let _g = crate::TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("SENTIN8_TLS_PQ_MODE", "classical");
         std::env::set_var("SENTIN8_TLS_CIPHER_PROFILE", "fapi");
         let p = sentin8_pq_provider();
+        // Restore before ending: these tests run in parallel threads with
+        // the cert_cache tests, whose dir derivation reads
+        // SENTIN8_TLS_PQ_MODE - a leftover mode flips their cache path
+        // mid-assertion (the CI flake class).
         // TLS1.2 = ECDHE_RSA ONLY (the suite's FAPI_TLS_1_2_CIPHERS; the
         // ECDSA-GCM agreement = the DisallowInsecureCipher 8.5-1 failure).
         assert!(p
@@ -209,5 +216,7 @@ mod classical_tests {
             .kx_groups
             .iter()
             .any(|g| g.name() == rustls::NamedGroup::X25519MLKEM768));
+        std::env::remove_var("SENTIN8_TLS_PQ_MODE");
+        std::env::remove_var("SENTIN8_TLS_CIPHER_PROFILE");
     }
 }

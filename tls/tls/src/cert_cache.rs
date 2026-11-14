@@ -313,8 +313,10 @@ mod tests {
     use std::sync::Mutex;
 
     /// Serialize env mutation across the test binary (parallel tests would
-    /// race on SENTIN8_SECRETS_DIR otherwise).
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    /// race on SENTIN8_SECRETS_DIR otherwise). Process-wide: crypto.rs's
+    /// classical tests share THIS mutex - they mutate SENTIN8_TLS_PQ_MODE,
+    /// which cert_cache's dir derivation reads (the CI flake class).
+    use crate::TEST_ENV_LOCK as ENV_LOCK;
 
     fn temp_dir(tag: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!(
