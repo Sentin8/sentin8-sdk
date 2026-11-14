@@ -310,7 +310,6 @@ mod tests {
     //! (the cache dir is env-derived, so each test pins it).
 
     use super::*;
-    use std::sync::Mutex;
 
     /// Serialize env mutation across the test binary (parallel tests would
     /// race on SENTIN8_SECRETS_DIR otherwise). Process-wide: crypto.rs's
