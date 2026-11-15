@@ -28,6 +28,7 @@ members = [
     "core/rfw",
     "core/openapi",
     "core/middleware",
+    "core/mdoc",
     "core/service-discovery",
     # ── identity layer (L2) ──
     "identity/jwt",
@@ -150,6 +151,7 @@ sentin8-registration = { path = "core/registration" }
 sentin8-rfw = { path = "core/rfw" }
 sentin8-openapi = { path = "core/openapi" }
 sentin8-middleware = { path = "core/middleware" }
+sentin8-cbor-mdoc = { path = "core/mdoc" }
 sentin8-service-discovery = { path = "core/service-discovery" }
 sentin8-jwt = { path = "identity/jwt" }
 sentin8-fapiclient = { path = "identity/fapi" }

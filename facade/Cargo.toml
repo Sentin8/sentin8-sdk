@@ -29,6 +29,7 @@ sentin8-build-info = { workspace = true }
 sentin8-config = { workspace = true }
 sentin8-crypto = { workspace = true }
 sentin8-errors = { workspace = true }
+sentin8-cbor-mdoc = { workspace = true }
 sentin8-idempotency = { workspace = true }
 sentin8-jwt = { workspace = true }
 sentin8-m2m = { workspace = true }

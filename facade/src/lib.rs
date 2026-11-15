@@ -48,6 +48,7 @@
 // Infrastructure crates - one level.
 pub use sentin8_audit as audit;
 pub use sentin8_build_info as build_info;
+pub use sentin8_cbor_mdoc as mdoc;
 pub use sentin8_config as config;
 pub use sentin8_crypto as crypto;
 pub use sentin8_errors as errors;

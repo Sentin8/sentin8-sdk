@@ -1,0 +1,22 @@
+[package]
+name = "sentin8-cbor-mdoc"
+version = "1.0.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Sentin8 - the ISO/IEC 18013-5/-7 mdoc engine: MSO build/verify, IssuerSigned, DeviceResponse, OID4VP handover transcripts."
+
+[dependencies]
+sentin8-errors.workspace = true
+ciborium.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+p256.workspace = true
+sha2.workspace = true
+base64.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+
+[dev-dependencies]
+rand.workspace = true

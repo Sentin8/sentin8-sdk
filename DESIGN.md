@@ -335,6 +335,79 @@ flowchart TD
   proof" (it was the storm's root cause and adds no strength beyond the
   handshake's possession proof).
 
+## 8b. The mdoc engine (`sentin8::mdoc`, ISO/IEC 18013-5/-7)
+
+**Scope.** The platform's single ISO 18013-5 engine - Mobile Security
+Object (MSO) build and verify, the IssuerSigned document form, the
+DeviceResponse presentation form, and the OID4VP handover transcripts.
+One engine serves all three roles: the sentin8-auth ISSUER (mso_mdoc
+credential configurations, OID4VCI), the sentin8-auth VERIFIER (DCQL
+`mso_mdoc` queries + vp_token acceptance, OID4VP), and every vertical
+WALLET via the facade (`sentin8::mdoc`, wallet8 first). The engine
+lives in the SDK because the dependency rule is one-way: auth builds
+on the SDK, verticals build on both - the mdoc binary format must not
+exist twice.
+
+```mermaid
+graph TD
+    ISS["sentin8-auth issuer (OID4VCI mso_mdoc)"] -->|"build MSO / IssuerSigned"| ENG["sentin8-cbor-mdoc engine"]
+    VER["sentin8-auth verifier (OID4VP iso_mdl)"] -->|"verify MSO / DeviceResponse"| ENG
+    WAL["wallet8 / any vertical wallet"] -->|"build DeviceResponse / verify request"| ENG
+    ENG --> CIB["ciborium (deterministic CBOR)"]
+    ENG --> P2["p256 (COSE ES256 Sign1)"]
+    ENG --> SH["sha2 (valueDigests + handover)"]
+```
+
+**The wire forms the engine owns.**
+
+- `IssuerSigned` (ISO 18013-5 §8.3, the VCI credential response): CBOR
+  map `{nameSpaces, issuerAuth}` where `issuerAuth` is COSE_Sign1
+  (alg -7/ES256) whose payload is the MSO (`docType`, `valueDigests`,
+  `validityInfo` tdate `Z` values, `deviceKeyInfo.deviceKey` JWK) and
+  whose protected header carries `x5chain` (the DS certificate). The
+  digests: every IssuerSignedItem's `SHA-256(CBOR(item))` lands in
+  `valueDigests[namespace][digestID]`.
+- `DeviceResponse` (ISO 18013-7 §8, the OID4VP vp_token): the
+  unpadded-base64url CBOR array `[version, documents, status]` with
+  one Document whose `deviceSigned` is EMPTY (the suite's
+  EnsureMdocDeviceSignedElementsEmpty) and whose `deviceSignature` is
+  a COSE_Sign1 over `[deviceNameSpace bytes, sessionTranscript bytes]`
+  with the MSO's device key.
+- The SessionTranscript forms (OID4VP 1.0 Final Appendix B.2.6.1/6.2):
+  the redirect handover `[client_id, nonce, jwkThumbprint|null,
+  response_uri]` and the dc_api handover `[origin, nonce,
+  jwkThumbprint|null]` - both wrapped `[null, null, Handover]` with
+  the `["OpenID4VPHandover"|"OpenID4VPDCAPIHandover",
+  SHA-256(HandoverInfo)]` shape.
+- The 18013-7 status forms: `status` on the MSO is optional; present it
+  must be `status_list {idx, uri}` or `identifier_list {id, uri}`.
+
+**Key members.** `MsoBuilder` (doc_type, namespaces, device JWK,
+validity window, status -> MSO + IssuerSigned CBOR), `verify_mso`
+(COSE_Sign1 x5chain + digest coverage), `DeviceResponseBuilder`
+(selective disclosure by digestID disclosure, the deviceSignature over
+the transcript), `parse_device_response` (+ transcript verification),
+the transcript calculators. The engine holds NO storage, NO HTTP -
+pure codecs and crypto; the roles own their I/O.
+
+**Invariants.** (1) Deterministic CBOR encoding at every digest site -
+the digest is over the exact item bytes the wallet re-derives (a
+length-first map ordering mismatch = the suite's
+ValidateMdocIssuerSignedItemDigests failure). (2) The MSO timestamps
+are tdate - second precision, `Z`, no fractions. (3) The x5chain leaf
+is the DS certificate whose curve pairs with the COSE alg (ES256 ->
+P-256). (4) The device key in the MSO is the key the proof
+demonstrated (RFC 7638 thumbprint equality, the suite's
+VCIEnsureMdocDeviceKeyMatchesProofKey).
+
+**Rejected alternatives.** A per-role implementation (issuer-side in
+auth, wallet-side in wallet8 - duplicates the digest/transcript logic
+and diverges); multipaz-style full 18013-7 stack (the suite demands
+exactly the two wire forms above - a full stack imports a surface the
+certification never exercises); COSE via the `coset` crate (its
+COSE_Sign1 shape does not carry x5chain without extensions - the
+engine builds the Sign1 headers directly over ciborium).
+
 ## 9. Testing Strategy
 
 ```mermaid
