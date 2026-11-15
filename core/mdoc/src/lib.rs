@@ -94,8 +94,34 @@ pub use issuer_signed::build_issuer_signed;
 
 pub mod device_response;
 pub use device_response::{
-    build_device_response, parse_device_response, DeviceResponseInput,
+    build_device_response, disclosed_claims, parse_device_response, DeviceResponseInput,
 };
+
+/// The claims of a base64url IssuerSigned mdoc in the DCQL claims
+/// path form (OID4VP 7.2: `namespace/element` keys) - the wallet-side
+/// view the 6.4.1 value matching reads.
+///
+/// # Errors
+/// Descriptive strings on decode/parse failures (the caller degrades
+/// to an empty map - unreadable values are treated as absent).
+pub fn parse_issuer_signed_claims(
+    issuer_signed_b64: &str,
+) -> Result<Option<std::collections::BTreeMap<String, serde_json::Value>>, String> {
+    use base64::Engine;
+    let raw = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(issuer_signed_b64.trim())
+        .map_err(|e| format!("issuerSigned decode: {e}"))?;
+    let json = crate::cbor_to_json(&raw)?;
+    let claims = crate::disclosed_claims(&json)?;
+    let mut map = std::collections::BTreeMap::new();
+    for (namespace, item) in claims {
+        map.insert(format!("{namespace}/{}", item.element_identifier), item.element_value);
+    }
+    if map.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(map))
+}
 
 pub mod transcript;
 pub use transcript::{dc_api_transcript, redirect_transcript};
