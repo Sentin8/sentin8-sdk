@@ -18,6 +18,26 @@ use crate::mso::IssuerSignedItem;
 /// The DeviceResponse version member (18013-7 defines `1.0`).
 pub const DEVICE_RESPONSE_VERSION: &str = "1.0";
 
+/// The DeviceAuthentication structure bytes (18013-5 §8.3.2.1.1) - the
+/// ONE canonical builder shared by the wallet-side signature and the
+/// verifier-side check.
+pub fn device_authentication(
+    transcript: &[u8],
+    device_name_spaces: &[u8],
+    digest_info: &[u8],
+) -> Vec<u8> {
+    use ciborium::value::Value;
+    let structure = Value::Array(vec![
+        Value::Text("DeviceAuthentication".into()),
+        Value::Bytes(transcript.to_vec()),
+        Value::Bytes(device_name_spaces.to_vec()),
+        Value::Bytes(digest_info.to_vec()),
+    ]);
+    let mut buf = Vec::new();
+    let _ = ciborium::into_writer(&structure, &mut buf);
+    buf
+}
+
 /// The wallet's input for one document presentation.
 pub struct DeviceResponseInput<'a> {
     /// The doctype.
@@ -57,31 +77,17 @@ pub fn build_device_response(inputs: &[DeviceResponseInput<'_>]) -> Result<Strin
         });
         let digest_info_bytes = crate::cbor_bytes(&digest_info)?;
 
-        // deviceSignature input: [deviceNameSpace(bstr), sessionTranscript(bstr),
-        // deviceNameSpaces(bstr), digestInfo(bstr)] per 18013-5 §8.3.2.1.1:
-        // actually DeviceAuthentication = ["DeviceAuthentication", sessionTranscript,
-        // deviceNameSpaces bytes, digestInfo bytes]
-        let mut da = Vec::new();
-        da.push(0x84); // array(4)
-        da.push(0x6C); // tstr(12)
-        da.extend_from_slice(b"DeviceAuthentication");
-        // sessionTranscript as bstr
-        da.push(0x58);
-        da.push(input.transcript.len() as u8);
-        da.extend_from_slice(input.transcript);
-        // deviceNameSpaces
-        da.push(0x58);
-        da.push(device_name_space.len() as u8);
-        da.extend_from_slice(&device_name_space);
-        // digestInfo
-        da.push(0x58);
-        da.push(digest_info_bytes.len() as u8);
-        da.extend_from_slice(&digest_info_bytes);
-        let sig: p256::ecdsa::Signature = input.device_key.sign(&da);
-        let sig_bytes = sig.to_bytes();
-
-        // COSE_Sign1: [protected{alg:-7}, {}, payload(bstr da), sig]
+        // deviceSignature input (18013-5 §8.3.2.1.1): DeviceAuthentication =
+        // ["DeviceAuthentication", sessionTranscript(bstr),
+        //  deviceNameSpaces(bstr), digestInfo(bstr)] - via the shared
+        // canonical builder (byte-identical on the verifier side). The
+        // COSE_Sign1 signs the Sig_structure ["Signature1", protected,
+        // external_aad(empty), payload(DeviceAuthentication)].
+        let da = device_authentication(input.transcript, &device_name_space, &digest_info_bytes);
         let protected = b"\xa1\x01\x26".to_vec(); // {1: -7}
+        let sig_input = crate::issuer_signed::cose_sig_structure(&protected, &da);
+        let sig: p256::ecdsa::Signature = input.device_key.sign(&sig_input);
+        let sig_bytes = sig.to_bytes();
         let mut sign1 = Vec::new();
         sign1.push(0x84);
         sign1.push(0x43); // bytes(3)
@@ -93,67 +99,72 @@ pub fn build_device_response(inputs: &[DeviceResponseInput<'_>]) -> Result<Strin
         sign1.push(0x58);
         sign1.push(sig_bytes.len() as u8);
         sign1.extend_from_slice(&sig_bytes);
+        let sign1_value: ciborium::value::Value = ciborium::from_reader(sign1.as_slice())
+            .expect("the device COSE_Sign1 re-parse");
+
+        // deviceSigned: {nameSpaces: bstr(empty-map-bytes), digestInfo}
+        let device_signed_value = ciborium::value::Value::Map(vec![
+            (
+                ciborium::value::Value::Text("nameSpaces".into()),
+                ciborium::value::Value::Bytes(device_name_space.clone()),
+            ),
+            (
+                ciborium::value::Value::Text("digestInfo".into()),
+                {
+                    let v: ciborium::value::Value = ciborium::from_reader(
+                        digest_info_bytes.as_slice(),
+                    )
+                    .expect("digestInfo re-parse");
+                    v
+                },
+            ),
+        ]);
 
         // Document: {docType, issuerSigned, deviceSigned, deviceSignature}
-        let mut doc = Vec::new();
-        doc.push(0xA4); // map(4)
-        doc.push(0x67);
-        doc.extend_from_slice(b"docType");
-        let doctype = input.doc_type.as_bytes();
-        doc.push(0x78); // tstr(1-byte len)
-        doc.push(doctype.len() as u8);
-        doc.extend_from_slice(doctype);
-        doc.extend_from_slice(b"\x6CissuerSigned");
-        // issuerSigned bytes inline
-        doc.push(0x5A); // bytes(4-byte len)
-        doc.extend_from_slice(&(issuer_signed.len() as u32).to_be_bytes());
-        doc.extend_from_slice(&issuer_signed);
-        doc.extend_from_slice(b"\x6CdeviceSigned");
-        // deviceSigned: {nameSpaces: bstr(""), digestInfo: {...}}
-        let device_signed = {
-            let mut ds = Vec::new();
-            ds.push(0xA2);
-            ds.extend_from_slice(b"\x6AnameSpaces");
-            ds.push(0x41); // bstr(1)
-            ds.push(0xA0); // the empty map bytes
-            ds.extend_from_slice(b"\x6AdigestInfo");
-            ds.push(0x59);
-            ds.extend_from_slice(&(digest_info_bytes.len() as u16).to_be_bytes());
-            ds.extend_from_slice(&digest_info_bytes);
-            ds
-        };
-        doc.push(0x59);
-        doc.extend_from_slice(&(device_signed.len() as u16).to_be_bytes());
-        doc.extend_from_slice(&device_signed);
-        doc.extend_from_slice(b"\x6FdeviceSignature");
-        doc.push(0x59);
-        doc.extend_from_slice(&(sign1.len() as u16).to_be_bytes());
-        doc.extend_from_slice(&sign1);
-        documents.extend_from_slice(&doc);
+        // - every member via the Value tree (byte-perfect by construction;
+        // the hand-rolled length prefixes drifted).
+        let issuer_signed_value: ciborium::value::Value = ciborium::from_reader(
+            issuer_signed.as_slice(),
+        )
+        .expect("issuerSigned re-parse");
+        documents.push(ciborium::value::Value::Map(vec![
+            (
+                ciborium::value::Value::Text("docType".into()),
+                ciborium::value::Value::Text(input.doc_type.to_string()),
+            ),
+            (
+                ciborium::value::Value::Text("issuerSigned".into()),
+                issuer_signed_value,
+            ),
+            (
+                ciborium::value::Value::Text("deviceSigned".into()),
+                device_signed_value,
+            ),
+            (
+                ciborium::value::Value::Text("deviceSignature".into()),
+                sign1_value,
+            ),
+        ]));
     }
 
-    // The response: [version(tstr), [{status: 0, documents: [...]}](1), status: 1]
+    // The response: [version, [{status: 0, documents: [...]}], status]
+    let response = ciborium::value::Value::Array(vec![
+        ciborium::value::Value::Text(DEVICE_RESPONSE_VERSION.into()),
+        ciborium::value::Value::Array(vec![ciborium::value::Value::Map(vec![
+            (
+                ciborium::value::Value::Text("status".into()),
+                ciborium::value::Value::Integer(0.into()),
+            ),
+            (
+                ciborium::value::Value::Text("documents".into()),
+                ciborium::value::Value::Array(documents),
+            ),
+        ])]),
+        ciborium::value::Value::Integer(1.into()),
+    ]);
     let mut buf = Vec::new();
-    buf.push(0x83); // array(3)
-    buf.push(0x63); // tstr(3)
-    buf.extend_from_slice(b"1.0");
-    buf.push(0x81); // array(1)
-    // {status: 1, documents: array(N)}
-    buf.push(0xA2);
-    buf.extend_from_slice(b"\x66status"); // tstr(6)
-    buf.push(0x01);
-    buf.extend_from_slice(b"\x69documents"); // tstr(9)
-    // documents array of N document maps - each document was appended
-    // raw; wrap in array(N)
-    let n = inputs.len() as u8;
-    if n == 1 {
-        buf.push(0x81);
-    } else {
-        buf.push(0x80 + n); // small-array form
-    }
-    buf.extend_from_slice(&documents);
-    buf.push(0x01); // status: 1 (OK)
-
+    ciborium::into_writer(&response, &mut buf)
+        .map_err(|e| format!("device response encode: {e}"))?;
     Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(buf))
 }
 

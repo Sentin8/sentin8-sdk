@@ -9,6 +9,7 @@
 //! alg).
 
 use crate::mso::BuiltMso;
+use base64::Engine;
 use p256::ecdsa::signature::Signer;
 
 /// The COSE_Sign1 protected-header label for `x5chain` (RFC 9360 §2 /
@@ -23,7 +24,11 @@ pub const COSE_ALG_ES256: i64 = -7;
 /// (the OID4VCI credential response string; the suite's
 /// `ValidateCredentialIsUnpaddedBase64Url` rejects padding).
 ///
-/// The DS certificate chain is std-base64 DER entries (`x5c` form).
+/// Every nested structure is built as a `ciborium::Value` tree (the
+/// encoder is byte-correct by construction - hand-rolled length
+/// prefixes drifted on the bstr boundaries). The x5chain entry carries
+/// the DS certificate as a COSE bstr (multipaz's
+/// `MdocUtil.extractX5chain` reads bstr entries).
 ///
 /// # Errors
 /// Returns a descriptive string when the COSE_Sign1 mint fails (the MSO
@@ -33,109 +38,130 @@ pub fn build_issuer_signed(
     ds_key: &p256::ecdsa::SigningKey,
     ds_cert_der_std_b64: &str,
 ) -> Result<String, String> {
-    // nameSpaces: {namespace: [item...]} with the IssuerSignedItems as
-    // CBOR maps (each carrying its digestID/salt/element pair).
-    let mut namespaces = serde_json::Map::new();
+    use ciborium::value::Value;
+    // nameSpaces: {namespace: [item...]} - the items re-encoded through
+    // the Value tree so every member lands in the canonical form.
+    let mut namespaces = Vec::new();
     for (ns, items) in &built.items {
-        let arr: Vec<serde_json::Value> = items
+        let arr: Vec<Value> = items
             .iter()
-            .map(|it| serde_json::to_value(it).expect("item json"))
+            .map(|it| {
+                Value::Map(vec![
+                    (
+                        Value::Text("digestID".into()),
+                        Value::Integer((it.digest_id as i64).into()),
+                    ),
+                    (Value::Text("salt".into()), Value::Bytes(it.salt.clone())),
+                    (
+                        Value::Text("elementIdentifier".into()),
+                        Value::Text(it.element_identifier.clone()),
+                    ),
+                    (
+                        Value::Text("elementValue".into()),
+                        json_to_cbor(&it.element_value),
+                    ),
+                ])
+            })
             .collect();
-        namespaces.insert(ns.clone(), serde_json::Value::Array(arr));
+        namespaces.push((
+            Value::Text(ns.clone()),
+            Value::Array(arr),
+        ));
     }
 
-    // issuerAuth: COSE_Sign1 = [protected(bstr), unprotected(map), payload(bstr), signature(bstr)]
+    // The MSO payload: ciborium's serde encode of the Mso struct.
     let payload = crate::cbor_bytes(&built.mso)?;
-    let protected_map: serde_json::Value = serde_json::json!({
-        COSE_LABEL_ALG.to_string(): COSE_ALG_ES256,
-        COSE_LABEL_X5CHAIN.to_string(): [ds_cert_der_std_b64],
-    });
-    // COSE header labels are INTEGERS - ciborium serializes the map
-    // with integer keys via serde_json's number keys.
-    let protected_bytes = crate::cbor_bytes(&cose_header_to_cbor(&protected_map))?;
-    let signing_input = {
-        let mut v = Vec::with_capacity(protected_bytes.len() + payload.len());
-        v.extend_from_slice(&protected_bytes);
-        v.push(0xA2); // CBOR array(2) - Sig_structure ["Signature1", protected, external_aad, payload] minus the tag
-        v.extend_from_slice(&payload);
-        v
+
+    // The protected header: {1: -7, 33: [cert-der-bstr]}.
+    let cert_der = base64::engine::general_purpose::STANDARD
+        .decode(ds_cert_der_std_b64)
+        .map_err(|e| format!("x5chain cert decode: {e}"))?;
+    let protected_map = Value::Map(vec![
+        (
+            Value::Integer((COSE_LABEL_ALG as i64).into()),
+            Value::Integer(COSE_ALG_ES256.into()),
+        ),
+        (
+            Value::Integer((COSE_LABEL_X5CHAIN as i64).into()),
+            Value::Array(vec![Value::Bytes(cert_der)]),
+        ),
+    ]);
+    let protected = {
+        let mut buf = Vec::new();
+        ciborium::into_writer(&protected_map, &mut buf)
+            .map_err(|e| format!("protected encode: {e}"))?;
+        buf
     };
+
     // Sig_structure: ["Signature1", protected(bstr), external_aad(bstr), payload(bstr)]
-    let sig_structure = {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(b"\x84"); // array(4)
-        buf.push(0x6A); // tstr "Signature1"
-        buf.extend_from_slice(b"Signature1");
-        buf.push(0x58); // bytes(1-byte length) - protected
-        buf.push(protected_bytes.len() as u8);
-        buf.extend_from_slice(&protected_bytes);
-        buf.push(0x40); // bytes(0) - external_aad
-        buf.push(0x58); // bytes(1-byte length) - payload
-        buf.push(payload.len() as u8);
-        buf.extend_from_slice(&payload);
-        buf
-    };
+    // - built via the shared Value-tree helper so the builder and every
+    // verifier produce byte-identical input (a hand-rolled length prefix
+    // drifted at the bstr boundaries).
+    let sig_structure = cose_sig_structure(&protected, &payload);
     let sig: p256::ecdsa::Signature = ds_key.sign(&sig_structure);
-    let sig_bytes = sig.to_bytes();
 
-    // COSE_Sign1 array: [protected(bstr), unprotected(map{}), payload(bstr), signature(bstr)]
-    let mut sign1 = Vec::new();
-    sign1.extend_from_slice(b"\x84"); // array(4)
-    sign1.push(0x58);
-    sign1.push(protected_bytes.len() as u8);
-    sign1.extend_from_slice(&protected_bytes);
-    sign1.push(0xA0); // map(0) - unprotected
-    sign1.push(0x59); // bytes(2-byte length) - payload
-    sign1.extend_from_slice(&(payload.len() as u16).to_be_bytes());
-    sign1.extend_from_slice(&payload);
-    sign1.push(0x58);
-    sign1.push(sig_bytes.len() as u8);
-    sign1.extend_from_slice(&sig_bytes);
+    // COSE_Sign1: [protected(bstr), {}, payload(bstr), signature(bstr)]
+    let sign1 = Value::Array(vec![
+        Value::Bytes(protected),
+        Value::Map(vec![]),
+        Value::Bytes(payload),
+        Value::Bytes(sig.to_bytes().to_vec()),
+    ]);
 
-    // IssuerSigned: {nameSpaces: ..., issuerAuth: [COSE_Sign1]}
-    let issuer_signed = {
-        let ns_cbor = crate::cbor_bytes(&serde_json::Value::Object(namespaces))?;
-        let mut buf = Vec::new();
-        buf.push(0xA2); // map(2)
-        buf.extend_from_slice(b"\x6AnameSpaces");
-        buf.extend_from_slice(&ns_cbor);
-        buf.extend_from_slice(b"\x6AissuerAuth");
-        buf.extend_from_slice(&sign1);
-        buf
-    };
-    let _ = signing_input;
-    use base64::Engine;
-    Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(issuer_signed))
+    // IssuerSigned: {nameSpaces, issuerAuth}
+    let issuer_signed = Value::Map(vec![
+        (Value::Text("nameSpaces".into()), Value::Map(namespaces)),
+        (Value::Text("issuerAuth".into()), sign1),
+    ]);
+    let mut buf = Vec::new();
+    ciborium::into_writer(&issuer_signed, &mut buf)
+        .map_err(|e| format!("issuer signed encode: {e}"))?;
+    Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(buf))
 }
 
-/// COSE header map with INTEGER keys - serde_json cannot hold integer
-/// map keys, so the header builds as a raw CBOR fragment.
-fn cose_header_to_cbor(_json: &serde_json::Value) -> Result<Vec<u8>, String> {
-    // {1: -7, 33: [cert]} - a fixed two-entry map, integer keys.
-    let cert = _json
-        .get("33")
-        .and_then(|v| v.as_array())
-        .and_then(|a| a.first())
-        .and_then(|v| v.as_str())
-        .ok_or("x5chain missing in the COSE header")?;
-    use base64::Engine;
-    let cert_bytes = base64::engine::general_purpose::STANDARD
-        .decode(cert)
-        .map_err(|e| format!("x5chain cert decode: {e}"))?;
-    // The x5chain entry in COSE is the DER bytes (a bstr), not the b64
-    // text - multipaz's MdocUtil.extractX5chain reads bstr entries.
+/// The COSE Sig_structure bytes: ["Signature1", protected(bstr),
+/// external_aad(bstr empty), payload(bstr)] - the ONE canonical builder
+/// shared by the issuer mint and every verifier (byte-identical input
+/// on both sides).
+pub fn cose_sig_structure(protected: &[u8], payload: &[u8]) -> Vec<u8> {
+    use ciborium::value::Value;
+    let structure = Value::Array(vec![
+        Value::Text("Signature1".into()),
+        Value::Bytes(protected.to_vec()),
+        Value::Bytes(Vec::new()),
+        Value::Bytes(payload.to_vec()),
+    ]);
     let mut buf = Vec::new();
-    buf.push(0xA2); // map(2)
-    buf.push(0x01); // key 1 (alg)
-    buf.push(0x26); // -7
-    buf.push(0x18); // key 33 (uint8)
-    buf.push(33);
-    // x5chain: array(1) of bstr
-    buf.push(0x81);
-    buf.push(0x59);
-    buf.extend_from_slice(&(cert_bytes.len() as u16).to_be_bytes());
-    buf.extend_from_slice(&cert_bytes);
-    Ok(buf)
+    let _ = ciborium::into_writer(&structure, &mut buf);
+    buf
+}
+
+/// Convert a JSON value to the ciborium Value form (the elementValue
+/// members preserve their JSON shapes).
+fn json_to_cbor(v: &serde_json::Value) -> ciborium::value::Value {
+    use ciborium::value::Value;
+    match v {
+        serde_json::Value::Null => Value::Null,
+        serde_json::Value::Bool(b) => Value::Bool(*b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Value::Integer(i.into())
+            } else if let Some(u) = n.as_u64() {
+                Value::Integer(u.into())
+            } else {
+                Value::Float(n.as_f64().unwrap_or_default())
+            }
+        }
+        serde_json::Value::String(s) => Value::Text(s.clone()),
+        serde_json::Value::Array(items) => {
+            Value::Array(items.iter().map(json_to_cbor).collect())
+        }
+        serde_json::Value::Object(map) => Value::Map(
+            map.iter()
+                .map(|(k, val)| (Value::Text(k.clone()), json_to_cbor(val)))
+                .collect(),
+        ),
+    }
 }
 
 #[cfg(test)]

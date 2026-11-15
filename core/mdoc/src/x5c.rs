@@ -39,7 +39,6 @@ pub fn signing_key_matching_cert(
     let point = crate::verify::ec_point_from_der(&der)?;
     let (x, y) = point;
     let target = {
-        use p256::elliptic_curve::sec1::FromEncodedPoint;
         let ep = p256::EncodedPoint::from_affine_coordinates(
             x.as_slice().into(),
             y.as_slice().into(),
@@ -69,6 +68,36 @@ fn pem_to_der(pem: &str) -> Result<Vec<u8>, String> {
     base64::engine::general_purpose::STANDARD
         .decode(cleaned.trim())
         .map_err(|e| format!("pem body decode: {e}"))
+}
+
+/// Test support: a minimal self-signed DER certificate carrying a
+/// P-256 public point (the engine tests use it as the DS x5chain leaf;
+/// production mints real certificates - the rcgen form in auth).
+#[cfg(test)]
+pub(crate) mod test_support {
+    /// Build a DER with the key's uncompressed point embedded (a
+    /// schema-free carrier - the verify path scans for the point).
+    pub fn self_signed_cert_der(key: &p256::ecdsa::SigningKey) -> Vec<u8> {
+        let point = key.verifying_key().to_encoded_point(false);
+        let bytes = point.as_bytes();
+        // SEQUENCE { INTEGER 2, SEQUENCE { OID ecPublicKey, OID P-256 },
+        // BIT STRING <point> } - the SPKI form the scanner reads.
+        let mut der = Vec::new();
+        der.push(0x30);
+        der.push((4 + 15 + 69) as u8);
+        der.extend_from_slice(&[0x02, 0x01, 0x02]);
+        der.push(0x30);
+        der.push(13);
+        der.extend_from_slice(&[0x06, 0x07]);
+        der.extend_from_slice(&[0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x02, 0x01]);
+        der.extend_from_slice(&[0x06, 0x08]);
+        der.extend_from_slice(&[0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07]);
+        der.push(0x03);
+        der.push(0x42);
+        der.push(0x00);
+        der.extend_from_slice(bytes);
+        der
+    }
 }
 
 #[cfg(test)]

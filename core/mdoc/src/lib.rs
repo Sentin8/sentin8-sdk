@@ -102,6 +102,7 @@ pub use transcript::{dc_api_transcript, redirect_transcript};
 
 pub mod namespaces;
 pub mod verify;
+pub use verify::verify_mso_document;
 pub mod x5c;
 
 /// Encode any serializable value to deterministic CBOR bytes.
