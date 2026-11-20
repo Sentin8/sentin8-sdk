@@ -123,7 +123,11 @@ pub fn verify_mso_document(
             }
         }
     }
-    // The deviceSignature verify (the device key from the MSO).
+    // The deviceAuth signature verify (the device key from the MSO).
+    // The DeviceSigned carries {nameSpaces, deviceAuth:
+    // {deviceSignature | deviceMac}} (18013-5 section 9.1.2.4) - the
+    // COSE_Sign1 is detached, the payload the parser re-derives is
+    // encode(Tag(24, bstr(encode(DeviceAuthentication)))).
     let dev_x = mso
         .device_key_info
         .device_key
@@ -151,7 +155,15 @@ pub fn verify_mso_document(
         p256::ecdsa::VerifyingKey::from_encoded_point(&ep)
             .map_err(|e| format!("device key: {e}"))?
     };
-    if let Some(dev_sig_value) = raw.get("deviceSignature") {
+    // The deviceAuth deviceSignature (the detached COSE_Sign1) -
+    // located at deviceSigned.deviceAuth.deviceSignature; the payload
+    // the signature covers is the Tag24-wrapped DeviceAuthentication
+    // the presentation re-derives (18013-5 section 9.1.2.4).
+    let dev_sig_value = raw
+        .get("deviceAuth")
+        .and_then(|da| da.get("deviceSignature"))
+        .or_else(|| raw.get("deviceSignature"));
+    if let Some(dev_sig_value) = dev_sig_value {
         let sign1 = dev_sig_value
             .as_array()
             .ok_or("deviceSignature is not a COSE_Sign1")?;

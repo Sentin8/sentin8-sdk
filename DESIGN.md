@@ -367,27 +367,77 @@ graph TD
   whose protected header carries `x5chain` (the DS certificate). The
   digests: every IssuerSignedItem's `SHA-256(CBOR(item))` lands in
   `valueDigests[namespace][digestID]`.
-- `DeviceResponse` (ISO 18013-7 §8, the OID4VP vp_token): the
-  unpadded-base64url CBOR array `[version, documents, status]` with
-  one Document whose `deviceSigned` is EMPTY (the suite's
-  EnsureMdocDeviceSignedElementsEmpty) and whose `deviceSignature` is
-  a COSE_Sign1 over `[deviceNameSpace bytes, sessionTranscript bytes]`
-  with the MSO's device key.
+- `DeviceResponse` (ISO 18013-7 §6, the OID4VP vp_token entry): the
+  unpadded-base64url CBOR MAP `{version: "1.0", documents: [...],
+  status: 0}` (the ISO map form - the verifier's multipaz
+  DeviceResponseParser reads the `version`/`documents` map members;
+  the parse side also accepts the legacy
+  `[version, [{status, documents}], status]` ARRAY form, the builder
+  only emits the map). One Document: `{docType, issuerSigned,
+  deviceSigned}` where `deviceSigned = {nameSpaces:
+  #6.24(bstr(empty DeviceNameSpace map)), deviceAuth:
+  {deviceSignature: COSE_Sign1}}` - the DETACHED `deviceSignature`
+  (null payload) covers `Sig_structure["Signature1", {1: -7},
+  external_aad(empty), #6.24(bstr(DeviceAuthentication))]`, and the
+  `DeviceAuthentication` array is `"DeviceAuthentication" |
+  sessionTranscript (RAW embedded CBOR item) | docType (canonical
+  tstr) | deviceNameSpaces` - the 4th element is the
+  **DeviceNameSpaceBytes ITSELF, the #6.24(bstr(...)) TAG wrapping**
+  the empty DeviceNameSpace map (ISO 18013-5 CDDL:
+  `DeviceNameSpaceBytes = #6.24(bstr .cbor DeviceNameSpace)`). The
+  verifier's multipaz parser appends the RAW
+  `deviceSigned["nameSpaces"]` DataItem to the DA array
+  (DeviceResponseParser.kt), so the signed bytes carry
+  `d8 18 41 a0` - embedding the DECODED map (`a0`) desynchronizes the
+  signature and lands "device-signed data was neither properly MACed
+  nor signed by a DeviceKey". The docType rides the canonical tstr
+  head (0x60+len for <=23 bytes, 0x78+len for 24..255).
 - The SessionTranscript forms (OID4VP 1.0 Final Appendix B.2.6.1/6.2):
   the redirect handover `[client_id, nonce, jwkThumbprint|null,
   response_uri]` and the dc_api handover `[origin, nonce,
   jwkThumbprint|null]` - both wrapped `[null, null, Handover]` with
-  the `["OpenID4VPHandover"|"OpenID4VPDCAPIHandover",
-  SHA-256(HandoverInfo)]` shape.
+  the `"OpenID4VPHandover"|"OpenID4VPDCAPIHandover" |
+  SHA-256(HandoverInfo)` shape. The encoder emits MINIMAL
+  definite-length heads ONLY (`0x60+len` / `0x78+len` / `0x79+u16`
+  for tstr, `0x40+len` / `0x58+len` / `0x59+u16` for bstr): a
+  non-minimal head (a two-byte length form of a <=23-byte string,
+  e.g. `78 11` for "OpenID4VPHandover") desynchronizes the byte-exact
+  transcript the verifier re-derives and breaks the device signature.
+  The handover thumbprint covers the VERIFIER's response-encryption
+  JWK whenever `client_metadata.jwks` carries an EC JWK whose alg is
+  a key-agreement/encryption alg - the JWK `use` member is OPTIONAL
+  (OID4VP 8.3; the suite's "encryption parameters without use" row):
+  requiring `use: "enc"` hashes the UNENCRYPTED HandoverInfo while
+  the verifier hashes the ENCRYPTED one.
 - The 18013-7 status forms: `status` on the MSO is optional; present it
   must be `status_list {idx, uri}` or `identifier_list {id, uri}`.
 
+**The disclosure rule (OID4VP 6.4.1).** The wallet releases ONLY the
+claims the DCQL query reaches: `filter_issuer_signed` re-encodes the
+stored `IssuerSigned` keeping the issuerAuth and the allowlisted
+`(namespace, elementIdentifier)` IssuerSignedItems (dropping an item
+is always legal - the MSO digest coverage is per item, so the
+retained items still verify issuer-side). The filter is form-tolerant
+both ways: the `nameSpaces` member arrives PLAIN (the mock-issuer
+mint: `{ns -> [item...]}`) or Tag24-wrapped (ISO canonical:
+`#6.24(bstr({ns -> [#6.24(bstr(item))]}))`), items arrive plain or
+Tag24-wrapped - the filter drops in place and preserves whatever
+shape the holding carried. A claims-LESS DCQL query ("the wallet MUST
+NOT disclose anything selectively disclosable") discloses NOTHING:
+the caller passes a no-match allowlist and every namespace drops
+out. The IssuerSignedItem `salt` member reads with the `random`
+alias (the suite's mint names the field `random`; serialization
+stays `salt`).
+
 **Key members.** `MsoBuilder` (doc_type, namespaces, device JWK,
 validity window, status -> MSO + IssuerSigned CBOR), `verify_mso`
-(COSE_Sign1 x5chain + digest coverage), `DeviceResponseBuilder`
-(selective disclosure by digestID disclosure, the deviceSignature over
-the transcript), `parse_device_response` (+ transcript verification),
-the transcript calculators. The engine holds NO storage, NO HTTP -
+(COSE_Sign1 x5chain + digest coverage), `build_device_response` (the
+ISO map DeviceResponse + the detached deviceAuthentication
+signature), `parse_device_response` (the map form + legacy array
+fallback -> ParsedDocument/disclosed_claims), `filter_issuer_signed`
+(the 6.4.1 claim filter), the transcript calculators
+(`redirect_transcript`, `dc_api_transcript`, `jwk_thumbprint_raw`).
+The engine holds NO storage, NO HTTP -
 pure codecs and crypto; the roles own their I/O.
 
 **Invariants.** (1) Deterministic CBOR encoding at every digest site -
@@ -398,7 +448,14 @@ are tdate - second precision, `Z`, no fractions. (3) The x5chain leaf
 is the DS certificate whose curve pairs with the COSE alg (ES256 ->
 P-256). (4) The device key in the MSO is the key the proof
 demonstrated (RFC 7638 thumbprint equality, the suite's
-VCIEnsureMdocDeviceKeyMatchesProofKey).
+VCIEnsureMdocDeviceKeyMatchesProofKey). (5) The DA's nameSpaces
+element is the TAGGED DeviceNameSpaceBytes - never the decoded map -
+and every transcript member head is MINIMAL canonical CBOR: both
+bytes feed the device signature the verifier re-derives byte-exactly
+(a drift = "neither properly MACed nor signed"). (6) The detached
+deviceSignature payload is null - the verifier rebuilds the payload
+from its own DA derivation; embedding any payload double-binds the
+signature.
 
 **Rejected alternatives.** A per-role implementation (issuer-side in
 auth, wallet-side in wallet8 - duplicates the digest/transcript logic

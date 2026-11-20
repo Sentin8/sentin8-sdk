@@ -122,8 +122,12 @@ pub struct IssuerSignedItem {
     /// The `digestID` (the disclosure selector).
     #[serde(rename = "digestID")]
     pub digest_id: u64,
-    /// The per-item random `salt` (16 bytes, bstr).
-    #[serde(with = "serde_bstr")]
+    /// The per-item random `salt` (16 bytes, bstr). ISO 18013-5
+    /// names the member `random` - the deserialize alias accepts it
+    /// (the suite-minted items carry it); the serialize side keeps
+    /// `salt`, so the minted artifacts' digests stay byte-identical
+    /// to what the MsoBuilder computed.
+    #[serde(with = "serde_bstr", alias = "random")]
     pub salt: Vec<u8>,
     /// The `elementIdentifier`.
     #[serde(rename = "elementIdentifier")]

@@ -94,7 +94,8 @@ pub use issuer_signed::build_issuer_signed;
 
 pub mod device_response;
 pub use device_response::{
-    build_device_response, disclosed_claims, parse_device_response, DeviceResponseInput,
+    build_device_response, disclosed_claims, filter_issuer_signed, parse_device_response,
+    ClaimAllowlist, DeviceResponseInput,
 };
 
 /// The claims of a base64url IssuerSigned mdoc in the DCQL claims
@@ -140,10 +141,82 @@ pub fn cbor_bytes<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, String> {
 }
 
 /// Decode CBOR bytes into a `serde_json::Value` tree.
+///
+/// Ciborium rejects tagged CBOR values when converting straight into
+/// `serde_json::Value` ("invalid type: enum") - and the ISO 18013-5
+/// IssuerSigned's `nameSpaces` items are CBOR Tag(24)-wrapped
+/// (`#6.24(bstr .cbor IssuerSignedItem)`): the embedded item bytes are
+/// themselves CBOR. The decode walks ciborium's own `Value` type and
+/// unwraps tags into their wrapped form: Tag(24) decodes the wrapped
+/// bytes as CBOR recursively, every other tag is dropped (the tag
+/// number carries no data the claim matching reads).
+///
+/// # Errors
+/// Descriptive strings on malformed CBOR.
 pub fn cbor_to_json(bytes: &[u8]) -> Result<serde_json::Value, String> {
-    let v: serde_json::Value =
-        ciborium::from_reader(bytes).map_err(|e| format!("cbor decode: {e}"))?;
-    Ok(v)
+    use ciborium::value::Value as Cbor;
+    fn walk(v: Cbor) -> Result<serde_json::Value, String> {
+        match v {
+            // ISO 18013-5: the namespaced items ride Tag(24) - the
+            // wrapped bytes ARE the CBOR item; decode them recursively.
+            // Tag(24) always wraps a byte string; a tagged value that
+            // arrives as another form falls through to the generic
+            // tag-drop.
+            Cbor::Tag(24, inner) if matches!(&*inner, Cbor::Bytes(_)) => {
+                let bytes = match *inner {
+                    Cbor::Bytes(b) => b,
+                    _ => unreachable!("guard above"),
+                };
+                let raw: Cbor = ciborium::from_reader(&bytes[..])
+                    .map_err(|e| format!("cbor tag24 decode: {e}"))?;
+                walk(raw)
+            }
+            Cbor::Tag(_, inner) => walk(*inner),
+            Cbor::Null => Ok(serde_json::Value::Null),
+            Cbor::Bool(b) => Ok(serde_json::Value::Bool(b)),
+            Cbor::Integer(i) => Ok(serde_json::json!(i128::from(i))),
+            Cbor::Float(f) => {
+                Ok(serde_json::Number::from_f64(f)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::Null))
+            }
+            Cbor::Bytes(b) => Ok(serde_json::Value::Array(
+                b.iter().map(|x| serde_json::json!(x)).collect(),
+            )),
+            Cbor::Text(t) => Ok(serde_json::Value::String(t)),
+            Cbor::Array(items) => {
+                let mut out = Vec::with_capacity(items.len());
+                for it in items {
+                    out.push(walk(it)?);
+                }
+                Ok(serde_json::Value::Array(out))
+            }
+            Cbor::Map(pairs) => {
+                let mut m = serde_json::Map::new();
+                for (k, val) in pairs {
+                    let key = match k {
+                        Cbor::Text(t) => t,
+                        // The integer-keyed form maps over the
+                        // canonical decimal form (the CBOR map keys
+                        // the claim parser reads are text in
+                        // practice).
+                        Cbor::Integer(i) => i128::from(i).to_string(),
+                        other => {
+                            return Err(format!(
+                                "cbor map key {other:?}: not a text/integer"
+                            ))
+                        }
+                    };
+                    m.insert(key, walk(val)?);
+                }
+                Ok(serde_json::Value::Object(m))
+            }
+            other => Err(format!("cbor value {other:?}: unmappable")),
+        }
+    }
+    let v: Cbor = ciborium::from_reader(bytes)
+        .map_err(|e| format!("cbor decode: {e}"))?;
+    walk(v)
 }
 
 #[cfg(test)]
