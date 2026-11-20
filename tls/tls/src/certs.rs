@@ -23,14 +23,15 @@ use rustls::sign::CertifiedKey;
 const FETCH_FAILURE_BACKOFF_S: u64 = 30;
 
 /// How long a HANDSHAKE may wait for an in-flight on-demand cert mint.
-/// The mint's own bound is 3s connect + 10s total per HTTP hop, but the
-/// observed worst case (Acme queue + issuer issuance) is ~15s; the OIDF
-/// suite's Java fetcher is single-shot, so a wait shorter than the mint
-/// turns a healthy mint into a spurious `access_denied` on first touch
-/// (VCI issuer runs: two of four modules ate this race). 45s covers 2x
-/// the observed worst case; the failure backoff still bounds retry
-/// storms independently.
-const CERT_FETCH_WAIT_S: u64 = 45;
+/// The mint's own bound is 3s connect + 10s total per HTTP hop for a
+/// LOCAL order; the observed worst case (Acme queue + issuer issuance)
+/// is ~15s. An EXTERNAL order (rig `public` mode, RIGMODE-1) rides the
+/// upstream relay: public-CA http-01 validation takes 10-60s end to end,
+/// so the wait must cover a full validation cycle. 90s (2x the acme
+/// poll window's effective external latency, and 2x the local worst
+/// case) keeps both shapes inside one handshake wait; the failure
+/// backoff still bounds retry storms independently.
+const CERT_FETCH_WAIT_S: u64 = 90;
 
 /// A SNI-aware certificate resolver that fetches certs on-the-fly from
 /// Acme when an unknown SNI arrives.
