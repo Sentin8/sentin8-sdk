@@ -91,6 +91,7 @@ pub use mso::{Mso, MsoBuilder};
 
 pub mod issuer_signed;
 pub use issuer_signed::build_issuer_signed;
+pub use issuer_signed::json_to_cbor;
 
 pub mod device_response;
 pub use device_response::{
@@ -101,6 +102,13 @@ pub use device_response::{
 /// The claims of a base64url IssuerSigned mdoc in the DCQL claims
 /// path form (OID4VP 7.2: `namespace/element` keys) - the wallet-side
 /// view the 6.4.1 value matching reads.
+///
+/// An element whose VALUE is a map (e.g. `place_of_birth =
+/// {locality, country}`) is ALSO addressable member-by-member
+/// (`namespace/element/locality`): the §6.4.1 `claim_sets` preference
+/// resolves against exactly that key, so the nested members are
+/// flattened alongside the parent. Arrays keep the parent key only -
+/// a DCQL path descends object members, never array indices.
 ///
 /// # Errors
 /// Descriptive strings on decode/parse failures (the caller degrades
@@ -116,12 +124,34 @@ pub fn parse_issuer_signed_claims(
     let claims = crate::disclosed_claims(&json)?;
     let mut map = std::collections::BTreeMap::new();
     for (namespace, item) in claims {
-        map.insert(format!("{namespace}/{}", item.element_identifier), item.element_value);
+        let key = format!("{namespace}/{}", item.element_identifier);
+        map.insert(key.clone(), item.element_value.clone());
+        flatten_object_members(&mut map, &key, &item.element_value);
     }
     if map.is_empty() {
         return Ok(None);
     }
     Ok(Some(map))
+}
+
+/// Flatten an object-valued element's members into
+/// `prefix/member` DCQL path keys (recursively).
+fn flatten_object_members(
+    map: &mut std::collections::BTreeMap<String, serde_json::Value>,
+    prefix: &str,
+    value: &serde_json::Value,
+) {
+    let Some(obj) = value.as_object() else {
+        return;
+    };
+    for (k, v) in obj {
+        if k.starts_with('_') {
+            continue; // the selective-disclosure markers
+        }
+        let path = format!("{prefix}/{k}");
+        map.insert(path.clone(), v.clone());
+        flatten_object_members(map, &path, v);
+    }
 }
 
 pub mod transcript;

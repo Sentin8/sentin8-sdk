@@ -263,10 +263,124 @@ pub fn parse_device_response(
             }
             None => ciborium_value_to_json(&issuer_signed_cbor),
         };
+        // The MSO's revocation pointer: the issuerAuth COSE_Sign1's
+        // payload (Tag24-wrapped MSO map or the bare form) decodes to
+        // the `status` member; the pointer's mechanism rides the
+        // member's key (status_list | identifier_list). The bridge
+        // renders the pointer map with the TEXT keys (no int labels).
+        let status_ref = issuer_signed_json
+            .get("issuerAuth")
+            .and_then(|a| a.get(2))
+            .and_then(|p| p.as_str())
+            .and_then(|p_b64| {
+                base64::engine::general_purpose::URL_SAFE_NO_PAD
+                    .decode(p_b64)
+                    .ok()
+            })
+            .and_then(|payload| {
+                let bytes: Vec<u8> = if payload.len() >= 2
+                    && payload[0] == 0xd8
+                    && payload[1] == 0x18
+                {
+                    // Tag24: peel d8 18 + the bstr head, hand the map.
+                    let mut o = 2;
+                    let h = payload[o];
+                    o += 1;
+                    let inner = (h & 0x1f) as usize;
+                    let len = if inner < 24 {
+                        inner
+                    } else if inner == 24 {
+                        let l = payload[o] as usize;
+                        o += 1;
+                        l
+                    } else if inner == 25 {
+                        let l = u16::from_be_bytes([payload[o], payload[o + 1]])
+                            as usize;
+                        o += 2;
+                        l
+                    } else {
+                        let l = u32::from_be_bytes([
+                            payload[o],
+                            payload[o + 1],
+                            payload[o + 2],
+                            payload[o + 3],
+                        ]) as usize;
+                        o += 4;
+                        l
+                    };
+                    payload[o..o + len].to_vec()
+                } else {
+                    payload.clone()
+                };
+                let mso: ciborium::Value =
+                    ciborium::from_reader(bytes.as_slice()).ok()?;
+                let status = mso
+                    .into_map()
+                    .ok()?
+                    .into_iter()
+                    .find(|(k, _)| k.as_text() == Some("status"))
+                    .map(|(_, v)| v)?;
+                let map = status.as_tag().map(|(_, v)| v).map(|v| v.clone()).unwrap_or(status);
+                let pairs = map.as_map()?;
+                let get = |key: &str| -> Option<ciborium::Value> {
+                    pairs
+                        .iter()
+                        .find(|(k, _)| k.as_text() == Some(key))
+                        .map(|(_, v)| v.clone())
+                };
+                let read_ref = |mech: &'static str,
+                                node: ciborium::Value|
+                 -> Option<StatusReference> {
+                    let node = node
+                        .as_tag()
+                        .map(|(_, v)| v.clone())
+                        .unwrap_or(node);
+                    let uri = node
+                        .as_map()?
+                        .iter()
+                        .find(|(k, _)| k.as_text() == Some("uri"))
+                        .and_then(|(_, v)| v.as_text())?
+                        .to_string();
+                    // The identifier-list arm keys on the bstr `id`
+                    // (no idx); the status-list arm keys on `idx`.
+                    let identifier = node
+                        .as_map()?
+                        .iter()
+                        .find(|(k, _)| k.as_text() == Some("id"))
+                        .and_then(|(_, v)| match v {
+                            ciborium::Value::Bytes(b) => {
+                                use base64::Engine as _;
+                                Some(base64::engine::general_purpose::URL_SAFE_NO_PAD
+                                    .encode(b))
+                            }
+                            ciborium::Value::Text(t) => Some(t.clone()),
+                            _ => None,
+                        });
+                    let idx = node
+                        .as_map()?
+                        .iter()
+                        .find(|(k, _)| k.as_text() == Some("idx"))
+                        .and_then(|(_, v)| {
+                            let i: i128 = v.as_integer()?.into();
+                            u32::try_from(i).ok()
+                        })
+                        .unwrap_or(0);
+                    if identifier.is_none() && mech == "identifier_list" {
+                        return None;
+                    }
+                    Some(StatusReference { uri, idx, identifier, mechanism: mech })
+                };
+                if let Some(node) = get("status_list") {
+                    return read_ref("status_list", node);
+                }
+                get("identifier_list")
+                    .and_then(|node| read_ref("identifier_list", node))
+            });
         out.push(ParsedDocument {
             doc_type,
             issuer_signed: issuer_signed_json,
             raw: ciborium_value_to_json(&doc),
+            status_ref,
         });
     }
     Ok(out)
@@ -275,8 +389,18 @@ pub fn parse_device_response(
 fn ciborium_value_to_json(v: &ciborium::Value) -> serde_json::Value {
     use base64::Engine;
     match v {
+        // Tag(24) = the ISO IssuerSignedItem wrap (#6.24(bstr)): decode
+        // the wrapped bytes and render the inner item - the digest
+        // validator + the claim readers see the item's canonical map.
+        ciborium::Value::Tag(24, inner) => match inner.as_ref() {
+            ciborium::Value::Bytes(b) => match ciborium::from_reader(b.as_slice()) {
+                Ok(item) => ciborium_value_to_json(&item),
+                Err(_) => serde_json::Value::Null,
+            },
+            other => ciborium_value_to_json(other),
+        },
         ciborium::Value::Integer(i) => {
-            let n: i128 = (*i).into();
+            let n: i64 = i64::try_from(Into::<i128>::into(*i)).unwrap_or(0);
             serde_json::json!(n)
         }
         ciborium::Value::Bytes(b) => serde_json::json!(
@@ -295,7 +419,7 @@ fn ciborium_value_to_json(v: &ciborium::Value) -> serde_json::Value {
                 let key = match k {
                     ciborium::Value::Text(t) => t.clone(),
                     ciborium::Value::Integer(i) => {
-                        let n: i128 = (*i).into();
+                        let n: i64 = i64::try_from(Into::<i128>::into(*i)).unwrap_or(0);
                         format!("{n}")
                     }
                     ciborium::Value::Bytes(b) => {
@@ -319,6 +443,26 @@ pub struct ParsedDocument {
     pub issuer_signed: serde_json::Value,
     /// The raw parsed document value.
     pub raw: serde_json::Value,
+    /// The MSO's 18013-7 revocation pointer
+    /// (`status.status_list {idx, uri}` or the identifier-list twin).
+    pub status_ref: Option<StatusReference>,
+}
+
+/// The MSO's revocation pointer: the list URI + the credential's
+/// entry index (the verifier's fetch + bit-read inputs).
+#[derive(Debug, Clone)]
+pub struct StatusReference {
+    /// The status list's URI (the Token Status List endpoint).
+    pub uri: String,
+    /// The credential's index in the list (`status_list.idx`; 0 for
+    /// the identifier-list mechanism, which keys on `identifier`).
+    pub idx: u32,
+    /// The identifier-list mechanism's opaque identifier bytes
+    /// (`identifier_list.id` - a CBOR bstr; base64url in the JSON
+    /// projection).
+    pub identifier: Option<String>,
+    /// The mechanism (`status_list` | `identifier_list`).
+    pub mechanism: &'static str,
 }
 
 /// Extract the disclosed `(namespace, elementIdentifier, value)` triples
@@ -344,22 +488,27 @@ pub fn disclosed_claims(
             // The bstr salt arrives as a base64url string after the
             // ciborium->JSON conversion; IssuerSignedItem's serde wants
             // the raw bytes - decode into the `salt` member's raw form.
-            if let Some(s) = item_json
-                .get("salt")
-                .and_then(|v| v.as_str())
-                .map(str::to_string)
-            {
-                use base64::Engine;
+            // BOTH names decode: the mint's `salt` and the ISO 18013-5
+            // `random` member the suite-minted items carry (the serde
+            // alias accepts either name; the STRING form fails the
+            // parse, so the b64url bridge form MUST be re-decoded here).
+            for key in ["salt", "random"] {
+                use base64::Engine as _;
+                let Some(s) = item_json.get(key).and_then(|v| v.as_str()) else {
+                    continue;
+                };
                 let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-                    .decode(&s)
+                    .decode(s)
                     .unwrap_or_default();
-                if let Some(obj) = item_json.as_object_mut() {
-                    obj.insert(
-                        "salt".into(),
-                        serde_json::Value::Array(
-                            bytes.iter().map(|b| serde_json::json!(b)).collect(),
-                        ),
-                    );
+                if !bytes.is_empty() {
+                    if let Some(obj) = item_json.as_object_mut() {
+                        obj.insert(
+                            key.to_string(),
+                            serde_json::Value::Array(
+                                bytes.iter().map(|b| serde_json::json!(b)).collect(),
+                            ),
+                        );
+                    }
                 }
             }
             let parsed: IssuerSignedItem = serde_json::from_value(item_json)
@@ -651,24 +800,64 @@ mod tests {
         let auth2 = find(iss_map, "issuerAuth").unwrap();
         let Value::Array(sign1) = &auth2 else { panic!("issuerAuth Sign1") };
         let Value::Bytes(mso_payload) = &sign1[2] else { panic!("MSO payload") };
-        let mso: Value = ciborium::from_reader(mso_payload.as_slice()).unwrap();
+        // The mint wraps the MSO in the ISO Tag24 (#6.24) - peel the
+        // wrapper (verify.rs accepts both forms).
+        // Tag24 encodes d8 18 <bstr-header> <contents>: skip the tag +
+        // the bstr header to reach the MSO map bytes.
+        let mso_bytes: &[u8] = {
+            if mso_payload.len() >= 2 && mso_payload[0] == 0xd8 && mso_payload[1] == 0x18 {
+                let mut o = 2;
+                let b = mso_payload[o];
+                o += 1;
+                let inner = (b & 0x1f) as usize;
+                let len = if inner < 24 {
+                    inner
+                } else if inner == 24 {
+                    let l = mso_payload[o] as usize;
+                    o += 1;
+                    l
+                } else if inner == 25 {
+                    let l = u16::from_be_bytes([mso_payload[o], mso_payload[o + 1]]) as usize;
+                    o += 2;
+                    l
+                } else {
+                    let l = u32::from_be_bytes([
+                        mso_payload[o],
+                        mso_payload[o + 1],
+                        mso_payload[o + 2],
+                        mso_payload[o + 3],
+                    ]) as usize;
+                    o += 4;
+                    l
+                };
+                &mso_payload[o..o + len]
+            } else {
+                mso_payload
+            }
+        };
+        let mso: Value = ciborium::from_reader(mso_bytes).unwrap();
         let Value::Map(mso_map) = &mso else { panic!("MSO map") };
         let dk_info = find(mso_map, "deviceKeyInfo").unwrap();
         let Value::Map(dk_map) = &dk_info else { panic!("deviceKeyInfo map") };
         let dk = find(dk_map, "deviceKey").unwrap();
-        // The mint serializes deviceKey as a JWK map (kty/crv/x/y
-        // base64url members - verify.rs jwk_from_verifying_key).
-        let Value::Map(dk_jwk) = &dk else { panic!("deviceKey JWK map") };
-        let get_b64 = |name: &str| -> Vec<u8> {
-            dk_jwk
-                .iter()
-                .find(|(k, _)| k.as_text() == Some(name))
-                .and_then(|(_, v)| v.as_text())
-                .map(|s| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(s).unwrap())
-                .unwrap()
+        // The mint serializes deviceKey as a COSE_Key map (int labels;
+        // -2/-3 the raw coordinate bytes - the CoseDeviceKey form).
+        let Value::Map(dk_items) = &dk else { panic!("deviceKey COSE map") };
+        let read_label = |labels: &[i64]| -> Option<Vec<u8>> {
+            for (k, v) in dk_items.iter() {
+                if let Value::Integer(i) = k {
+                    let n: i64 = i64::try_from(Into::<i128>::into(*i)).unwrap_or(0);
+                    if labels.contains(&n) {
+                        if let Value::Bytes(b) = v {
+                            return Some(b.clone());
+                        }
+                    }
+                }
+            }
+            None
         };
-        let xb = get_b64("x");
-        let yb = get_b64("y");
+        let xb = read_label(&[-2]).unwrap();
+        let yb = read_label(&[-3]).unwrap();
         let ep = p256::EncodedPoint::from_affine_coordinates(xb.as_slice().into(), yb.as_slice().into(), false);
         let vk = p256::ecdsa::VerifyingKey::from_encoded_point(&ep).unwrap();
         let signature = p256::ecdsa::Signature::from_slice(sig).unwrap();
@@ -778,12 +967,11 @@ mod tests {
 
     #[test]
     fn filter_preserves_tag24_form() {
-        // The ISO-canonical holdings arrive Tag24-wrapped (both the
-        // nameSpaces member and the items) - the filter preserves that
-        // byte shape and still drops by elementIdentifier.
-        // Build a plain IssuerSigned, then TAG-wrap it the way a multipaz
-        // wallet stores it (nameSpaces -> Tag24(bstr(map)); items ->
-        // Tag24(bstr(item))).
+        // The ISO-canonical holdings arrive Tag24-wrapped (the
+        // nameSpaces member as a whole) and the mint NOW tags each item
+        // already - the test wraps only the ns map (the multipaz wallet
+        // storage shape) on top; the filter preserves that byte shape
+        // and still drops by elementIdentifier.
         use ciborium::value::Value;
         use base64::Engine;
         let cred = minted_issuer_signed_b64(vec![
@@ -810,9 +998,9 @@ mod tests {
             ns_map
                 .iter()
                 .map(|(k, v)| {
-                    let Value::Array(items) = v else { panic!("item array") };
-                    let tagged_items: Vec<Value> = items.iter().map(build_tagged_map).collect();
-                    (k.clone(), Value::Array(tagged_items))
+                    // The items are ALREADY Tag24-wrapped (the mint's native
+                // form) - ride them unchanged here.
+                (k.clone(), v.clone())
                 })
                 .collect(),
         );

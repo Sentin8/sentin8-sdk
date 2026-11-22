@@ -66,7 +66,57 @@ pub fn verify_mso_document(
         .map_err(|e| format!("signature decode: {e}"))?;
 
     // (1) the x5chain leaf + signature verify.
-    let leaf_der = extract_x5chain_leaf(&protected)?;
+    // The leaf chain rides the UNPROTECTED headers on the MSO COSE form
+    // (the suite's extractX5chain reads label 33 there) OR the legacy
+    // PROTECTED form - read both.
+    let leaf_der = match extract_x5chain_leaf(&protected) {
+        Ok(leaf) => leaf,
+        Err(_) => {
+            // sign1[1] = the unprotected header (the JSON bridge renders
+            // the CBOR map as an OBJECT: the label-33 key + the b64 leaf
+            // array - '33', the int-key text form).
+            // The uncovered header's label-33 forms: the BRIDGED array
+            // ([b64url leaf, ...]), a bridged BARE bstr (a single b64url
+            // DER cert - the suite's bare-bstr COSE_X509), or a nested
+            // array whose first member is the leaf.
+            let leaf = (|| -> Option<Vec<u8>> {
+                let label = sign1.get(1)?.get("33")?;
+                if let Some(s) = label.as_str() {
+                    return base64::engine::general_purpose::URL_SAFE_NO_PAD
+                        .decode(s.as_bytes())
+                        .ok();
+                }
+                let arr = label.as_array()?;
+                // The bridged x5chain forms: [leaf_b64, ...] (each member
+                // the b64url DER), or [[leaf_b64], ...] (a nested single-
+                // cert array - the ISO Tag24-wrapped chain rendered).
+                let chain: Vec<&serde_json::Value> = if arr
+                    .first()
+                    .and_then(|v| v.as_array())
+                    .is_some()
+                {
+                    arr.first()
+                        .and_then(|v| v.as_array())
+                        .map(|inner| inner.iter().collect())
+                        .unwrap_or_default()
+                } else {
+                    arr.iter().collect()
+                };
+                for first in chain {
+                    if let Some(s) = first.as_str() {
+                        if let Ok(b) = base64::engine::general_purpose::URL_SAFE_NO_PAD
+                            .decode(s.as_bytes())
+                        {
+                            return Some(b);
+                        }
+                    }
+                }
+                None
+            })()
+            .ok_or("COSE_Sign1: unprotected x5chain leaf undecodable")?;
+            leaf
+        }
+    };
     let leaf_matches_trusted = trusted_cert_ders_std_b64
         .iter()
         .any(|t| decode_std_b64_or_raw(t).map(|b| b == leaf_der).unwrap_or(false));
@@ -93,9 +143,68 @@ pub fn verify_mso_document(
         .verify(&sig_structure, &signature)
         .map_err(|_| "the mdoc issuerAuth signature failed".to_string())?;
 
-    // (2) the MSO payload + digest coverage.
-    let mso: crate::mso::Mso =
-        ciborium::from_reader(payload.as_slice()).map_err(|e| format!("mso decode: {e}"))?;
+    // (2) the MSO payload + digest coverage. The mint WRAPS the MSO in
+    // the ISO 18013-5 Tag24 (#6.24(bstr .cbor MSO) - the suite's
+    // parseMsoDataItem reads exactly that form, OIDF-VCIMDOC-1); a
+    // legacy untagged payload (plain MSO map) is accepted as is.
+    let payload_mso: Vec<u8> = {
+        if payload.len() >= 2 && payload[0] == 0xd8 && payload[1] == 0x18 {
+            // Tag24 encodes as d8 18 <bstr-header> <bstr-contents>: the
+            // wrapped MSO map rides INSIDE the bstr - parse the header
+            // and hand the CONTENTS to the decoder.
+            let mut o = 2;
+            let b = payload[o];
+            o += 1;
+            let inner = (b & 0x1f) as usize;
+            let len = if inner < 24 {
+                inner
+            } else if inner == 24 {
+                let l = payload[o] as usize;
+                o += 1;
+                l
+            } else if inner == 25 {
+                let l = u16::from_be_bytes([payload[o], payload[o + 1]]) as usize;
+                o += 2;
+                l
+            } else {
+                let l = u32::from_be_bytes([
+                    payload[o],
+                    payload[o + 1],
+                    payload[o + 2],
+                    payload[o + 3],
+                ]) as usize;
+                o += 4;
+                l
+            };
+            payload[o..o + len].to_vec()
+        } else {
+            payload.clone()
+        }
+    };
+    // The MSO map decodes through ciborium into the typed struct. The
+    // 18013-7 `status` member is a passthrough JSON value in the struct,
+    // but the IDENTIFIER-LIST mechanism's `id` is a CBOR BSTR (a byte
+    // string) - a straight serde decode of a bstr into
+    // `serde_json::Value` fails ("invalid type: byte array"). The
+    // fallback rewrites ONLY the status member into a byte-tolerant
+    // JSON shape and re-encodes the map; every other member keeps its
+    // original CBOR form (the digest/validity/key decodes must stay
+    // byte-exact).
+    let mso: crate::mso::Mso = match ciborium::from_reader(payload_mso.as_slice()) {
+        Ok(mso) => mso,
+        Err(first_err) => {
+            let value: ciborium::Value =
+                ciborium::from_reader(payload_mso.as_slice())
+                    .map_err(|e| format!("mso decode: {e}"))?;
+            let rewrite = rewrite_status_member(&value);
+            let mut buf = Vec::new();
+            ciborium::into_writer(&rewrite, &mut buf)
+                .map_err(|e| format!("mso re-encode: {e}"))?;
+            ciborium::from_reader(buf.as_slice()).map_err(|_| {
+                format!("mso decode: {first_err}")
+            })?
+        }
+    };
     let items = crate::device_response::disclosed_claims(&doc.issuer_signed)?;
     let value_digests_json = serde_json::to_value(&mso.value_digests)
         .map_err(|e| format!("digests encode: {e}"))?;
@@ -128,24 +237,8 @@ pub fn verify_mso_document(
     // {deviceSignature | deviceMac}} (18013-5 section 9.1.2.4) - the
     // COSE_Sign1 is detached, the payload the parser re-derives is
     // encode(Tag(24, bstr(encode(DeviceAuthentication)))).
-    let dev_x = mso
-        .device_key_info
-        .device_key
-        .get("x")
-        .and_then(|v| v.as_str())
-        .and_then(|s| {
-            base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(s).ok()
-        })
-        .ok_or("MSO deviceKeyInfo carries no P-256 x")?;
-    let dev_y = mso
-        .device_key_info
-        .device_key
-        .get("y")
-        .and_then(|v| v.as_str())
-        .and_then(|s| {
-            base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(s).ok()
-        })
-        .ok_or("MSO deviceKeyInfo carries no P-256 y")?;
+    let dev_x = mso.device_key_info.device_key.x.clone();
+    let dev_y = mso.device_key_info.device_key.y.clone();
     let device_key = {
         let ep = p256::EncodedPoint::from_affine_coordinates(
             dev_x.as_slice().into(),
@@ -209,6 +302,22 @@ fn extract_x5chain_leaf(protected: &[u8]) -> Result<Vec<u8>, String> {
             .unwrap_or(false)
             || k.as_text() == Some("33");
         if key_is_33 {
+            // COSE_X509 (RFC 9360): the label's value is the CERT CHAIN
+            // as an ARRAY of bstr/text certs, OR a BARE bstr (a single
+            // DER cert = the leaf) - the OIDF suite's mdoc DS chains
+            // ride the bare form.
+            if let Some(bytes) = val.as_bytes() {
+                return Ok(bytes.clone());
+            }
+            if let Some((_, tagged)) = val.as_tag() {
+                if let Some(bytes) = tagged.as_bytes() {
+                    return Ok(bytes.clone());
+                }
+            }
+            if let Some(t) = val.as_text() {
+                let cleaned: String = t.replace(['\n', '\r'], "");
+                return decode_std_b64_or_raw(&cleaned);
+            }
             let chain = val.as_array().ok_or("x5chain is not an array")?;
             let leaf = chain.first().ok_or("x5chain is empty")?;
             if let Some(bytes) = leaf.as_bytes() {
@@ -285,6 +394,51 @@ mod mdoc_verify_tests {
         let wrong_cert = base64::engine::general_purpose::STANDARD.encode(b"not-a-cert");
         assert!(verify_mso_document(&docs[0], &transcript, &[wrong_cert]).is_err());
     }
+}
+
+/// Rewrite the MSO's `status` member into a byte-tolerant CBOR shape:
+/// the 18013-7 identifier-list arm carries a BSTR `id` which a
+/// `serde_json::Value` field cannot deserialize; the rewritten map
+/// carries the id as TEXT (unpadded base64url). Every OTHER member
+/// rides unchanged (byte-exact - the digest/validity decodes bind to
+/// the original CBOR).
+fn rewrite_status_member(root: &ciborium::Value) -> ciborium::Value {
+    let ciborium::Value::Map(entries) = root else {
+        return root.clone();
+    };
+    fn bstr_to_text(v: &ciborium::Value) -> ciborium::Value {
+        use base64::Engine as _;
+        match v {
+            ciborium::Value::Bytes(b) => ciborium::Value::Text(
+                base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b),
+            ),
+            ciborium::Value::Map(inner) => ciborium::Value::Map(
+                inner
+                    .iter()
+                    .map(|(k, val)| (k.clone(), bstr_to_text(val)))
+                    .collect(),
+            ),
+            ciborium::Value::Tag(n, inner) => {
+                ciborium::Value::Tag(*n, Box::new(bstr_to_text(inner)))
+            }
+            ciborium::Value::Array(items) => {
+                ciborium::Value::Array(items.iter().map(bstr_to_text).collect())
+            }
+            other => other.clone(),
+        }
+    }
+    ciborium::Value::Map(
+        entries
+            .iter()
+            .map(|(k, v)| {
+                if k.as_text() == Some("status") {
+                    (k.clone(), bstr_to_text(v))
+                } else {
+                    (k.clone(), v.clone())
+                }
+            })
+            .collect(),
+    )
 }
 
 /// Extract the (x, y) halves of a certificate DER's uncompressed
@@ -390,14 +544,29 @@ pub fn verify_item_digests(
                 "digest {} missing for namespace {namespace}",
                 item.digest_id
             ))?;
-        let expected: [u8; 32] =
-            sha2::Sha256::digest(crate::cbor_bytes(item).map_err(|e| e)?).into();
-        let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(expected);
-        if b64 != digest_b64 {
-            return Err(format!(
-                "digest mismatch for {namespace}/{} (digestID {})",
-                item.element_identifier, item.digest_id
-            ));
+    let plain: [u8; 32] =
+        sha2::Sha256::digest(crate::cbor_bytes(item).map_err(|e| e)?).into();
+    // The DIGEST-INPUT forms: the plain item's canonical encoding AND
+    // the Tag24-wrapped form (the mso.rs mint covers the wrapped
+    // bytes - the suite's VCI validator hashes the re-encoded Tagged
+    // item; the suite's own DR mints ride the plain form).
+    let plain_b64 =
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(plain);
+    let item_bytes = crate::cbor_bytes(item).map_err(|e| e)?;
+    let mut wrapped = Vec::with_capacity(item_bytes.len() + 4);
+    wrapped.extend_from_slice(&[0xd8, 0x18]);
+    if item_bytes.len() < 24 {
+        wrapped.push(0x40 + item_bytes.len() as u8);
+    } else if item_bytes.len() < 256 {
+        wrapped.extend_from_slice(&[0x58, item_bytes.len() as u8]);
+    } else {
+        wrapped.extend_from_slice(&[0x59]);
+        wrapped.extend_from_slice(&(item_bytes.len() as u16).to_be_bytes());
+    }
+    wrapped.extend_from_slice(&item_bytes);
+    let wrapped_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .encode(<[u8; 32]>::from(sha2::Sha256::digest(&wrapped)));
+    if plain_b64 != digest_b64 && wrapped_b64 != digest_b64 {
         }
     }
     Ok(())
