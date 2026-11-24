@@ -370,6 +370,15 @@ pub struct Registration {
     /// Defaults to the service_type minus a leading `sentin8-` prefix when
     /// not explicitly set - matching the platform registry.
     pub subdomain: &'static str,
+    /// Certificate exposure of this service's hostname (acme DESIGN §4.1b).
+    ///
+    /// `"external"` declares that an unmanaged browser reaches this
+    /// service, so its leaf must be signed by a public CA; `"internal"`
+    /// (the default, omitted from the JSON) keeps it on the platform CA.
+    /// Published at enroll to the `tls:exposure` map - acme never infers
+    /// this from the hostname.
+    #[serde(skip_serializing_if = "str_is_empty")]
+    pub exposure: &'static str,
     /// Liveness probe path.
     pub health_path: &'static str,
     /// Admin scopes the service's admin UI/actions require.
@@ -425,6 +434,12 @@ pub struct Registration {
 /// `skip_serializing_if` helper for optional static slices (services that
 /// declare no policies/relations omit the key entirely).
 fn slice_is_empty<T>(s: &[T]) -> bool {
+    s.is_empty()
+}
+
+/// `skip_serializing_if` helper for the optional `exposure` declaration -
+/// an internal service omits the key entirely.
+fn str_is_empty(s: &&'static str) -> bool {
     s.is_empty()
 }
 
@@ -521,6 +536,7 @@ mod tests {
         Registration {
             service_type: "test-svc",
             subdomain: "test-svc",
+            exposure: "",
             health_path: "/v1/health",
             admin_scopes: &[AdminScope::Tuple("test:admin", "test:admin")],
             error_codes: &[],

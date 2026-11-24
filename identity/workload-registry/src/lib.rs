@@ -376,5 +376,322 @@ mod tests {
         // either breaks the fleet.
         assert_eq!(WORKLOADS_KEY, "m2m:workloads");
         assert_eq!(DECLARED_KEY, "m2m:declared");
+        assert_eq!(EXPOSURE_KEY, "tls:exposure");
     }
+
+    #[test]
+    fn exposure_parse_is_fail_safe() {
+        assert_eq!(Exposure::parse("external"), Exposure::External);
+        assert_eq!(Exposure::parse("EXTERNAL"), Exposure::External);
+        assert_eq!(Exposure::parse(" external "), Exposure::External);
+        // Anything unrecognized is internal - a typo must never enable a
+        // public-CA order.
+        assert_eq!(Exposure::parse("internal"), Exposure::Internal);
+        assert_eq!(Exposure::parse("pubic"), Exposure::Internal);
+        assert_eq!(Exposure::parse(""), Exposure::Internal);
+    }
+
+    #[test]
+    fn exposure_as_str_round_trips() {
+        assert_eq!(Exposure::External.as_str(), "external");
+        assert_eq!(Exposure::Internal.as_str(), "internal");
+        assert_eq!(Exposure::parse(Exposure::External.as_str()), Exposure::External);
+        assert_eq!(Exposure::parse(Exposure::Internal.as_str()), Exposure::Internal);
+    }
+
+    /// The matching rules are the load-bearing part (DESIGN §4.1): an exact
+    /// hostname beats a zone entry, the most specific zone wins, and an
+    /// undeclared hostname is internal.
+    #[tokio::test]
+    async fn exposure_matching_rules() {
+        let map = ExposureMap {
+            inner: Arc::new(RwLock::new(HashMap::from([
+                ("dash.ops.sys.example.com".to_string(), Exposure::External),
+                ("*.ops.sys.example.com".to_string(), Exposure::Internal),
+                ("*.prod.ibank.example.com".to_string(), Exposure::External),
+                ("bff.staging.ibank.example.com".to_string(), Exposure::Internal),
+            ]))),
+        };
+
+        // Exact beats zone: the explicit dash exception wins over the
+        // internal platform-plane zone.
+        assert_eq!(
+            map.classify("dash.ops.sys.example.com").await,
+            Exposure::External
+        );
+        // Zone applies to the rest of the platform plane.
+        assert_eq!(
+            map.classify("bus.ops.sys.example.com").await,
+            Exposure::Internal
+        );
+        // Zone covers one-or-more labels beneath it.
+        assert_eq!(
+            map.classify("auth.prod.ibank.example.com").await,
+            Exposure::External
+        );
+        // Exact beats the enclosing zone.
+        assert_eq!(
+            map.classify("bff.staging.ibank.example.com").await,
+            Exposure::Internal
+        );
+        // Undeclared ⇒ internal (fail-safe).
+        assert_eq!(map.classify("nobody.example.org").await, Exposure::Internal);
+        // Case and trailing dot are normalized.
+        assert_eq!(
+            map.classify("DASH.OPS.SYS.EXAMPLE.COM.").await,
+            Exposure::External
+        );
+    }
+}
+
+// ── Certificate exposure map (TLS-EXPOSURE-1) ─────────────────────────
+//
+// The second enroll-published map: which hostnames may be served by a
+// PUBLIC CA. Same pattern as `m2m:workloads` - enroll-side writer
+// identity, boot-loaded snapshot, TTL refresh, no database access in the
+// consumer. Design: sentin8-acme DESIGN §4.1b.
+
+/// The Valkey hash key holding the certificate exposure map.
+///
+/// Field = an exact hostname (`dash.ops.sys.example.com`) or a
+/// `*.{zone}` entry; value = [`EXPOSURE_EXTERNAL`]. Absence means
+/// internal (signed by the platform CA) - the fail-safe default.
+pub const EXPOSURE_KEY: &str = "tls:exposure";
+
+/// The value marking a hostname as publicly signed.
+pub const EXPOSURE_EXTERNAL: &str = "external";
+
+/// Certificate exposure of one hostname - who may serve its TLS leaf.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Exposure {
+    /// The platform Intermediate CA signs it; HTTP-01 short-circuits.
+    /// The default for everything undeclared.
+    Internal,
+    /// An upstream public CA signs it - the hostname is reachable by an
+    /// unmanaged browser.
+    External,
+}
+
+impl Exposure {
+    /// Stable lowercase name, as published in the map.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Internal => "internal",
+            Self::External => "external",
+        }
+    }
+
+    /// Parse a published value; anything unrecognized is Internal
+    /// (fail-safe: an unknown value never enables a public CA order).
+    pub fn parse(raw: &str) -> Self {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            EXPOSURE_EXTERNAL => Self::External,
+            _ => Self::Internal,
+        }
+    }
+}
+
+/// The boot-loaded exposure map. Cheap to clone (wraps `Arc`).
+///
+/// Matching rules (DESIGN §4.1):
+/// 1. an exact hostname entry wins;
+/// 2. otherwise the most specific `*.{zone}` entry that covers it;
+/// 3. no entry means [`Exposure::Internal`].
+#[derive(Clone)]
+pub struct ExposureMap {
+    inner: Arc<RwLock<HashMap<String, Exposure>>>,
+}
+
+impl ExposureMap {
+    /// Boot-load the map from Valkey (falling back to the persisted cache
+    /// file on an outage) and spawn the TTL refresh loop.
+    ///
+    /// # Errors
+    ///
+    /// [`RegistryError::Unreachable`] when Valkey is unreachable AND no
+    /// cache file exists. Callers that must boot regardless should use
+    /// [`Self::boot_load_empty`] - an empty map classifies everything
+    /// internal, which is the fail-safe behaviour.
+    pub async fn boot_load(workload: &str) -> Result<Self, RegistryError> {
+        let map = Self {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        };
+        match fetch_exposure_map(workload).await {
+            Ok(entries) => {
+                *map.inner.write().await = entries.clone();
+                persist_exposure_cache(&entries);
+            }
+            Err(e) => match load_exposure_cache() {
+                Some(entries) if !entries.is_empty() => {
+                    tracing::warn!(
+                        error = %e,
+                        count = entries.len(),
+                        "exposure: Valkey unreachable at boot - serving the persisted snapshot"
+                    );
+                    *map.inner.write().await = entries;
+                }
+                _ => return Err(RegistryError::Unreachable(e.to_string())),
+            },
+        }
+        map.spawn_refresh(workload.to_string());
+        Ok(map)
+    }
+
+    /// The fail-open boot path: an empty map that classifies everything
+    /// internal until the refresh loop heals it.
+    pub fn boot_load_empty(workload: &str) -> Self {
+        let map = Self {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        };
+        map.spawn_refresh(workload.to_string());
+        map
+    }
+
+    /// Classify one hostname (request-path read - in-memory, no I/O).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use sentin8_workload_registry::{Exposure, ExposureMap};
+    ///
+    /// # async fn demo() {
+    /// let map = ExposureMap::boot_load_empty("sentin8:acme");
+    /// // Nothing declared: everything is platform-CA signed.
+    /// assert_eq!(map.classify("bus.ops.sys.example.com").await, Exposure::Internal);
+    /// # }
+    /// ```
+    pub async fn classify(&self, hostname: &str) -> Exposure {
+        let host = hostname.trim().trim_end_matches('.').to_ascii_lowercase();
+        let guard = self.inner.read().await;
+
+        // 1. Exact hostname.
+        if let Some(e) = guard.get(&host) {
+            return *e;
+        }
+        // 2. Most specific `*.{zone}`: try the longest suffix first by
+        //    stripping one leading label at a time.
+        let mut rest = host.as_str();
+        while let Some((_, parent)) = rest.split_once('.') {
+            let key = format!("*.{parent}");
+            if let Some(e) = guard.get(&key) {
+                return *e;
+            }
+            rest = parent;
+        }
+        // 3. Undeclared ⇒ internal (fail-safe).
+        Exposure::Internal
+    }
+
+    /// Number of declared entries (operational visibility).
+    pub async fn len(&self) -> usize {
+        self.inner.read().await.len()
+    }
+
+    fn spawn_refresh(&self, workload: String) {
+        let inner = Arc::clone(&self.inner);
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(REFRESH_INTERVAL);
+            ticker.tick().await; // the first tick fires immediately - skip it
+            loop {
+                ticker.tick().await;
+                if let Ok(entries) = fetch_exposure_map(&workload).await {
+                    *inner.write().await = entries;
+                }
+            }
+        });
+    }
+}
+
+/// Read the exposure hash from Valkey.
+async fn fetch_exposure_map(workload: &str) -> Result<HashMap<String, Exposure>, RegistryError> {
+    let url = sentin8_config::Sentin8Config::valkey_url_from_env();
+    let client = sentin8_middleware::valkey_client(&url, workload)
+        .await
+        .map_err(|e| RegistryError::Unreachable(e.to_string()))?;
+    use glide::AsyncCommands as _;
+    let raw: HashMap<String, String> = client
+        .hgetall(EXPOSURE_KEY)
+        .await
+        .map_err(|e| RegistryError::Unreachable(e.to_string()))?;
+    Ok(raw
+        .into_iter()
+        .map(|(host, value)| (host.to_ascii_lowercase(), Exposure::parse(&value)))
+        .collect())
+}
+
+/// Persist the snapshot for a boot-time Valkey outage (best-effort).
+fn persist_exposure_cache(entries: &HashMap<String, Exposure>) {
+    let Some(run_dir) = std::env::var("SENTIN8_RUN_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+    else {
+        return;
+    };
+    let path = std::path::Path::new(&run_dir).join("tls-exposure.json");
+    if let Ok(json) = serde_json::to_string(entries) {
+        if let Err(e) = std::fs::write(&path, json) {
+            tracing::debug!(error = %e, path = %path.display(), "exposure cache write failed");
+        }
+    }
+}
+
+fn load_exposure_cache() -> Option<HashMap<String, Exposure>> {
+    let run_dir = std::env::var("SENTIN8_RUN_DIR").ok()?;
+    let path = std::path::Path::new(&run_dir).join("tls-exposure.json");
+    let json = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&json).ok()
+}
+
+/// Publish one owner's exposure entries (the enroll / app-create path).
+///
+/// `owner` scopes the delete: every entry previously published under that
+/// owner is removed first, so a re-publish converges instead of
+/// accumulating. Idempotent, whole-state per owner.
+///
+/// # Errors
+///
+/// [`RegistryError::Unreachable`] when Valkey cannot be reached - enroll
+/// aborts loudly (the map decides public trust; a silent skip could leave
+/// a stale `external` entry).
+pub async fn publish_exposure(
+    valkey_url: &str,
+    owner: &str,
+    entries: &[(String, Exposure)],
+) -> Result<(), RegistryError> {
+    let client = sentin8_middleware::valkey_client(valkey_url, WRITER_WORKLOAD)
+        .await
+        .map_err(|e| RegistryError::Unreachable(e.to_string()))?;
+    use glide::AsyncCommands as _;
+
+    // Owner ledger: which hostnames this owner published last time.
+    let ledger_key = format!("{EXPOSURE_KEY}:owners");
+    let previous: Option<String> = client
+        .hget(&ledger_key, owner)
+        .await
+        .map_err(|e| RegistryError::Unreachable(e.to_string()))?;
+    if let Some(json) = previous {
+        if let Ok(hosts) = serde_json::from_str::<Vec<String>>(&json) {
+            for host in hosts {
+                let _: Result<usize, _> = client.hdel(EXPOSURE_KEY, &host).await;
+            }
+        }
+    }
+
+    let mut published = Vec::with_capacity(entries.len());
+    for (host, exposure) in entries {
+        let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+        if exposure == &Exposure::Internal {
+            // Absence is the internal marker - never store it.
+            continue;
+        }
+        let _: Result<usize, _> = client
+            .hset(EXPOSURE_KEY, &host, EXPOSURE_EXTERNAL)
+            .await;
+        published.push(host);
+    }
+    if let Ok(json) = serde_json::to_string(&published) {
+        let _: Result<usize, _> = client.hset(&ledger_key, owner, &json).await;
+    }
+    Ok(())
 }
