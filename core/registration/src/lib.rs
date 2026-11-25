@@ -374,9 +374,20 @@ pub struct Registration {
     ///
     /// `"external"` declares that an unmanaged browser reaches this
     /// service, so its leaf must be signed by a public CA; `"internal"`
-    /// (the default, omitted from the JSON) keeps it on the platform CA.
-    /// Published at enroll to the `tls:exposure` map - acme never infers
-    /// this from the hostname.
+    /// keeps it on the platform CA. Published at enroll to the
+    /// `tls:exposure` map - acme never infers this from the hostname.
+    ///
+    /// The FIELD default is still `"internal"` (absence is fail-safe), but
+    /// every `service-registration.json` in the tree now declares it
+    /// EXPLICITLY. The omission was a silent trap: enrollment publishes the
+    /// declaration for the platform plane AND for `{label}.{env}.{org}` in
+    /// every org/env that exists, so an accidental `external` puts a
+    /// fleet-internal name in front of a public CA - and because the
+    /// self-describing path (`--print-registration`) does not emit the
+    /// field, an omitted value used to be indistinguishable from
+    /// "undeclared on purpose". Stating `internal` makes the
+    /// platform-plane boundary auditable at the point someone would be
+    /// tempted to flip it.
     #[serde(skip_serializing_if = "str_is_empty")]
     pub exposure: &'static str,
     /// Liveness probe path.
