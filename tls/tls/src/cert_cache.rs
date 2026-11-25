@@ -25,11 +25,14 @@ use std::path::PathBuf;
 /// Default cap on pre-warmed hostnames (see [`tls_cert_cache_max`]).
 const DEFAULT_CACHE_MAX: usize = 256;
 
-/// The leaf-cache dir: `{SENTIN8_SECRETS_DIR}/tls-certs/{pq_mode}/`
+/// The leaf-cache dir: `{SENTIN8_SECRETS_DIR}/tls-certs/{pq_mode}/{env}/`
 /// (PQCA-1: per-mode namespacing - the cache holds leaves minted under the
 /// ACTIVE transport posture; a leaf of a different family lives in a
-/// different directory and is unreachable by construction). Mirrors the
-/// m2m-credentials derivation (0700 dir holding private keys).
+/// different directory and is unreachable by construction. CERTENV-1: the
+/// same directory is namespaced by the issuer environment, so a leaf
+/// minted against Let's Encrypt staging is unreachable when the process is
+/// pointed at production, and vice versa). Mirrors the m2m-credentials
+/// derivation (0700 dir holding private keys).
 pub fn tls_cert_cache_dir() -> PathBuf {
     let secrets =
         std::env::var("SENTIN8_SECRETS_DIR").unwrap_or_else(|_| "../.run/secrets".to_string());
@@ -48,14 +51,57 @@ pub fn tls_cert_cache_max() -> usize {
         .unwrap_or(DEFAULT_CACHE_MAX)
 }
 
+/// The dir for PLATFORM-CA leaves - `{base}/{pq_mode}/platform/`.
+///
+/// CERTENV-1: a cache directory is keyed by WHO SIGNED the leaf, not by
+/// whatever upstream the process happens to be configured against.
+///
+/// The distinction matters because the two leaf kinds have different
+/// validity rules:
+///
+/// - A **platform-CA** leaf is valid under ANY upstream selection. The
+///   platform plane (`{label}.ops.sys.{root}`, mTLS workload pairs) is
+///   always internal - the exposure map never makes it public - so its
+///   leaf does not depend on which public CA is configured. Putting these
+///   in a shared dir means flipping `local` -> `staging` does NOT strand
+///   every service without a certificate.
+/// - An **upstream** leaf IS issuer-scoped: a Let's Encrypt staging chain
+///   must never answer when the fleet is pointed at production (and vice
+///   versa), so those live under their environment.
+///
+/// Both properties together give the non-destructive switch: `local`,
+/// `staging` and `production` coexist on disk, each reads its own upstream
+/// dir plus the shared platform dir, and no certificate is ever deleted to
+/// make a switch take effect.
+pub fn tls_cert_cache_platform_dir() -> PathBuf {
+    let secrets =
+        std::env::var("SENTIN8_SECRETS_DIR").unwrap_or_else(|_| "../.run/secrets".to_string());
+    let base = PathBuf::from(secrets).join("tls-certs");
+    PathBuf::from(sentin8_config::tls_cert_cache_dir_mode(&base.to_string_lossy()))
+        .parent()
+        .map(|p| p.join("platform"))
+        .unwrap_or_else(|| base.join("platform"))
+}
+
 /// Persist a minted leaf pair under the cache dir (0700/0600).
 ///
 /// Best-effort by design: a read-only or missing cache dir NEVER fails the
 /// mint - the in-memory registration already succeeded and the next boot
 /// simply re-mints on demand (load-or-mint, never load-only).
+///
+/// CERTENV-1: the pair goes where its ISSUER says it belongs - a
+/// platform-CA leaf into the shared `platform/` dir, an upstream leaf into
+/// the active environment's dir. Reading the issuer off the chain that was
+/// actually downloaded is the only trustworthy statement of provenance;
+/// inferring it from configuration would mis-file a leaf whenever the
+/// exposure map and the config disagreed.
 pub fn persist_leaf_pair(hostname: &str, cert_pem: &[u8], key_pem: &[u8]) {
     use std::os::unix::fs::PermissionsExt;
-    let dir = tls_cert_cache_dir();
+    let dir = if leaf_is_platform_signed(cert_pem) {
+        tls_cert_cache_platform_dir()
+    } else {
+        tls_cert_cache_dir()
+    };
     if std::fs::create_dir_all(&dir).is_err() {
         return; // unwritable cache root - serving continues, next boot re-mints
     }
@@ -94,17 +140,30 @@ pub struct CachedLeaf {
 /// pair costs one stat+delete, never a broken serve. Returns the loadable
 /// pairs in mtime order; the caller parses + registers them.
 pub fn scan_cache() -> Vec<CachedLeaf> {
-    let dir = tls_cert_cache_dir();
-    let entries = match std::fs::read_dir(&dir) {
-        Ok(e) => e,
-        Err(_) => return Vec::new(), // no cache dir yet - cold start
-    };
     let max = tls_cert_cache_max();
 
     // (mtime, hostname, cert_path, key_path) - collect then sort newest first.
     let mut found: Vec<(std::time::SystemTime, String, PathBuf, PathBuf)> = Vec::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
+    // CERTENV-1: the sharing rule is per-DIRECTORY, not per-leaf.
+    //
+    //  - the shared `platform/` dir is ALWAYS scanned: those leaves are
+    //    signed by the platform CA and are valid under any upstream
+    //    setting, so a switch must not strand the platform plane;
+    //  - the ACTIVE environment's dir is scanned for upstream leaves: a
+    //    staging chain must not answer a production order (or the
+    //    reverse), so those stay issuer-scoped.
+    //
+    // Because both dirs coexist on disk and nothing is ever deleted, an
+    // operator can flip `local` <-> `staging` <-> `production` freely.
+    let dir = tls_cert_cache_dir();
+    let dirs = [dir.clone(), tls_cert_cache_platform_dir()];
+    for dir in dirs {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue, // absent dir is normal (no leaves for this env yet)
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
         let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
             continue;
         };
@@ -148,6 +207,7 @@ pub fn scan_cache() -> Vec<CachedLeaf> {
                 let _ = std::fs::remove_file(&key_path);
             }
         }
+        }
     }
     found.sort_by(|a, b| b.0.cmp(&a.0)); // newest first
     found
@@ -159,6 +219,58 @@ pub fn scan_cache() -> Vec<CachedLeaf> {
             key_path,
         })
         .collect()
+}
+
+/// Whether a PEM chain's LEAF was signed by the platform CA (CERTENV-1).
+///
+/// Looks for the marker the CA builder stamps into the intermediate's
+/// subject (`OU=Sentin8:ACME`) in the chain's ISSUER block. A marker test,
+/// not a signature verification: this runs on the persist path where the
+/// only decision is "which directory", and a forged marker could at worst
+/// mis-file a leaf - it cannot make a foreign chain verify, because the
+/// serving path still verifies against the configured trust roots.
+///
+/// An unparsable chain, or one with no issuer block, is treated as UPSTREAM:
+/// that routes an unknown artifact into the env-scoped dir, the
+/// conservative choice (it can never leak into the always-scanned platform
+/// dir).
+fn leaf_is_platform_signed(cert_pem: &[u8]) -> bool {
+    const MARKER: &str = "Sentin8:ACME";
+    use base64::Engine as _;
+    let text = String::from_utf8_lossy(cert_pem);
+
+    // Decode the SECOND certificate block (the issuer) and search the DER
+    // for the OU marker. A DER IA5String/PrintableString carries its bytes
+    // verbatim, so a raw substring search is exact and dependency-free -
+    // the same discipline `der_not_after` uses for the validity window.
+    let mut b64 = String::new();
+    let mut inside = false;
+    let mut block = 0usize;
+    for line in text.lines() {
+        if line.starts_with("-----BEGIN CERTIFICATE-----") {
+            inside = true;
+            block += 1;
+            b64.clear();
+            continue;
+        }
+        if line.starts_with("-----END CERTIFICATE-----") && inside {
+            if block == 2 {
+                break;
+            }
+            inside = false;
+            continue;
+        }
+        if inside && block == 2 {
+            b64.push_str(line.trim());
+        }
+    }
+    if b64.is_empty() {
+        return false;
+    }
+    let Ok(der) = base64::engine::general_purpose::STANDARD.decode(b64.trim()) else {
+        return false;
+    };
+    der.windows(MARKER.len()).any(|w| w == MARKER.as_bytes())
 }
 
 /// Read one `{hostname}.crt` + `{hostname}.key` pair from disk.
@@ -351,6 +463,110 @@ mod tests {
             .exists());
         let _ = std::fs::remove_dir_all(&dir);
         std::env::remove_var("SENTIN8_SECRETS_DIR");
+    }
+
+    /// CERTENV-1: switching issuer environments is NON-DESTRUCTIVE, and a
+    /// platform-CA leaf keeps serving across the switch.
+    ///
+    /// The two properties that matter:
+    ///
+    /// 1. A platform-signed leaf lives in the shared `platform/` dir and is
+    ///    visible under EVERY environment - flipping to staging must not
+    ///    strand the platform plane without certificates (that failure
+    ///    makes every service reject its own SNI with `access_denied`).
+    /// 2. An upstream leaf stays scoped to the env that minted it, and the
+    ///    other env's leaves are never disturbed - so switching back finds
+    ///    everything intact, with no deletion required at any point.
+    #[test]
+    fn issuer_switch_keeps_platform_leaves_and_scopes_upstream() {
+        let _g = ENV_LOCK.lock().unwrap();
+        let dir = temp_dir("certenv-switch");
+        std::env::set_var("SENTIN8_SECRETS_DIR", &dir);
+
+        // A chain whose ISSUER carries the platform marker -> shared dir.
+        let platform_chain = platform_pem_chain();
+        // A chain with no marker (a public CA) -> env-scoped.
+        let upstream_chain = upstream_pem_chain();
+
+        // Under `local` both kinds land somewhere.
+        std::env::set_var("SENTIN8_ACME_FORCE_INTERNAL", "true");
+        std::env::remove_var("SENTIN8_ACME_UPSTREAM_DIRECTORY_URL");
+        let local_dir = tls_cert_cache_dir();
+        persist_leaf_pair("p.local", &platform_chain, b"k");
+        persist_leaf_pair("u.local", &upstream_chain, b"k");
+        assert!(tls_cert_cache_platform_dir().join("p.local.crt").exists());
+        assert!(local_dir.join("u.local.crt").exists());
+
+        // Flip to staging: the platform leaf MUST still be visible (shared
+        // dir is always scanned), while the local upstream leaf is not.
+        std::env::set_var("SENTIN8_ACME_FORCE_INTERNAL", "false");
+        std::env::set_var(
+            "SENTIN8_ACME_UPSTREAM_DIRECTORY_URL",
+            "https://acme-staging-v02.api.letsencrypt.org/directory",
+        );
+        let staging_dir = tls_cert_cache_dir();
+        assert!(staging_dir.ends_with("staging"), "got {staging_dir:?}");
+        assert_ne!(staging_dir, local_dir);
+        let platform_path = tls_cert_cache_platform_dir().join("p.local.crt");
+        assert!(
+            platform_path.exists(),
+            "a platform-CA leaf must survive an issuer switch"
+        );
+        assert!(
+            !staging_dir.join("u.local.crt").exists(),
+            "an upstream leaf must not be visible under another env"
+        );
+
+        // Mint a staging leaf; it lands in staging/, not the shared dir.
+        persist_leaf_pair("u.staging", &upstream_chain, b"k");
+        assert!(staging_dir.join("u.staging.crt").exists());
+        assert!(!tls_cert_cache_platform_dir().join("u.staging.crt").exists());
+
+        // The local upstream leaf and the platform leaf are both untouched.
+        assert!(local_dir.join("u.local.crt").exists());
+        assert!(platform_path.exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+        std::env::remove_var("SENTIN8_SECRETS_DIR");
+        std::env::remove_var("SENTIN8_ACME_FORCE_INTERNAL");
+        std::env::remove_var("SENTIN8_ACME_UPSTREAM_DIRECTORY_URL");
+    }
+
+    /// A two-block PEM chain whose issuer carries the platform CA marker.
+    fn platform_pem_chain() -> Vec<u8> {
+        use base64::Engine as _;
+        let leaf = base64::engine::general_purpose::STANDARD.encode(b"leaf");
+        let issuer = base64::engine::general_purpose::STANDARD
+            .encode(b"..OU=Sentin8:ACME,O=Sentin8,C=CA..");
+        format!(
+            "-----BEGIN CERTIFICATE-----\n{leaf}\n-----END CERTIFICATE-----\n\
+             -----BEGIN CERTIFICATE-----\n{issuer}\n-----END CERTIFICATE-----\n"
+        )
+        .into_bytes()
+    }
+
+    /// A two-block PEM chain with no platform marker (a public CA).
+    fn upstream_pem_chain() -> Vec<u8> {
+        use base64::Engine as _;
+        let leaf = base64::engine::general_purpose::STANDARD.encode(b"leaf");
+        let issuer =
+            base64::engine::general_purpose::STANDARD.encode(b"..CN=YE1,O=Lets Encrypt..");
+        format!(
+            "-----BEGIN CERTIFICATE-----\n{leaf}\n-----END CERTIFICATE-----\n\
+             -----BEGIN CERTIFICATE-----\n{issuer}\n-----END CERTIFICATE-----\n"
+        )
+        .into_bytes()
+    }
+
+    #[test]
+    fn platform_marker_classifies_correctly() {
+        assert!(leaf_is_platform_signed(&platform_pem_chain()));
+        assert!(!leaf_is_platform_signed(&upstream_pem_chain()));
+        // Fail safe: an unknown/single-block chain is treated as upstream.
+        assert!(!leaf_is_platform_signed(b"garbage"));
+        assert!(!leaf_is_platform_signed(
+            b"-----BEGIN CERTIFICATE-----\nAA==\n-----END CERTIFICATE-----\n"
+        ));
     }
 
     #[test]

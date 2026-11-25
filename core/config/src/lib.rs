@@ -216,8 +216,144 @@ pub fn acme_data_dir_mode(base: &str) -> String {
 /// leaves minted under the active transport posture; a stale leaf of a
 /// different family is unreachable by construction). The caller passes
 /// the cache base (`{SENTIN8_SECRETS_DIR}/tls-certs`).
+///
+/// CERTENV-1: the cache is ALSO namespaced by the issuer environment
+/// ([`upstream_env`]) - `{base}/{pq_mode()}/{env}`. A leaf minted against
+/// Let's Encrypt staging is unreachable when the process is pointed at
+/// production, and vice versa, so a directory switch can never serve a
+/// leaf the active issuer did not mint.
 pub fn tls_cert_cache_dir_mode(base: &str) -> String {
-    format!("{}/{}", base.trim_end_matches('/'), pq_mode())
+    tls_cert_cache_dir_mode_for(base, &upstream_env())
+}
+
+/// [`tls_cert_cache_dir_mode`] with the issuer environment supplied by the
+/// caller.
+///
+/// A caller holding a configuration must derive the word from ITS OWN
+/// fields ([`upstream_env_for`]) rather than re-reading the process env,
+/// so the path it writes and the path it reads back can never disagree.
+pub fn tls_cert_cache_dir_mode_for(base: &str, env: &str) -> String {
+    format!("{}/{}/{}", base.trim_end_matches('/'), pq_mode(), env)
+}
+
+/// The upstream issuer environment the ACTIVE configuration targets -
+/// `local`, `staging`, `production`, or `custom-{host}` (CERTENV-1).
+///
+/// This is the identity every issuer-scoped store is namespaced by: the
+/// upstream ACME account, the certificate provenance stamp, and the
+/// `sentin8-tls` leaf cache. One word, derived once, so a directory
+/// switch moves all three together and no store can leak across it.
+///
+/// The derivation is a classification of the directory URL, never a
+/// free-form operator string - the operator's only knob is
+/// `SENTIN8_ACME_UPSTREAM_DIRECTORY_URL`, so there is nothing to keep in
+/// sync and nothing to mistype.
+///
+/// - `SENTIN8_ACME_FORCE_INTERNAL=true` or an empty URL → `local`
+/// - Let's Encrypt staging directory → `staging`
+/// - Let's Encrypt production directory → `production`
+/// - any other directory → `custom-{sanitized-host}` (ZeroSSL, Buypass,
+///   Pebble, an internal mirror: each gets its own universe)
+///
+/// # Examples
+///
+/// ```
+/// use sentin8_config::upstream_env_for;
+///
+/// assert_eq!(
+///     upstream_env_for("https://acme-staging-v02.api.letsencrypt.org/directory", false),
+///     "staging"
+/// );
+/// assert_eq!(
+///     upstream_env_for("https://acme-v02.api.letsencrypt.org/directory", false),
+///     "production"
+/// );
+/// // force-internal wins over any URL: the box has no outbound path.
+/// assert_eq!(
+///     upstream_env_for("https://acme-v02.api.letsencrypt.org/directory", true),
+///     "local"
+/// );
+/// assert_eq!(upstream_env_for("", false), "local");
+/// assert_eq!(
+///     upstream_env_for("https://acme.zerossl.com/v2/DV90", false),
+///     "custom-acme-zerossl-com"
+/// );
+/// ```
+pub fn upstream_env_for(directory_url: &str, force_internal: bool) -> String {
+    if force_internal {
+        return "local".to_string();
+    }
+    let url = directory_url.trim().to_ascii_lowercase();
+    if url.is_empty() {
+        return "local".to_string();
+    }
+    if url.contains("acme-staging-v02.api.letsencrypt.org") {
+        return "staging".to_string();
+    }
+    if url.contains("acme-v02.api.letsencrypt.org") {
+        return "production".to_string();
+    }
+    // A provider we do not name explicitly still gets its own universe -
+    // never shared with `production`. The label is the host, sanitized to
+    // a path-safe word (`acme.zerossl_com` → `custom-acme-zerossl_com`).
+    let host = url
+        .split("://")
+        .nth(1)
+        .unwrap_or(&url)
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .split('@')
+        .next_back()
+        .unwrap_or("");
+    let label: String = host
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let label = label.trim_matches('-').to_string();
+    if label.is_empty() {
+        "custom-unknown".to_string()
+    } else {
+        format!("custom-{label}")
+    }
+}
+
+/// The ACTIVE upstream issuer environment, read from the process env
+/// (`SENTIN8_ACME_UPSTREAM_DIRECTORY_URL` + `SENTIN8_ACME_FORCE_INTERNAL`).
+/// See [`upstream_env_for`] for the derivation.
+pub fn upstream_env() -> String {
+    let force_internal = std::env::var("SENTIN8_ACME_FORCE_INTERNAL")
+        .map(|v| {
+            let t = v.trim();
+            t.eq_ignore_ascii_case("true") || t == "1"
+        })
+        .unwrap_or(false);
+    let directory = std::env::var("SENTIN8_ACME_UPSTREAM_DIRECTORY_URL").unwrap_or_default();
+    upstream_env_for(&directory, force_internal)
+}
+
+/// The upstream-account directory for the ACTIVE pq mode + issuer
+/// environment - `{acme_data_dir}/{pq_mode()}/upstream/{env}` (CERTENV-1).
+///
+/// Splitting the account out of the mode root is what makes a directory
+/// switch safe: the account key + kid are bound to the directory that
+/// issued them (RFC 8555 §7.3), so a production kid presented to staging
+/// is a permanent `accountDoesNotExist`. With one directory per
+/// environment that mismatch cannot be constructed.
+pub fn upstream_account_dir(base_mode_dir: &str) -> String {
+    upstream_account_dir_for(base_mode_dir, &upstream_env())
+}
+
+/// [`upstream_account_dir`] with the environment supplied by the caller.
+///
+/// Callers that HOLD a configuration (acme's `AcmeConfig`) must use this
+/// form with their own [`upstream_env_for`] value: the store a config
+/// writes to and the store it reads from have to agree even when the
+/// process env differs from the config's fields (a rig override block, a
+/// unit test, a CLI flag). Deriving twice from two different sources is
+/// exactly the drift this module exists to prevent.
+pub fn upstream_account_dir_for(base_mode_dir: &str, env: &str) -> String {
+    format!("{}/upstream/{}", base_mode_dir.trim_end_matches('/'), env)
 }
 
 /// Sentin8:Storage local-FS adapter root - `{state_dir()}/storage`.
