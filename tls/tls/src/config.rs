@@ -98,17 +98,15 @@ impl Sentin8TlsConfig {
             env::var("SENTIN8_DOMAIN").unwrap_or_else(|_| "local.sentin8.dev".to_string());
 
         let acme_directory_url = env::var("SENTIN8_ACME_DIRECTORY_URL").unwrap_or_else(|_| {
-            // Default: Acme on the local machine. The port is auto-assigned
-            // by captain and propagated via SENTIN8_ACME_PORT; fall back to
-            // a base-port-derived value only when that var is unset (e.g.
-            // running tls standalone).
+            // Default: Acme on the local machine. ADDRESSING: the default is
+            // PORTLESS - a platform hostname URL never carries a port. The
+            // backend port is resolved separately (`SENTIN8_ACME_PORT`, then
+            // the port pool low bound) and rides the pinned `SocketAddr`; the
+            // raw IP here is only a hint that `acme_endpoint_from_config`
+            // rewrites into `acme.ops.sys.{domain}` for SNI.
             let orch_ip =
                 env::var("SENTIN8_CAPTAIN_LOCAL_IP").unwrap_or_else(|_| "127.0.0.1".to_string());
-            let sentin8_acme_port = env::var("SENTIN8_ACME_PORT").unwrap_or_else(|_| {
-                // Last-resort fallback: the first auto-assigned pool port.
-                sentin8_config::port_pool_low().to_string()
-            });
-            format!("https://{orch_ip}:{sentin8_acme_port}/acme/directory")
+            format!("https://{orch_ip}/acme/directory")
         });
 
         let tls_mode = TlsMode::from_str(

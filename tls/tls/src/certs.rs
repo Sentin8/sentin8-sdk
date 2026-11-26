@@ -417,8 +417,22 @@ impl WildcardCertResolver {
     /// required because the ACME server's `WildcardCertResolver` can only
     /// find its bootstrap cert by SNI hostname, not by raw IP.
     fn resolve_acme_endpoint(&self) -> Option<(String, String, std::net::SocketAddr)> {
-        let d = self.discovery.as_ref()?;
-        let inst = d.resolve_instance("sentin8:acme")?;
+        // Discovery first: it carries the live IP:port, which is the only way to
+        // pin the connection to a specific ACME instance.
+        //
+        // When discovery has no healthy `sentin8:acme` - a boot race, or a
+        // registry that has not yet observed the instance - the CONFIGURED
+        // `acme_url` is the fallback. It exists on this struct precisely for that
+        // case, and ignoring it left a service unable to mint a cert whenever
+        // discovery lagged, with the failure surfacing only as "ACME not resolved
+        // via service discovery".
+        let discovered = self
+            .discovery
+            .as_ref()
+            .and_then(|d| d.resolve_instance("sentin8:acme"));
+        let Some(inst) = discovered else {
+            return self.acme_endpoint_from_config();
+        };
         let socket_addr = std::net::SocketAddr::from((
             inst.local_ip
                 .parse::<std::net::IpAddr>()
@@ -428,9 +442,86 @@ impl WildcardCertResolver {
         let sentin8_domain =
             std::env::var("SENTIN8_DOMAIN").unwrap_or_else(|_| "local.sentin8.dev".to_string());
         let sni_host = format!("acme.ops.sys.{sentin8_domain}");
-        let url = format!("https://{}:{}/acme/directory", sni_host, inst.local_port);
+        // ADDRESSING: a platform hostname URL NEVER carries a port - the
+        // name implies 443 through the Proxy. The real backend port rides
+        // the pinned SocketAddr (below) and reqwest applies it because the
+        // URL has no explicit port (`explicit_port == false` => the
+        // resolved address keeps its own port).
+        let url = acme_directory_url(&sni_host);
         tracing::info!(url = %url, sni = %sni_host, ip = %inst.local_ip, port = inst.local_port, "sentin8-tls: resolved ACME endpoint from service discovery");
         Some((url, sni_host, socket_addr))
+    }
+
+    /// Build the ACME endpoint from the configured `acme_url` alone.
+    ///
+    /// Used when service discovery has no healthy ACME instance. The host is
+    /// resolved to an IP so the pin still applies; the port comes from the URL.
+    fn acme_endpoint_from_config(&self) -> Option<(String, String, std::net::SocketAddr)> {
+        let url = self.acme_url.trim().trim_end_matches('/').to_string();
+        if url.is_empty() {
+            return None;
+        }
+        let parsed = reqwest::Url::parse(&url).ok()?;
+        let configured_host = parsed.host_str()?.to_string();
+
+        // The SNI must be ACME's DNS NAME, not an IP. The configured URL usually
+        // carries the raw orchestrator IP (`https://192.168.x.y:8002/...`), and
+        // the ACME server picks its bootstrap certificate by SNI hostname - an IP
+        // SNI matches nothing and the handshake fails. Derive the name from
+        // SENTIN8_DOMAIN, which is how every other ACME reference in the fleet
+        // is built.
+        let sentin8_domain =
+            std::env::var("SENTIN8_DOMAIN").unwrap_or_else(|_| "local.sentin8.dev".to_string());
+        let host_is_ip = configured_host.parse::<std::net::IpAddr>().is_ok();
+        let host = if host_is_ip {
+            format!("acme.ops.sys.{sentin8_domain}")
+        } else {
+            configured_host.clone()
+        };
+
+        // Port: an explicit one in the configured URL wins; a PORTLESS
+        // configured URL means "ACMEC behind the Proxy on 443", so the
+        // backend port comes from the captain-assigned var instead of
+        // being guessed as 443.
+        let port = match parsed.port() {
+            Some(p) => p,
+            None => std::env::var("SENTIN8_ACME_PORT")
+                .ok()
+                .and_then(|p| p.trim().parse().ok())
+                .unwrap_or_else(sentin8_config::port_pool_low),
+        };
+
+        // Pin to the configured IP when it is one; otherwise resolve the name.
+        let ip = if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+            ip
+        } else if host_is_ip {
+            configured_host.parse::<std::net::IpAddr>().ok()?
+        } else {
+            std::net::ToSocketAddrs::to_socket_addrs(&(host.as_str(), port))
+                .ok()
+                .and_then(|mut it| it.next())
+                .map(|sa| sa.ip())?
+        };
+
+        // ADDRESSING: the emitted URL is ALWAYS portless. A platform
+        // hostname URL never carries a port - the port lives on the pinned
+        // SocketAddr, which reqwest applies because the URL has none.
+        let path = if parsed.path().is_empty() {
+            "/acme/directory"
+        } else {
+            parsed.path()
+        };
+        let url = format!("https://{host}{path}");
+
+        let socket_addr = std::net::SocketAddr::new(ip, port);
+        tracing::info!(
+            url = %url,
+            sni = %host,
+            %ip,
+            port,
+            "sentin8-tls: resolved ACME endpoint from CONFIGURED url (discovery had no healthy instance)"
+        );
+        Some((url, host, socket_addr))
     }
 }
 
@@ -438,8 +529,40 @@ impl WildcardCertResolver {
 ///
 /// Full ACME (RFC 8555) client flow. Returns `(cert_pem, key_pem)`.
 ///
+/// Parent path of the ACME directory URL, for the sibling endpoints.
+///
+/// The directory lives at `{base}/acme/directory`, and `new-account` /
+/// `new-order` are siblings of `directory`, not children of it. Appending
+/// `/../new-account` to the directory URL produces
+/// `/acme/directory/../new-account`, which RFC 3986 clients may or may not
+/// normalise before sending - and a server that routes on the literal path
+/// answers 404. Deriving the parent explicitly removes the ambiguity.
+fn acme_sibling_url(acme_directory_url: &str) -> &str {
+    let trimmed = acme_directory_url.trim_end_matches('/');
+    let Some((parent, _)) = trimmed.rsplit_once('/') else {
+        return trimmed;
+    };
+    // A bare origin (`https://host`) splits at the scheme's own slash and would
+    // yield `https:`. Anything with no path left after the authority degrades to
+    // the input rather than to a broken URL.
+    if parent.ends_with(":/") || parent.ends_with(':') {
+        return trimmed;
+    }
+    parent
+}
+
+/// The ACME directory URL for a platform hostname.
+///
+/// ADDRESSING RULE (repo-wide, non-negotiable): a platform hostname URL
+/// never carries a port. `https://{host}/acme/directory` means "port 443
+/// through the Proxy", which routes by SNI. The backend port belongs to
+/// the pinned `SocketAddr`, never to the URL.
+fn acme_directory_url(sni_host: &str) -> String {
+    format!("https://{sni_host}/acme/directory")
+}
+
 /// `acme_directory_url` - the directory URL with the SNI hostname
-/// (e.g. `https://acme.ops.sys.local.sentin8.dev:8008/acme/directory`).
+/// (e.g. `https://acme.ops.sys.local.sentin8.dev/acme/directory`).
 /// `sni_host` - the SNI hostname for the ACME server (same as in the URL).
 /// `socket_addr` - the pinned IP:port to connect to (overrides DNS).
 /// `domain` - the domain to issue a cert for.
@@ -451,10 +574,21 @@ pub async fn request_cert_from_acme(
 ) -> Result<(Vec<u8>, Vec<u8>), String> {
     tracing::info!(domain, "sentin8-tls: requesting certificate from Acme");
 
+    // reqwest keys the override on the DOMAIN ONLY, and its own docs are
+    // explicit: "Ports in the URL itself will always be used instead of the port
+    // in the overridden addr." So the domain registered here must be the bare
+    // hostname - never `host:port`, which would match nothing and send the
+    // request to system DNS. Inside the fleet that DNS cannot resolve
+    // `acme.ops.sys.{domain}`, and the failure surfaces as a bare
+    // "error sending request" with no hint that the pin never applied.
+    let pinned_domain = match sni_host.rsplit_once(':') {
+        Some((host, _)) if !host.is_empty() => host,
+        _ => sni_host,
+    };
     let client = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(3))
         .timeout(std::time::Duration::from_secs(10))
-        .resolve(sni_host, socket_addr)
+        .resolve(pinned_domain, socket_addr)
         .build()
         .map_err(|e| format!("HTTP client error: {e}"))?;
 
@@ -472,10 +606,19 @@ pub async fn request_cert_from_acme(
         if let Some(b) = body {
             req = req.json(&b);
         }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| format!("request to {url} failed: {e}"))?;
+        let resp = req.send().await.map_err(|e| {
+            // reqwest's Display is a single opaque line; its Debug carries the
+            // cause (`is_dns`, `is_connect`, `is_tls`, ...). Every earlier
+            // diagnosis of an ACME fetch failure guessed wrong because Display
+            // hid that, so log both plus the structured predicates.
+            format!(
+                "request to {url} failed: {e} | debug={e:?} | connect={} request={} body={} timeout={}",
+                e.is_connect(),
+                e.is_request(),
+                e.is_body(),
+                e.is_timeout(),
+            )
+        })?;
         let status = resp.status();
         let text = resp
             .text()
@@ -500,7 +643,7 @@ pub async fn request_cert_from_acme(
     }
 
     // 1. New account
-    let account_url = format!("{acme_directory_url}/../new-account");
+    let account_url = format!("{}/new-account", acme_sibling_url(acme_directory_url));
     let account_resp = send_json(
         &client,
         reqwest::Method::POST,
@@ -512,7 +655,7 @@ pub async fn request_cert_from_acme(
     let _account_id = account_resp.get("id").ok_or("new-account: missing id")?;
 
     // 2. New order
-    let order_url = format!("{acme_directory_url}/../new-order");
+    let order_url = format!("{}/new-order", acme_sibling_url(acme_directory_url));
     let order_resp = send_json(
         &client,
         reqwest::Method::POST,
@@ -612,4 +755,103 @@ fn split_combined_pem(combined: &str) -> Result<(Vec<u8>, Vec<u8>), String> {
     let cert_pem = combined[..key_start].bytes().collect::<Vec<u8>>();
     let key_pem = combined[key_start..].bytes().collect::<Vec<u8>>();
     Ok((cert_pem, key_pem))
+}
+
+#[cfg(test)]
+mod acme_url_tests {
+    use super::acme_sibling_url;
+
+    #[test]
+    fn sibling_is_the_parent_path() {
+        // A server routing on the literal path would 404 the `/../` form.
+        assert_eq!(
+            acme_sibling_url("https://acme.ops.sys.example.dev:8002/acme/directory"),
+            "https://acme.ops.sys.example.dev:8002/acme"
+        );
+    }
+
+    #[test]
+    fn trailing_slash_is_ignored() {
+        assert_eq!(
+            acme_sibling_url("https://acme.example.dev/acme/directory/"),
+            "https://acme.example.dev/acme"
+        );
+    }
+
+    #[test]
+    fn a_bare_origin_degrades_to_itself() {
+        // Defensive: an unexpected shape must not produce an empty URL.
+        assert_eq!(
+            acme_sibling_url("https://acme.example.dev"),
+            "https://acme.example.dev"
+        );
+    }
+}
+
+#[cfg(test)]
+mod addressing_rule_tests {
+    use super::acme_directory_url;
+
+    /// ADDRESSING RULE: a platform hostname URL never carries a port.
+    ///
+    /// Regression for the live failure where every service built
+    /// `https://acme.ops.sys.{domain}:8002/acme/directory` and reported
+    /// "cannot reach acme". The port belongs to the pinned SocketAddr.
+    #[test]
+    fn acme_directory_url_is_portless() {
+        assert_eq!(
+            acme_directory_url("acme.ops.sys.local.sentin8.dev"),
+            "https://acme.ops.sys.local.sentin8.dev/acme/directory"
+        );
+    }
+
+    #[test]
+    fn acme_directory_url_never_contains_a_port() {
+        let url = acme_directory_url("acme.ops.sys.oidf.sentin8.dev");
+        let after_scheme = url.trim_start_matches("https://");
+        let authority = after_scheme.split('/').next().unwrap_or_default();
+        assert!(
+            !authority.contains(':'),
+            "authority must have no port separator: {authority}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod resolve_key_tests {
+    /// The domain handed to reqwest's `.resolve()` must be the bare hostname.
+    ///
+    /// reqwest 0.12 documents: "Ports in the URL itself will always be used
+    /// instead of the port in the overridden addr." Registering `host:port`
+    /// therefore matches nothing and the override silently never applies - the
+    /// request goes to system DNS, which cannot resolve a fleet service name.
+    fn pinned_domain(sni_host: &str) -> &str {
+        match sni_host.rsplit_once(':') {
+            Some((host, _)) if !host.is_empty() => host,
+            _ => sni_host,
+        }
+    }
+
+    #[test]
+    fn a_host_port_sni_yields_the_bare_host() {
+        assert_eq!(
+            pinned_domain("acme.ops.sys.example.dev:8002"),
+            "acme.ops.sys.example.dev"
+        );
+    }
+
+    #[test]
+    fn a_bare_host_is_unchanged() {
+        assert_eq!(
+            pinned_domain("acme.ops.sys.example.dev"),
+            "acme.ops.sys.example.dev"
+        );
+    }
+
+    #[test]
+    fn a_scheme_only_string_does_not_become_empty() {
+        // Defensive: an odd input must never produce an empty domain, which
+        // would register an override for "" and match every request.
+        assert_eq!(pinned_domain(":8002"), ":8002");
+    }
 }
