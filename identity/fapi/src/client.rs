@@ -527,6 +527,20 @@ fn build_http_client(opts: &ClientOptions) -> Result<reqwest::Client, FapiError>
         builder = builder.identity(identity);
     }
 
+    // A private platform CA is not in the built-in webpki root set, and a
+    // container has no host trust store to fall back on - so an explicit
+    // anchor is the only way discovery can verify the issuer there.
+    if let Some(ca_path) = &opts.ca_pem {
+        let pem = std::fs::read(ca_path)
+            .map_err(|e| FapiError::Config(format!("read ca_pem failed: {e}")))?;
+        // The file may be a bundle; `from_pem_bundle` handles every cert in it.
+        let certs = reqwest::Certificate::from_pem_bundle(&pem)
+            .map_err(|e| FapiError::Config(format!("parse ca_pem failed: {e}")))?;
+        for cert in certs {
+            builder = builder.add_root_certificate(cert);
+        }
+    }
+
     builder
         .build()
         .map_err(|e| FapiError::Config(format!("HTTP client build failed: {}", e)))

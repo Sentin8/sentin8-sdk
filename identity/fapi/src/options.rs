@@ -35,6 +35,14 @@ pub struct ClientOptions {
     pub tls_cert: Option<PathBuf>,
     /// Path to a PEM-encoded client TLS private key for mTLS.
     pub tls_key: Option<PathBuf>,
+    /// Extra trust anchor(s) for the issuer's TLS certificate, PEM.
+    ///
+    /// The default HTTP client trusts the built-in webpki roots only, which
+    /// do not include a private platform CA. A caller running inside a
+    /// container (where the host trust store is not mounted) must supply the
+    /// platform's root here, or every discovery fetch fails with an opaque
+    /// connection error while a plain `wget` against the same URL succeeds.
+    pub ca_pem: Option<PathBuf>,
     /// `tls_client_auth` subject distinguished name (the `tls_client_auth_subject_dn`
     /// registered with Auth). Sent as `tls_client_auth` body parameter when set.
     pub tls_client_auth_subject_dn: Option<String>,
@@ -69,6 +77,7 @@ impl Default for ClientOptions {
             redirect_uri: String::new(),
             scopes: None,
             tls_cert: None,
+            ca_pem: None,
             tls_key: None,
             tls_client_auth_subject_dn: None,
             discovery_ttl: Duration::from_secs(300),
@@ -155,6 +164,15 @@ impl ClientOptionsBuilder {
         self.opts.tls_cert = Some(cert.into());
         self
     }
+    /// Add a PEM trust anchor for the issuer's TLS certificate.
+    ///
+    /// Needed by any caller whose environment does not provide the platform
+    /// CA through the OS trust store - notably a container.
+    pub fn ca_pem(mut self, path: impl Into<PathBuf>) -> Self {
+        self.opts.ca_pem = Some(path.into());
+        self
+    }
+
     pub fn discovery_ttl(mut self, ttl: Duration) -> Self {
         self.opts.discovery_ttl = ttl;
         self
