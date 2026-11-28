@@ -121,6 +121,48 @@ struct CachedJwks {
     fetched_at: Instant,
 }
 
+/// Is `iss` a trusted issuer for a client configured with `platform_issuer`?
+///
+/// Two forms are accepted:
+///
+/// 1. the configured issuer itself - staff and CLI tokens carry it;
+/// 2. the TENANT form of the same domain: `https://auth.{env}.{org}.{domain}`
+///    where `{domain}` is taken from the platform issuer's
+///    `auth.ops.sys.{domain}`. Customer tokens minted for an app instance
+///    carry their own tenant Auth host as `iss`, and the env/org labels are
+///    run-scoped so they cannot be enumerated up front.
+///
+/// The signature is verified BEFORE this runs, so this function only decides
+/// whether an already-authentic token was issued by an Auth host the caller
+/// trusts. Anchoring the tenant form to the configured domain keeps a foreign
+/// issuer from qualifying.
+fn issuer_is_trusted(iss: &str, platform_issuer: &str) -> bool {
+    if iss == platform_issuer {
+        return true;
+    }
+    // Derive the root domain from the platform issuer:
+    // `https://auth.ops.sys.local.sentin8.dev` -> `local.sentin8.dev`.
+    let Some(platform_host) = platform_issuer
+        .strip_prefix("https://")
+        .or_else(|| platform_issuer.strip_prefix("http://"))
+    else {
+        return false;
+    };
+    // Strip the platform host prefix `auth.ops.sys.` to reach the domain.
+    let domain = platform_host
+        .strip_prefix("auth.ops.sys.")
+        .or_else(|| platform_host.strip_prefix("auth."))
+        .unwrap_or(platform_host);
+    // The tenant form: https://auth.{env}.{org}.{domain}. At least one label
+    // must exist on each side of the domain for the host to be tenant-shaped.
+    iss.starts_with("https://auth.")
+        && iss.ends_with(&format!(".{domain}"))
+        // Reject the degenerate `https://auth.{domain}` (no tenant labels) -
+        // that is not the platform issuer and not a tenant form.
+        && iss.len() > format!("https://auth.{domain}").len()
+        && !iss.contains(&format!("//auth.ops.sys.{domain}"))
+}
+
 impl Client {
     /// Create a new Auth client.
     pub fn new(opts: ClientOptions) -> Self {
@@ -668,11 +710,48 @@ impl Client {
             // Verify the token.
             let doc = self.discover().await?;
             let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::RS256);
-            validation.set_issuer(&[&doc.issuer]);
+            // The ISSUER is checked below, not here - see why.
+            //
+            // A platform service is configured with ONE issuer (the platform
+            // Auth), but tokens minted for a tenant carry that tenant's own
+            // Auth host as `iss` - `auth.{env}.{org}.{domain}`, e.g.
+            // `https://auth.prod.ibank1234.local.sentin8.dev`. Pinning
+            // validation to the single platform issuer rejected every
+            // tenant-scoped customer call with
+            //   JWT verification failed: InvalidIssuer
+            // which surfaced as a 401 on the app's own inbox fetch.
+            //
+            // Pinning it to a hard-coded list is not possible either, because
+            // the org/env labels are run-scoped. So: prove the SIGNATURE with
+            // jsonwebtoken (which is what actually authenticates), then check
+            // `iss` against an allow-list shaped as
+            //   {platform issuer}  OR  https://auth.*.*.{configured domain}
+            //
+            // This is not a relaxation of trust:
+            //   * the signature is verified against the same JWKS before the
+            //     issuer is even considered;
+            //   * the tenant form is anchored to the SAME configured domain,
+            //     so a foreign issuer cannot qualify;
+            //   * the platform issuer stays accepted for staff/CLI tokens.
+            // jsonwebtoken 9 skips the `iss` comparison when `iss` is
+            // `None` (Validation::new leaves it unset), so no flag exists to
+            // clear - the check below is the issuer gate.
             validation.validate_aud = false;
 
             let data = jsonwebtoken::decode::<serde_json::Value>(token, &dec_key, &validation)
                 .map_err(|e| AuthError::Decode(format!("JWT verification failed: {e}")))?;
+            let iss = data
+                .claims
+                .get("iss")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            if !issuer_is_trusted(iss, &doc.issuer) {
+                return Err(AuthError::Decode(format!(
+                    "JWT verification failed: InvalidIssuer (iss={iss}, \
+                     accepted: {} or the tenant form of its domain)",
+                    doc.issuer
+                )));
+            }
             data.claims
         };
 
